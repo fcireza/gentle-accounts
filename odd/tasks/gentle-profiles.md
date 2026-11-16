@@ -19,6 +19,8 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - S13. All paths are built with Node `path` APIs and the agent dir resolved by pi (`PI_CODING_AGENT_DIR` or the platform default), never with hard-coded `~` or `/`; the launcher resolves `gentle-shell` through `PATH` on every platform, including `.cmd` shims on Windows.
 - S14. Docs: README with install, Gentle Hub topics, the profile layout from S6, every command from S7/S10, and the Windows notes from S13.
 
+- S15. The active account is shown in Gentle Shell's status bar and sidebar through `ctx.ui.setStatus("gentle-profiles", text)` (never `setFooter`, which Gentle Shell owns; the Gentle Shell command palette is a closed catalog and is not extended). The text is `<profile> · <email>` where the email is `oauthAccount.emailAddress` read from `<claudeDir>/.claude.json` of the active profile (for a Claude dir equal to `<home>/.claude` it also falls back to `<home>/.claude.json`); when no email can be read the text is `<profile> · not logged in`; with no active profile the status is cleared (`undefined`). It is refreshed on session start, after a successful `/profile` switch, and on `/profile current`. Reading never throws and never exposes tokens.
+
 ## Tasks
 
 - [x] T1 (S6, S7, S13): profile store module: list/create/delete/current, name validation, path layout. Route: inline, test-first (RED observed). Commit: e04f27d
@@ -26,6 +28,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T3 (S9, S12): delete confirmation, login helper. Route: inline. Commit: 319c60f
 - [x] T4 (S10, S13): launcher CLI `gentle-profiles` (bin). Route: inline; tests and code written together, then an end-to-end run with a fake gentle-shell on PATH. Commit: 96d85d3
 - [x] T5 (S1, S3, S14): package.json metadata (pi-package keyword, bin, files), README, Gentle Hub topics instructions, CI on three OSes, extension tests with a fake ExtensionAPI. Route: inline. Commit: 2772067
+- [ ] T6 (S15): account status in the status bar and sidebar. Route: worker (context backstop), test-first. Commit: -
 
 ## Log
 
@@ -36,3 +39,5 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - L7 (verification): independent gentle-ai-verify run against isolated state: S8, S10, S11 PASS, no credential loss across create/launch/rotation/failure scenarios. Three advisories (stray default profile on corrupt live file, outgoing snapshot written before target validated, unguarded session_start) fixed with regression tests; 47 tests pass.
 - L6 (unverified): loading inside a real pi/gentle-shell session (tests use a fake ExtensionAPI); macOS Keychain keying of Claude Code logins per `CLAUDE_CONFIG_DIR`; Windows run (covered only by the CI matrix, not yet executed).
 - L3 (evidence): Gentle Hub lists public repos by GitHub topic `gentle-shell-package` (+ `gentle-shell-extension`). pi-claude-bridge README: `CLAUDE_CONFIG_DIR` cannot be set per credential in auth.json; it must be process env. pi agent dir for gentle-shell is `~/.gentle-shell/agent` (settings.json packages include `npm:pi-claude-bridge`).
+- L8 (user, verbatim): "pueede agregar al menu de gentle-shell profile, el account?" and, clarifying: "cuando dices perfil, te refieres a account? por ejemlo si te go dos dd claude, muestra la activa"
+- L9 (evidence): Gentle Shell's command palette is a hard-coded catalog (`lib/command-palette-catalog.ts:18-57`) and closed to extensions; the footer/sidebar render any extension `setStatus` text (`gentle-shell.ts:357-383`, `lib/shell-bar.ts:189,289-296`); `setFooter` is owned by Gentle Shell (`gentle-shell.ts:2560`). Claude Code keeps `oauthAccount.emailAddress` in `.claude.json` (verified keys on this machine, values not printed).
