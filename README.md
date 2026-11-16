@@ -22,11 +22,39 @@ Any other provider you have in pi is left alone.
 
 ## Install
 
+### In Gentle Shell
+
 ```sh
-pi install npm:gentle-profiles
+gentle-shell -- install git:github.com/fcireza/gentle-profiles
 ```
 
-Requirements: pi 1.5.1 or newer, the `claude` CLI and pi-claude-bridge for Claude profiles, and Node 22.18 or newer for the `gentle-profiles` launcher.
+Everything after `--` goes to pi, which clones the package into Gentle Shell's home (`~/.gentle-shell/agent`) and adds it to that home's `settings.json`. Restart Gentle Shell and `/profile` is available. Gentle Shell options such as `--home <path>` go before the `--`.
+
+### In plain pi
+
+```sh
+pi install git:github.com/fcireza/gentle-profiles
+```
+
+Requirements: pi 1.5.1 or newer, the `claude` CLI and pi-claude-bridge for Claude profiles, and Node 22.18 or newer for the launcher.
+
+### The `gentle-profiles` launcher (optional)
+
+The extension already gives you `/profile` inside Gentle Shell. The launcher is for starting a session already on a profile. Installing the package from git does not put it on your `PATH`, so call it by path or add an alias:
+
+```sh
+# bash / zsh
+alias gentle-profiles='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-profiles/bin/gentle-profiles.mjs'
+```
+
+```powershell
+# PowerShell profile
+function gentle-profiles { node "$env:USERPROFILE\.gentle-shell\agent\git\github.com\fcireza\gentle-profiles\bin\gentle-profiles.mjs" @args }
+```
+
+## Update and remove
+
+Reinstalling pulls the latest `main`. To remove it, delete the `git:github.com/fcireza/gentle-profiles` line from the `packages` list in `~/.gentle-shell/agent/settings.json`. Your profiles stay on disk under `profiles/` until you delete that folder.
 
 ## Quick start
 
