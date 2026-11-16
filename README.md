@@ -137,15 +137,15 @@ CI runs the tests on Linux, macOS and Windows with Node 22 and 24.
 
 ## Releases
 
-Releases are automatic and follow [Conventional Commits](https://www.conventionalcommits.org/). `main` only accepts Pull Requests, so use a conventional PR title (`feat: ...`, `fix: ...`, `docs: ...`); a check enforces it.
+Releases are automatic and follow [Conventional Commits](https://www.conventionalcommits.org/). `main` only accepts squash-merged Pull Requests, so the PR title becomes the commit message: use a conventional title (`feat: ...`, `fix: ...`, `docs: ...`). A check enforces it.
 
 1. Merge your PRs into `main`.
 2. A bot keeps a **release PR** open ("chore(main): release x.y.z") with the new version and the changelog.
 3. Merging that PR creates the `vx.y.z` tag and the GitHub Release with its notes.
 
-While the version is `0.x`, `feat` bumps the minor and `fix` bumps the patch. Add `!` or a `BREAKING CHANGE:` footer for a major bump.
+The first release is `0.1.0`. While the version is `0.x`, `feat` and breaking changes (`!` or a `BREAKING CHANGE:` footer) bump the minor, and `fix` bumps the patch.
 
-If the release PR's checks stay pending, add a `RELEASE_PLEASE_TOKEN` repository secret (a personal access token with contents and pull requests write). GitHub does not run CI on PRs opened with the default token. Closing and reopening the PR also triggers the checks.
+GitHub does not run CI on PRs the bot opens or updates with the default token, so the release PR's required checks stay pending. Either add a `RELEASE_PLEASE_TOKEN` repository secret (a personal access token with contents and pull requests write), or close and reopen the release PR to run the checks. Without the token you need to reopen it again after every update.
 
 ## Gentle Hub
 
