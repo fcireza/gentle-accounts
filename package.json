@@ -1,0 +1,48 @@
+{
+  "name": "gentle-profiles",
+  "version": "0.1.0",
+  "description": "Account profiles for gentle-shell and pi: switch between Claude (claude-bridge), Codex and Anthropic logins with /profile, or start a shell with a given profile.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "extension",
+    "gentle-shell",
+    "gentle-shell-package",
+    "gentle-shell-extension",
+    "claude-bridge",
+    "codex",
+    "profiles"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "gentle-profiles": "./bin/gentle-profiles.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.1"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.5.1",
+    "@types/node": "^24.13.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
