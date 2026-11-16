@@ -137,6 +137,18 @@ pnpm typecheck
 
 CI runs the tests on Linux, macOS and Windows with Node 22 and 24.
 
+## Releases
+
+Releases are automatic and follow [Conventional Commits](https://www.conventionalcommits.org/). `main` only accepts squash-merged Pull Requests, so the PR title becomes the commit message: use a conventional title (`feat: ...`, `fix: ...`, `docs: ...`). A check enforces it.
+
+1. Merge your PRs into `main`.
+2. A bot keeps a **release PR** open ("chore(main): release x.y.z") with the new version and the changelog.
+3. Merging that PR creates the `vx.y.z` tag and the GitHub Release with its notes.
+
+The first release is `0.1.0`. While the version is `0.x`, `feat` and breaking changes (`!` or a `BREAKING CHANGE:` footer) bump the minor, and `fix` bumps the patch.
+
+GitHub does not run CI on PRs the bot opens or updates with the default token, so the release PR's required checks stay pending. Either add a `RELEASE_PLEASE_TOKEN` repository secret (a personal access token with contents and pull requests write), or close and reopen the release PR to run the checks. Without the token you need to reopen it again after every update.
+
 ## Gentle Hub
 
 This repository carries the `gentle-shell-package` and `gentle-shell-extension` topics so it is listed in the [Gentle Hub](https://gentlemanprogramming.com/gentle-hub/).
