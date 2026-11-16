@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -24,6 +24,7 @@ function fakePi() {
 function fakeCtx(overrides: { hasUI?: boolean; idle?: boolean; select?: string; confirm?: boolean } = {}) {
   const notes: { message: string; type?: string }[] = [];
   let refreshed = 0;
+  const statuses: { key: string; text: string | undefined }[] = [];
   const ctx = {
     hasUI: overrides.hasUI ?? true,
     isIdle: () => overrides.idle ?? true,
@@ -31,14 +32,18 @@ function fakeCtx(overrides: { hasUI?: boolean; idle?: boolean; select?: string; 
       notify: (message: string, type?: string) => notes.push({ message, type }),
       select: async () => overrides.select,
       confirm: async () => overrides.confirm ?? false,
+      setStatus: (key: string, text: string | undefined) => statuses.push({ key, text }),
     },
     modelRegistry: { refresh: async () => void refreshed++ },
   } as unknown as ExtensionCommandContext;
-  return { ctx, notes, refreshed: () => refreshed };
+  return { ctx, notes, statuses, refreshed: () => refreshed };
 }
 
 function setup() {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-profiles-ext-"));
+  // Never read the real ~/.claude.json.
+  process.env.HOME = agentDir;
+  process.env.USERPROFILE = agentDir;
   process.env.PI_CODING_AGENT_DIR = agentDir;
   delete process.env.CLAUDE_CONFIG_DIR;
   const { pi, commands, events } = fakePi();
@@ -190,4 +195,48 @@ test("/profile switch to a corrupt target with no active profile creates nothing
   assert.equal(c.notes[0].type, "error");
   assert.deepEqual(store.list(), ["work"]);
   assert.equal(store.current(), null);
+});
+
+function writeAccount(claudeDir: string, email: string) {
+  mkdirSync(claudeDir, { recursive: true });
+  writeFileSync(join(claudeDir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: email, accessToken: "x" } }));
+}
+
+test("status bar shows the active account after session_start, switch and /profile current", async () => {
+  const { store, profile, events } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAccount(store.claudeDir("work"), "w@x.y");
+
+  const c1 = fakeCtx();
+  await events.get("session_start")!({}, c1.ctx);
+  assert.deepEqual(c1.statuses, [{ key: "gentle-profiles", text: "work · w@x.y" }]);
+
+  const c2 = fakeCtx();
+  await profile.handler("personal", c2.ctx);
+  assert.deepEqual(c2.statuses, [{ key: "gentle-profiles", text: "personal · not logged in" }]);
+
+  const c3 = fakeCtx();
+  await profile.handler("personal", c3.ctx);
+  assert.deepEqual(c3.statuses, []);
+
+  writeAccount(store.claudeDir("personal"), "p@x.y");
+  const c4 = fakeCtx();
+  await profile.handler("current", c4.ctx);
+  assert.deepEqual(c4.statuses, [{ key: "gentle-profiles", text: "personal · p@x.y" }]);
+  assert.match(c4.notes[0].message, /^Active profile: personal/);
+});
+
+test("status is cleared with no active profile and untouched without UI", async () => {
+  const { profile, events } = setup();
+  const c1 = fakeCtx();
+  await profile.handler("current", c1.ctx);
+  assert.equal(c1.notes[0].message, "No active profile.");
+  assert.deepEqual(c1.statuses, [{ key: "gentle-profiles", text: undefined }]);
+
+  const c2 = fakeCtx({ hasUI: false });
+  await events.get("session_start")!({}, c2.ctx);
+  await profile.handler("current", c2.ctx);
+  assert.deepEqual(c2.statuses, []);
 });

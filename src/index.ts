@@ -1,5 +1,7 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { readClaudeAccount, statusText } from "./account.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, validateProfileName } from "./store.ts";
 import { applyCurrentProfileEnv, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand } from "./login.ts";
@@ -20,6 +22,19 @@ function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "w
   ctx.ui.notify(message, type);
 }
 
+const STATUS_KEY = "gentle-profiles";
+
+/** Shows `<profile> · <email>` in the status bar; never throws. */
+function updateStatus(ctx: { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void } }, store: ProfileStore): void {
+  try {
+    if (!ctx?.hasUI || !ctx.ui?.setStatus) return;
+    const current = store.current();
+    ctx.ui.setStatus(STATUS_KEY, current ? statusText(current, readClaudeAccount(store.claudeDir(current), homedir())) : undefined);
+  } catch {
+    // The status line is cosmetic; never break the caller.
+  }
+}
+
 export default function gentleProfiles(pi: ExtensionAPI): void {
   const store = () => new ProfileStore(getAgentDir());
   const liveAuthPath = () => join(getAgentDir(), "auth.json");
@@ -30,6 +45,7 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
       if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
         applyCurrentProfileEnv(s, process.env);
       }
+      updateStatus(ctx, s);
     } catch (error) {
       // A corrupt auth.json must not break session start; the user still gets a clear message.
       ctx.ui.notify(`gentle-profiles: ${(error as Error).message}`, "error");
@@ -55,6 +71,7 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
       if (sub === "current") {
         const current = s.current();
         notify(ctx, current ? `Active profile: ${current} (CLAUDE_CONFIG_DIR=${s.claudeDir(current)})` : "No active profile.");
+        updateStatus(ctx, s);
         return;
       }
       if (sub === "create") {
@@ -115,6 +132,7 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
         if (result.status === "noop") return notify(ctx, `Already on profile "${target}".`);
         await ctx.modelRegistry.refresh();
         notify(ctx, `Switched to profile "${target}". Claude Code dir: ${s.claudeDir(target)}`);
+        updateStatus(ctx, s);
       } catch (error) {
         notify(ctx, (error as Error).message, "error");
       }

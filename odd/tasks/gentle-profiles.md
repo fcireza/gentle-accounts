@@ -28,7 +28,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T3 (S9, S12): delete confirmation, login helper. Route: inline. Commit: 319c60f
 - [x] T4 (S10, S13): launcher CLI `gentle-profiles` (bin). Route: inline; tests and code written together, then an end-to-end run with a fake gentle-shell on PATH. Commit: 96d85d3
 - [x] T5 (S1, S3, S14): package.json metadata (pi-package keyword, bin, files), README, Gentle Hub topics instructions, CI on three OSes, extension tests with a fake ExtensionAPI. Route: inline. Commit: 2772067
-- [ ] T6 (S15): account status in the status bar and sidebar. Route: worker (context backstop), test-first. Commit: -
+- [x] T6 (S15): account status in the status bar and sidebar. Route: worker (context backstop), test-first (RED observed by the worker, 59/59 after, reviewed by the parent). Commit: see git log "feat(status)"
 
 ## Log
 

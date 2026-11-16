@@ -58,6 +58,10 @@ Names use lowercase letters, digits, `-` or `_` (max 32 chars). Switching waits 
 - **Claude (claude-bridge):** run the command printed by `/profile login claude` in another terminal, or `gentle-profiles login <name>`. It is `claude auth login` with `CLAUDE_CONFIG_DIR` set to the profile's dir, so the login lands in that profile only.
 - **Codex / Anthropic:** switch to the profile, then use pi's own `/login`. The credentials are saved into the profile the next time you switch away.
 
+## Active account in the status bar
+
+Inside gentle-shell the status bar (and sidebar) shows `<profile> · <email>` for the active profile, or `<profile> · not logged in` when no Claude login is found. The email is read from Claude Code's `.claude.json` (`oauthAccount.emailAddress`) in the profile's Claude dir; tokens are never read out or shown. The text refreshes on session start, after a `/profile` switch and on `/profile current`; a login made from another terminal shows up at the next of those. Gentle Shell's own command palette is a closed catalog, so the entry points are the status bar plus `/profile`.
+
 ## Launcher: `gentle-profiles`
 
 ```sh
