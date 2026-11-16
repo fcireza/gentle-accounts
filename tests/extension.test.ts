@@ -179,3 +179,15 @@ test("argument completions offer subcommands and profile names", () => {
   assert.deepEqual(profile.getArgumentCompletions!("li"), [{ value: "list", label: "list" }]);
   assert.equal(profile.getArgumentCompletions!("zzz"), null);
 });
+
+test("/profile switch to a corrupt target with no active profile creates nothing", async () => {
+  const { store, profile, liveAuthPath } = setup();
+  store.create("work");
+  writeFileSync(liveAuthPath, JSON.stringify({ anthropic: { type: "api_key", key: "k" } }));
+  writeFileSync(store.authPath("work"), "{bad");
+  const c = fakeCtx();
+  await profile.handler("work", c.ctx);
+  assert.equal(c.notes[0].type, "error");
+  assert.deepEqual(store.list(), ["work"]);
+  assert.equal(store.current(), null);
+});

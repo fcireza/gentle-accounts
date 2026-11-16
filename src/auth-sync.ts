@@ -43,6 +43,12 @@ function transferCovered(source: AuthData, target: AuthData): AuthData {
   return next;
 }
 
+/** Fails (before any state changes) when the target profile's auth.json is unreadable. */
+export function assertProfileReadable(store: ProfileStore, name: string): void {
+  store.assertExists(name);
+  readAuthFile(store.authPath(name));
+}
+
 export interface SwitchOptions {
   store: ProfileStore;
   liveAuthPath: string;

@@ -7,10 +7,12 @@ on:
 
 jobs:
   test:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +21,12 @@ jobs:
           version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      - name: launcher smoke (type stripping, no tsx)
+      - name: launcher smoke (Node type stripping, no tsx)
         run: node bin/gentle-profiles.mjs --help
+      - name: package contents
+        run: npm pack --dry-run

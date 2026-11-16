@@ -1,5 +1,5 @@
 import { ProfileStore } from "./store.ts";
-import { ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
+import { assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
 
 export const USAGE = [
   "Usage:",
@@ -85,6 +85,7 @@ export function runCli(argv: string[], deps: CliDeps): number {
   }
   const env: Env = { ...deps.env };
   try {
+    assertProfileReadable(store, first); // atomic: nothing is created if the target is corrupt
     // Same first-run rule as the extension: never drop a live login that no profile holds yet.
     ensureDefaultProfile({ store, liveAuthPath: deps.liveAuthPath, env });
     switchProfile({ store, liveAuthPath: deps.liveAuthPath, env, to: first });

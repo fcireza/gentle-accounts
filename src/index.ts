@@ -1,7 +1,7 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, validateProfileName } from "./store.ts";
-import { applyCurrentProfileEnv, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
+import { applyCurrentProfileEnv, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand } from "./login.ts";
 
 const USAGE = [
@@ -108,6 +108,7 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
       if (!s.exists(target)) return notify(ctx, MISSING_PROFILE_MESSAGE(target), "error");
       if (!ctx.isIdle()) return notify(ctx, "Wait for the current turn to finish before switching profiles.", "warning");
       try {
+        assertProfileReadable(s, target); // atomic: nothing is created if the target is corrupt
         // Never drop a live login that no profile holds yet (same rule as the launcher).
         ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
         const result = switchProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env, to: target });

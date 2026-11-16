@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
@@ -135,4 +135,17 @@ test("no args or --help prints usage; --help exits 0, no args exits 1", () => {
   assert.match(out.join("\n"), /gentle-profiles <name> \[gentle-shell args\.\.\.\]/);
   assert.equal(runCli([], deps), 1);
   assert.match(err.join("\n"), /gentle-profiles <name>/);
+});
+
+test("a corrupt target with no active profile fails without creating default or setting current", () => {
+  const { store, liveAuthPath, err, spawns, deps } = setup();
+  store.create("work");
+  writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "live" } });
+  writeFileSync(store.authPath("work"), "{bad");
+  assert.equal(runCli(["work"], deps), 1);
+  assert.match(err.join("\n"), /Cannot parse .*auth\.json/);
+  assert.deepEqual(spawns, []);
+  assert.deepEqual(store.list(), ["work"]);
+  assert.equal(store.current(), null);
+  assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "live" } });
 });
