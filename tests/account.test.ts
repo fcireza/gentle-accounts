@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readClaudeAccount, statusText } from "../src/account.ts";
+import { PLUGIN_LABEL, maskEmail, queryClaudeAccount, readClaudeAccount, statusText } from "../src/account.ts";
 
 function dirs() {
   const home = mkdtempSync(join(tmpdir(), "gentle-profiles-acct-"));
@@ -52,7 +52,86 @@ test("falls back to <home>/.claude.json only for the <home>/.claude dir", () => 
   assert.deepEqual(readClaudeAccount(homeClaude, home), { email: "dir@x.y" });
 });
 
-test("statusText formats the profile and email", () => {
-  assert.equal(statusText("work", { email: "a@b.c" }), "work · a@b.c");
-  assert.equal(statusText("work", null), "work · not logged in");
+test("S17: statusText is `gentle-profiles: <profile> · <masked>` or `· not logged in`", () => {
+  assert.equal(PLUGIN_LABEL, "gentle-profiles");
+  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "gentle-profiles: work · fcir****@gmail.com");
+  assert.equal(statusText("work", null), "gentle-profiles: work · not logged in");
+});
+
+test("S17: maskEmail keeps min(4, max(1, local - 3)) chars and the domain", () => {
+  const table: [string, string][] = [
+    ["fcireza@gmail.com", "fcir****@gmail.com"],
+    ["ab@x.com", "a****@x.com"],
+    ["abcde@x.com", "ab****@x.com"],
+    ["a@x.com", "a****@x.com"],
+    ["abcdefghij@x.com", "abcd****@x.com"],
+    ["no-at-sign", "****"],
+  ];
+  for (const [input, expected] of table) assert.equal(maskEmail(input), expected, input);
+});
+
+test("S18: queryClaudeAccount uses `claude auth status` JSON first", async () => {
+  const { home, claudeDir } = dirs();
+  writeFileSync(join(claudeDir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "file@x.y" } }));
+  const envs: Record<string, string | undefined>[] = [];
+  const yes = async (env: Record<string, string | undefined>) => {
+    envs.push(env);
+    return JSON.stringify({ loggedIn: true, email: "cli@x.y", configDirectory: "/d" });
+  };
+  assert.deepEqual(await queryClaudeAccount({ claudeConfigDir: claudeDir, homeDir: home, run: yes }), { email: "cli@x.y" });
+  assert.equal(envs[0].CLAUDE_CONFIG_DIR, claudeDir);
+  const no = async () => JSON.stringify({ loggedIn: false });
+  assert.equal(await queryClaudeAccount({ claudeConfigDir: claudeDir, homeDir: home, run: no }), null);
+});
+
+test("S18: the runner env has no CLAUDE_CONFIG_DIR for a system-default profile", async () => {
+  const { home } = dirs();
+  const saved = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = "/should/be/removed";
+  try {
+    let seen: Record<string, string | undefined> | undefined;
+    const run = async (env: Record<string, string | undefined>) => {
+      seen = env;
+      return JSON.stringify({ loggedIn: true, email: "me@x.y" });
+    };
+    assert.deepEqual(await queryClaudeAccount({ claudeConfigDir: undefined, homeDir: home, run }), { email: "me@x.y" });
+    assert.equal("CLAUDE_CONFIG_DIR" in seen!, false);
+    assert.equal(process.env.CLAUDE_CONFIG_DIR, "/should/be/removed");
+  } finally {
+    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = saved;
+  }
+});
+
+test("S18: garbage, a throwing runner or a timeout fall back to .claude.json without throwing", async () => {
+  const { home, claudeDir } = dirs();
+  writeFileSync(join(claudeDir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "file@x.y" } }));
+  const runners = [
+    async () => "not json at all",
+    async () => JSON.stringify({ something: "else" }),
+    async () => {
+      throw Object.assign(new Error("spawn claude ENOENT"), { code: "ENOENT" });
+    },
+    async () => {
+      throw Object.assign(new Error("timed out"), { killed: true, signal: "SIGTERM" });
+    },
+    () => {
+      throw new Error("sync throw");
+    },
+  ];
+  for (const run of runners) {
+    assert.deepEqual(await queryClaudeAccount({ claudeConfigDir: claudeDir, homeDir: home, run: run as never }), { email: "file@x.y" });
+  }
+  const other = join(home, "empty-claude");
+  assert.equal(await queryClaudeAccount({ claudeConfigDir: other, homeDir: home, run: runners[0] }), null);
+});
+
+test("S18: the <home>/.claude.json fallback applies only to the system-default profile", async () => {
+  const { home, claudeDir } = dirs();
+  writeFileSync(join(home, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: "home@x.y" } }));
+  const fail = async () => {
+    throw new Error("missing");
+  };
+  assert.deepEqual(await queryClaudeAccount({ claudeConfigDir: undefined, homeDir: home, run: fail }), { email: "home@x.y" });
+  assert.equal(await queryClaudeAccount({ claudeConfigDir: claudeDir, homeDir: home, run: fail }), null);
 });

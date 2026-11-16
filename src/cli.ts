@@ -1,5 +1,5 @@
 import { ProfileStore } from "./store.ts";
-import { assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
+import { applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
 
 export const USAGE = [
   "Usage:",
@@ -71,10 +71,12 @@ export function runCli(argv: string[], deps: CliDeps): number {
       stderr(second ? missingMessage(second) : USAGE);
       return 1;
     }
+    const loginEnv: Env = { ...deps.env };
+    applyClaudeConfigEnv(loginEnv, store.claudeConfigEnv(second));
     return deps.spawn({
       command: "claude",
       args: ["auth", "login"],
-      env: { ...deps.env, CLAUDE_CONFIG_DIR: store.claudeDir(second) },
+      env: loginEnv,
       shell: deps.platform === "win32",
     });
   }
@@ -93,7 +95,7 @@ export function runCli(argv: string[], deps: CliDeps): number {
     stderr((error as Error).message);
     return 1;
   }
-  env.CLAUDE_CONFIG_DIR = store.claudeDir(first);
+  applyClaudeConfigEnv(env, store.claudeConfigEnv(first));
   return deps.spawn({
     command: "gentle-shell",
     args: [second, ...rest].filter((a): a is string => a !== undefined),
