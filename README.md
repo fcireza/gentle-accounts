@@ -32,6 +32,8 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 Everything after `--` goes to pi, which clones the package into Gentle Shell's home (`~/.gentle-shell/agent`) and adds it to that home's `settings.json`. Restart Gentle Shell and `/gentle:accounts` is available. Gentle Shell options such as `--home <path>` go before the `--`.
 
+If you installed the old package (`git:github.com/fcireza/gentle-profiles`), remove that line from the `packages` list in `~/.gentle-shell/agent/settings.json` first. With both installed, the old `/profile` and the new `/gentle:accounts` would run side by side.
+
 ### In plain pi
 
 ```sh
