@@ -71,6 +71,17 @@ test("session_start on a later run only applies the current profile's env", asyn
   assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
 });
 
+test("session_start with a corrupt live auth.json notifies instead of throwing", async () => {
+  const { store, events, liveAuthPath } = setup();
+  writeFileSync(liveAuthPath, "{broken");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.equal(c.notes.length, 1);
+  assert.equal(c.notes[0].type, "error");
+  assert.match(c.notes[0].message, /^gentle-profiles: Cannot parse/);
+  assert.deepEqual(store.list(), []);
+});
+
 test("/profile create, list, current and switch", async () => {
   const { store, profile, liveAuthPath } = setup();
   writeFileSync(liveAuthPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "a", refresh: "r", expires: 1 } }));

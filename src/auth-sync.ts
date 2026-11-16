@@ -61,11 +61,14 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
   const from = store.current();
   if (from === to) return { status: "noop", from, to };
 
+  // Read every file before writing any, so a corrupt file fails without touching the others.
   const live = readAuthFile(liveAuthPath);
-  if (from) {
-    writeAuthFile(store.authPath(from), transferCovered(live, readAuthFile(store.authPath(from))));
+  const incoming = readAuthFile(store.authPath(to));
+  const outgoing = from ? readAuthFile(store.authPath(from)) : null;
+  if (from && outgoing) {
+    writeAuthFile(store.authPath(from), transferCovered(live, outgoing));
   }
-  writeAuthFile(liveAuthPath, transferCovered(readAuthFile(store.authPath(to)), live));
+  writeAuthFile(liveAuthPath, transferCovered(incoming, live));
   env.CLAUDE_CONFIG_DIR = store.claudeDir(to);
   store.setCurrent(to);
   return { status: "switched", from, to };
@@ -91,8 +94,9 @@ export function defaultClaudeDir(env: Env): string {
 export function ensureDefaultProfile({ store, liveAuthPath, env }: Omit<SwitchOptions, "to">): string | null {
   if (store.current()) return null;
   if (!store.exists("default")) {
+    const live = readAuthFile(liveAuthPath); // before create: a corrupt file leaves no stray profile
     store.create("default", { claudeDir: defaultClaudeDir(env) });
-    writeAuthFile(store.authPath("default"), transferCovered(readAuthFile(liveAuthPath), {}));
+    writeAuthFile(store.authPath("default"), transferCovered(live, {}));
   }
   store.setCurrent("default");
   env.CLAUDE_CONFIG_DIR = store.claudeDir("default");

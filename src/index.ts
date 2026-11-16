@@ -24,10 +24,15 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
   const store = () => new ProfileStore(getAgentDir());
   const liveAuthPath = () => join(getAgentDir(), "auth.json");
 
-  pi.on("session_start", () => {
+  pi.on("session_start", (_event, ctx) => {
     const s = store();
-    if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
-      applyCurrentProfileEnv(s, process.env);
+    try {
+      if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
+        applyCurrentProfileEnv(s, process.env);
+      }
+    } catch (error) {
+      // A corrupt auth.json must not break session start; the user still gets a clear message.
+      ctx.ui.notify(`gentle-profiles: ${(error as Error).message}`, "error");
     }
   });
 

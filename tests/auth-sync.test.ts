@@ -100,6 +100,46 @@ test("switchProfile with no active profile skips the snapshot and still loads th
   assert.deepEqual(readAuthFile(liveAuthPath), { "openai-codex": codexPersonal, other });
 });
 
+test("switchProfile with a corrupt target leaves the outgoing snapshot, live and current untouched", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork });
+  writeFileSync(store.authPath("personal"), "{broken");
+  const env: Record<string, string | undefined> = {};
+  assert.throws(() => switchProfile({ store, liveAuthPath, env, to: "personal" }), /personal/);
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": codexWork });
+  assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: anthropicWork });
+  assert.equal(store.current(), "work");
+  assert.equal(env.CLAUDE_CONFIG_DIR, undefined);
+});
+
+test("a rotated token round-trips through the outgoing snapshot", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  const env: Record<string, string | undefined> = {};
+  writeAuthFile(liveAuthPath, { "openai-codex": codexWork });
+  ensureDefaultProfile({ store, liveAuthPath, env });
+  const rotated = { ...codexWork, access: "a-rotated", refresh: "r-rotated" };
+  writeAuthFile(liveAuthPath, { "openai-codex": rotated });
+  switchProfile({ store, liveAuthPath, env, to: "work" });
+  assert.deepEqual(readAuthFile(store.authPath("default")), { "openai-codex": rotated });
+  switchProfile({ store, liveAuthPath, env, to: "default" });
+  assert.deepEqual(readAuthFile(liveAuthPath), { "openai-codex": rotated });
+});
+
+test("ensureDefaultProfile with a corrupt live auth.json throws and creates no profile", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  writeFileSync(liveAuthPath, "{broken");
+  const env: Record<string, string | undefined> = {};
+  assert.throws(() => ensureDefaultProfile({ store, liveAuthPath, env }), /auth\.json/);
+  assert.deepEqual(store.list(), ["work"]);
+  assert.equal(store.current(), null);
+});
+
 test("applyCurrentProfileEnv sets CLAUDE_CONFIG_DIR from the current profile unless already set", () => {
   const { store } = setup();
   store.create("work");
