@@ -32,7 +32,17 @@ export class ProfileStore {
     return join(this.profilesDir, name);
   }
 
+  /** Optional override file: when present, its content is the CLAUDE_CONFIG_DIR of the profile. */
+  claudeDirPath(name: string): string {
+    return join(this.profileDir(name), "claude-dir");
+  }
+
   claudeDir(name: string): string {
+    const overridePath = this.claudeDirPath(name);
+    if (existsSync(overridePath)) {
+      const override = readFileSync(overridePath, "utf8").trim();
+      if (override) return override;
+    }
     return join(this.profileDir(name), "claude");
   }
 
@@ -63,11 +73,16 @@ export class ProfileStore {
     writeFileSync(this.currentPath, `${name}\n`, { mode: 0o600 });
   }
 
-  create(name: string): void {
+  create(name: string, options: { claudeDir?: string } = {}): void {
     const invalid = validateProfileName(name);
     if (invalid) throw new Error(invalid);
     if (this.exists(name)) throw new Error(`Profile "${name}" already exists.`);
-    mkdirSync(this.claudeDir(name), { recursive: true, mode: 0o700 });
+    mkdirSync(this.profileDir(name), { recursive: true, mode: 0o700 });
+    if (options.claudeDir) {
+      writeFileSync(this.claudeDirPath(name), `${options.claudeDir}\n`, { mode: 0o600 });
+    } else {
+      mkdirSync(this.claudeDir(name), { recursive: true, mode: 0o700 });
+    }
     writeFileSync(this.authPath(name), "{}\n", { mode: 0o600 });
   }
 
