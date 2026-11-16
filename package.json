@@ -1,7 +1,7 @@
 {
-  "name": "gentle-profiles",
+  "name": "gentle-accounts",
   "version": "0.1.0",
-  "description": "Account profiles for gentle-shell and pi: switch between Claude (claude-bridge), Codex and Anthropic logins with /profile, or start a shell with a given profile.",
+  "description": "Multiple accounts for gentle-shell and pi: switch between Claude (claude-bridge), Codex and Anthropic logins with /gentle:accounts, or start a shell with a given profile.",
   "keywords": [
     "pi-package",
     "pi",
@@ -11,7 +11,8 @@
     "gentle-shell-extension",
     "claude-bridge",
     "codex",
-    "profiles"
+    "profiles",
+    "accounts"
   ],
   "license": "MIT",
   "type": "module",
@@ -19,7 +20,7 @@
     "node": ">=22.18"
   },
   "bin": {
-    "gentle-profiles": "./bin/gentle-profiles.mjs"
+    "gentle-accounts": "./bin/gentle-accounts.mjs"
   },
   "files": [
     "src",
@@ -48,10 +49,10 @@
   "author": "Federico",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fcireza/gentle-profiles.git"
+    "url": "git+https://github.com/fcireza/gentle-accounts.git"
   },
-  "homepage": "https://github.com/fcireza/gentle-profiles#readme",
+  "homepage": "https://github.com/fcireza/gentle-accounts#readme",
   "bugs": {
-    "url": "https://github.com/fcireza/gentle-profiles/issues"
+    "url": "https://github.com/fcireza/gentle-accounts/issues"
   }
 }

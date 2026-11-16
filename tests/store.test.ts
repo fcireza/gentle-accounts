@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE } from "../src/store.ts";
 
 function tempStore(): { store: ProfileStore; agentDir: string } {
-  const agentDir = mkdtempSync(join(tmpdir(), "gentle-profiles-"));
+  const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-"));
   return { store: new ProfileStore(agentDir), agentDir };
 }
 

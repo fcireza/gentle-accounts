@@ -46,7 +46,7 @@ const missingClaude: Runner = async () => {
 };
 
 function setup(deps: Parameters<typeof gentleProfiles>[1] = {}) {
-  const agentDir = mkdtempSync(join(tmpdir(), "gentle-profiles-ext-"));
+  const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-ext-"));
   // Never read the real ~/.claude.json.
   process.env.HOME = agentDir;
   process.env.USERPROFILE = agentDir;
@@ -54,14 +54,36 @@ function setup(deps: Parameters<typeof gentleProfiles>[1] = {}) {
   delete process.env.CLAUDE_CONFIG_DIR;
   const { pi, commands, events } = fakePi();
   gentleProfiles(pi, { runClaudeStatus: missingClaude, setInterval: () => ({ unref() {} }), clearInterval: () => {}, ...deps });
-  const profile = commands.get("profile")!;
+  const profile = commands.get("gentle:accounts")!;
   return { agentDir, store: new ProfileStore(agentDir), profile, events, liveAuthPath: join(agentDir, "auth.json") };
 }
 
-test("registers /profile and a session_start hook", () => {
+test("registers /gentle:accounts and a session_start hook", () => {
   const { profile, events } = setup();
   assert.ok(profile);
   assert.ok(events.get("session_start"));
+});
+
+test("S19: registers exactly one command, gentle:accounts, and no profile command", () => {
+  const { pi, commands } = fakePi();
+  gentleProfiles(pi, { runClaudeStatus: missingClaude, setInterval: () => ({ unref() {} }), clearInterval: () => {} });
+  assert.deepEqual([...commands.keys()], ["gentle:accounts"]);
+  assert.equal(commands.has("profile"), false);
+});
+
+test("S19: /gentle:accounts help uses the new command name only", async () => {
+  const { profile } = setup();
+  const c = fakeCtx();
+  await profile.handler("help", c.ctx);
+  assert.match(c.notes[0].message, /^\/gentle:accounts +pick a profile and switch to it$/m);
+  assert.match(c.notes[0].message, /^\/gentle:accounts login claude +show the command/m);
+  assert.doesNotMatch(c.notes[0].message, /\/profile/);
+  const d = fakeCtx();
+  await profile.handler("list", d.ctx);
+  assert.deepEqual(d.notes, [{ message: "No profiles. Create one with /gentle:accounts create <name>", type: "info" }]);
+  const e = fakeCtx();
+  await profile.handler("create work", e.ctx);
+  assert.deepEqual(e.notes, [{ message: 'Created profile "work". Switch with /gentle:accounts work, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.', type: "info" }]);
 });
 
 test("session_start wraps the live login into a default profile and leaves CLAUDE_CONFIG_DIR unset (S16)", async () => {
@@ -89,11 +111,11 @@ test("session_start with a corrupt live auth.json notifies instead of throwing",
   await events.get("session_start")!({}, c.ctx);
   assert.equal(c.notes.length, 1);
   assert.equal(c.notes[0].type, "error");
-  assert.match(c.notes[0].message, /^gentle-profiles: Cannot parse/);
+  assert.match(c.notes[0].message, /^gentle-accounts: Cannot parse/);
   assert.deepEqual(store.list(), []);
 });
 
-test("/profile create, list, current and switch", async () => {
+test("/gentle:accounts create, list, current and switch", async () => {
   const { store, profile, liveAuthPath } = setup();
   writeFileSync(liveAuthPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "a", refresh: "r", expires: 1 } }));
   const c1 = fakeCtx();
@@ -124,7 +146,7 @@ test("/profile create, list, current and switch", async () => {
   assert.match(c4.notes[1].message, /^Active profile: work/);
 });
 
-test("/profile with no args uses the picker and strips the (active) marker", async () => {
+test("/gentle:accounts with no args uses the picker and strips the (active) marker", async () => {
   const { store, profile } = setup();
   store.create("work");
   store.create("personal");
@@ -152,7 +174,7 @@ test("switching refuses while the agent is busy and for unknown profiles", async
   assert.equal(ghost.notes[0].message, 'Profile "ghost" does not exist.');
 });
 
-test("/profile delete asks for confirmation, refuses the active and missing profiles", async () => {
+test("/gentle:accounts delete asks for confirmation, refuses the active and missing profiles", async () => {
   const { store, profile } = setup();
   store.create("work");
   store.create("personal");
@@ -173,7 +195,7 @@ test("/profile delete asks for confirmation, refuses the active and missing prof
   assert.deepEqual(store.list(), ["work"]);
 });
 
-test("/profile login claude prints the login command for the active profile", async () => {
+test("/gentle:accounts login claude prints the login command for the active profile", async () => {
   const { store, profile } = setup();
   store.create("work");
   store.setCurrent("work");
@@ -191,7 +213,7 @@ test("argument completions offer subcommands and profile names", () => {
   assert.equal(profile.getArgumentCompletions!("zzz"), null);
 });
 
-test("/profile switch to a corrupt target with no active profile creates nothing", async () => {
+test("/gentle:accounts switch to a corrupt target with no active profile creates nothing", async () => {
   const { store, profile, liveAuthPath } = setup();
   store.create("work");
   writeFileSync(liveAuthPath, JSON.stringify({ anthropic: { type: "api_key", key: "k" } }));
@@ -208,7 +230,7 @@ function writeAccount(claudeDir: string, email: string) {
   writeFileSync(join(claudeDir, ".claude.json"), JSON.stringify({ oauthAccount: { emailAddress: email, accessToken: "x" } }));
 }
 
-test("status bar shows the active account after session_start, switch and /profile current", async () => {
+test("status bar shows the active account after session_start, switch and /gentle:accounts current", async () => {
   const { store, profile, events } = setup();
   store.create("work");
   store.create("personal");
@@ -217,11 +239,11 @@ test("status bar shows the active account after session_start, switch and /profi
 
   const c1 = fakeCtx();
   await events.get("session_start")!({}, c1.ctx);
-  assert.deepEqual(c1.statuses, [{ key: "gentle-profiles", text: "gentle-profiles: work · w****@x.y" }]);
+  assert.deepEqual(c1.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: work · w****@x.y" }]);
 
   const c2 = fakeCtx();
   await profile.handler("personal", c2.ctx);
-  assert.deepEqual(c2.statuses, [{ key: "gentle-profiles", text: "gentle-profiles: personal · not logged in" }]);
+  assert.deepEqual(c2.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: personal · not logged in" }]);
 
   const c3 = fakeCtx();
   await profile.handler("personal", c3.ctx);
@@ -230,7 +252,7 @@ test("status bar shows the active account after session_start, switch and /profi
   writeAccount(store.claudeDir("personal"), "p@x.y");
   const c4 = fakeCtx();
   await profile.handler("current", c4.ctx);
-  assert.deepEqual(c4.statuses, [{ key: "gentle-profiles", text: "gentle-profiles: personal · p****@x.y" }]);
+  assert.deepEqual(c4.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: personal · p****@x.y" }]);
   assert.match(c4.notes[0].message, /^Active profile: personal/);
 });
 
@@ -239,7 +261,7 @@ test("status is cleared with no active profile and untouched without UI", async 
   const c1 = fakeCtx();
   await profile.handler("current", c1.ctx);
   assert.equal(c1.notes[0].message, "No active profile.");
-  assert.deepEqual(c1.statuses, [{ key: "gentle-profiles", text: undefined }]);
+  assert.deepEqual(c1.statuses, [{ key: "gentle-accounts", text: undefined }]);
 
   const c2 = fakeCtx({ hasUI: false });
   await events.get("session_start")!({}, c2.ctx);
@@ -247,7 +269,7 @@ test("status is cleared with no active profile and untouched without UI", async 
   assert.deepEqual(c2.statuses, []);
 });
 
-test("S16: /profile default -> work -> default sets then deletes CLAUDE_CONFIG_DIR in process.env", async () => {
+test("S16: /gentle:accounts default -> work -> default sets then deletes CLAUDE_CONFIG_DIR in process.env", async () => {
   const { store, profile, events } = setup();
   await events.get("session_start")!({}, fakeCtx().ctx);
   assert.equal(store.current(), "default");
@@ -291,9 +313,9 @@ test("S17/S18: status uses claude auth status, masks the email and never shows i
   await profile.handler("login claude", c.ctx);
   await profile.handler("list", c.ctx);
   assert.deepEqual(c.statuses.map((x) => x.text), [
-    "gentle-profiles: work · fcir****@gmail.com",
-    "gentle-profiles: personal · fcir****@gmail.com",
-    "gentle-profiles: personal · fcir****@gmail.com",
+    "gentle-accounts: work · fcir****@gmail.com",
+    "gentle-accounts: personal · fcir****@gmail.com",
+    "gentle-accounts: personal · fcir****@gmail.com",
   ]);
   assert.equal(seen[0].CLAUDE_CONFIG_DIR, store.claudeDir("work"));
   const everything = JSON.stringify([c.statuses, c.notes]);
@@ -307,7 +329,7 @@ test("S18: CLI loggedIn false wins over a .claude.json email", async () => {
   writeAccount(store.claudeDir("work"), "w@x.y");
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
-  assert.deepEqual(c.statuses, [{ key: "gentle-profiles", text: "gentle-profiles: work · not logged in" }]);
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: work · not logged in" }]);
 });
 
 test("S18: the status refreshes on agent_end", async () => {
@@ -320,7 +342,7 @@ test("S18: the status refreshes on agent_end", async () => {
   email = "twotwo@x.y";
   assert.ok(events.get("agent_end"));
   await events.get("agent_end")!({}, c.ctx);
-  assert.deepEqual(c.statuses.map((x) => x.text), ["gentle-profiles: work · o****@x.y", "gentle-profiles: work · two****@x.y"]);
+  assert.deepEqual(c.statuses.map((x) => x.text), ["gentle-accounts: work · o****@x.y", "gentle-accounts: work · two****@x.y"]);
 });
 
 test("S18: a 60 s unref'd timer starts once on session_start, refreshes, and is cleared on session_shutdown", async () => {
@@ -347,7 +369,7 @@ test("S18: a 60 s unref'd timer starts once on session_start, refreshes, and is 
   c.statuses.length = 0;
   timers[0].fn();
   await new Promise((r) => setImmediate(r));
-  assert.deepEqual(c.statuses, [{ key: "gentle-profiles", text: "gentle-profiles: work · ab****@x.y" }]);
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: work · ab****@x.y" }]);
   assert.ok(events.get("session_shutdown"));
   await events.get("session_shutdown")!({ type: "session_shutdown", reason: "quit" }, c.ctx);
   assert.equal(timers[0].cleared, true);
@@ -379,5 +401,5 @@ test("S18: overlapping refreshes are skipped and a stale result never overwrites
   await second;
   pending.get(store.claudeDir("work"))!(JSON.stringify({ loggedIn: true, email: "work@x.y" }));
   await first;
-  assert.deepEqual(c.statuses, [{ key: "gentle-profiles", text: "gentle-profiles: personal · p****@x.y" }]);
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: personal · p****@x.y" }]);
 });

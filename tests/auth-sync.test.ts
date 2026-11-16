@@ -20,7 +20,7 @@ const anthropicWork = { type: "api_key", key: "sk-work" };
 const other = { type: "api_key", key: "untouched" };
 
 function setup() {
-  const agentDir = mkdtempSync(join(tmpdir(), "gentle-profiles-"));
+  const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-"));
   const store = new ProfileStore(agentDir);
   const liveAuthPath = join(agentDir, "auth.json");
   return { agentDir, store, liveAuthPath };

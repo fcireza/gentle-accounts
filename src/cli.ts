@@ -3,12 +3,12 @@ import { applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, swit
 
 export const USAGE = [
   "Usage:",
-  "  gentle-profiles <name> [gentle-shell args...]   start gentle-shell with profile <name>",
-  "  gentle-profiles list                            list profiles (* marks the active one)",
-  "  gentle-profiles current                         print the active profile",
-  "  gentle-profiles create <name>                   create an empty profile",
-  "  gentle-profiles login <name>                    run `claude auth login` for that profile's Claude dir",
-  "  gentle-profiles --help                          show this help",
+  "  gentle-accounts <name> [gentle-shell args...]   start gentle-shell with profile <name>",
+  "  gentle-accounts list                            list profiles (* marks the active one)",
+  "  gentle-accounts current                         print the active profile",
+  "  gentle-accounts create <name>                   create an empty profile",
+  "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
+  "  gentle-accounts --help                          show this help",
 ].join("\n");
 
 export interface SpawnCall {
@@ -43,7 +43,7 @@ export function runCli(argv: string[], deps: CliDeps): number {
   }
   if (first === "list") {
     const names = store.list();
-    if (!names.length) stdout("No profiles. Create one with: gentle-profiles create <name>");
+    if (!names.length) stdout("No profiles. Create one with: gentle-accounts create <name>");
     const current = store.current();
     for (const name of names) stdout(`${name === current ? "* " : "  "}${name}`);
     return 0;
@@ -105,5 +105,5 @@ export function runCli(argv: string[], deps: CliDeps): number {
 }
 
 function missingMessage(name: string): string {
-  return `Profile "${name}" does not exist. Create it with: gentle-profiles create <name>`;
+  return `Profile "${name}" does not exist. Create it with: gentle-accounts create <name>`;
 }

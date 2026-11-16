@@ -6,12 +6,12 @@ import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const BIN = fileURLToPath(new URL("../bin/gentle-profiles.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/gentle-accounts.mjs", import.meta.url));
 const isWin = process.platform === "win32";
 
 /** Real launcher + a fake `gentle-shell` on PATH (a .cmd shim on Windows) inside an isolated agent dir. */
 function sandbox() {
-  const root = mkdtempSync(join(tmpdir(), "gentle-profiles-e2e-"));
+  const root = mkdtempSync(join(tmpdir(), "gentle-accounts-e2e-"));
   const agentDir = join(root, "agent");
   const binDir = join(root, "bin");
   mkdirSync(agentDir);
@@ -74,7 +74,7 @@ test("launcher e2e: a missing profile exits 1 with the documented message", () =
   const { run } = sandbox();
   const r = run("ghost");
   assert.equal(r.code, 1);
-  assert.equal(r.err.trim(), 'Profile "ghost" does not exist. Create it with: gentle-profiles create <name>');
+  assert.equal(r.err.trim(), 'Profile "ghost" does not exist. Create it with: gentle-accounts create <name>');
 });
 
 test("launcher e2e (S16): the default profile starts gentle-shell without CLAUDE_CONFIG_DIR", () => {

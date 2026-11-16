@@ -7,13 +7,13 @@ import { applyCurrentProfileEnv, assertProfileReadable, ensureDefaultProfile, sw
 import { claudeLoginCommand } from "./login.ts";
 
 const USAGE = [
-  "/profile                 pick a profile and switch to it",
-  "/profile <name>          switch to <name>",
-  "/profile list            list profiles (* marks the active one)",
-  "/profile current         show the active profile",
-  "/profile create <name>   create an empty profile",
-  "/profile delete <name>   delete a profile (asks for confirmation)",
-  "/profile login claude    show the command that logs the active profile into Claude Code",
+  "/gentle:accounts                 pick a profile and switch to it",
+  "/gentle:accounts <name>          switch to <name>",
+  "/gentle:accounts list            list profiles (* marks the active one)",
+  "/gentle:accounts current         show the active profile",
+  "/gentle:accounts create <name>   create an empty profile",
+  "/gentle:accounts delete <name>   delete a profile (asks for confirmation)",
+  "/gentle:accounts login claude    show the command that logs the active profile into Claude Code",
 ].join("\n");
 
 const SUBCOMMANDS = ["list", "current", "create", "delete", "login"];
@@ -52,7 +52,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   let lastCtx: StatusCtx | undefined;
 
   /**
-   * Shows `gentle-profiles: <profile> · <masked email>`; never throws. A refresh for the profile
+   * Shows `gentle-accounts: <profile> · <masked email>`; never throws. A refresh for the profile
    * already being computed is skipped, and a result for an older request is dropped.
    */
   async function updateStatus(ctx: StatusCtx, s: ProfileStore): Promise<void> {
@@ -88,7 +88,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       }
     } catch (error) {
       // A corrupt auth.json must not break session start; the user still gets a clear message.
-      ctx.ui.notify(`gentle-profiles: ${(error as Error).message}`, "error");
+      ctx.ui.notify(`${PLUGIN_LABEL}: ${(error as Error).message}`, "error");
       return;
     }
     if (!timer) {
@@ -110,8 +110,8 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     lastCtx = undefined;
   });
 
-  pi.registerCommand("profile", {
-    description: "Switch between account profiles (claude-bridge, openai-codex, anthropic)",
+  pi.registerCommand("gentle:accounts", {
+    description: "gentle-accounts: switch between account profiles (claude-bridge, openai-codex, anthropic)",
     getArgumentCompletions: (prefix) => {
       const names = [...SUBCOMMANDS, ...store().list()].filter((n) => n.startsWith(prefix));
       return names.length ? names.map((value) => ({ value, label: value })) : null;
@@ -123,7 +123,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       if (sub === "list") {
         const current = s.current();
         const names = s.list();
-        notify(ctx, names.length ? names.map((n) => `${n === current ? "* " : "  "}${n}`).join("\n") : "No profiles. Create one with /profile create <name>");
+        notify(ctx, names.length ? names.map((n) => `${n === current ? "* " : "  "}${n}`).join("\n") : "No profiles. Create one with /gentle:accounts create <name>");
         return;
       }
       if (sub === "current") {
@@ -136,7 +136,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (!arg) return notify(ctx, USAGE, "warning");
         try {
           s.create(arg);
-          notify(ctx, `Created profile "${arg}". Switch with /profile ${arg}, then /login for Codex or Anthropic and /profile login claude for Claude.`);
+          notify(ctx, `Created profile "${arg}". Switch with /gentle:accounts ${arg}, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`);
         } catch (error) {
           notify(ctx, (error as Error).message, "error");
         }
@@ -171,7 +171,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       let target = sub;
       if (!target) {
         const names = s.list();
-        if (!names.length) return notify(ctx, "No profiles. Create one with /profile create <name>", "warning");
+        if (!names.length) return notify(ctx, "No profiles. Create one with /gentle:accounts create <name>", "warning");
         if (!ctx.hasUI) return notify(ctx, USAGE, "warning");
         const current = s.current();
         const picked = await ctx.ui.select("Switch profile", names.map((n) => (n === current ? `${n} (active)` : n)));
