@@ -21,14 +21,17 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 
 ## Tasks
 
-- [ ] T1 (S6, S7, S13): profile store module: list/create/delete/current, name validation, path layout. Route: inline, test-first. Commit: -
-- [ ] T2 (S8, S11): credential sync and switch logic against pi auth storage; extension entry with `/profile` command and load hook. Route: inline, test-first. Commit: -
-- [ ] T3 (S9, S12): delete confirmation, login helper. Route: inline. Commit: -
-- [ ] T4 (S10, S13): launcher CLI `gentle-profiles` (bin). Route: inline, test-first. Commit: -
-- [ ] T5 (S1, S3, S14): package.json metadata (pi-package keyword, bin, files), README, Gentle Hub topics instructions, CI on three OSes. Route: inline. Commit: -
+- [x] T1 (S6, S7, S13): profile store module: list/create/delete/current, name validation, path layout. Route: inline, test-first (RED observed). Commit: e04f27d
+- [x] T2 (S8, S11): credential sync and switch logic against pi auth storage; extension entry with `/profile` command and load hook. Route: inline, test-first (RED observed). Commit: 319c60f
+- [x] T3 (S9, S12): delete confirmation, login helper. Route: inline. Commit: 319c60f
+- [x] T4 (S10, S13): launcher CLI `gentle-profiles` (bin). Route: inline; tests and code written together, then an end-to-end run with a fake gentle-shell on PATH. Commit: 96d85d3
+- [x] T5 (S1, S3, S14): package.json metadata (pi-package keyword, bin, files), README, Gentle Hub topics instructions, CI on three OSes, extension tests with a fake ExtensionAPI. Route: inline. Commit: 2772067
 
 ## Log
 
 - L1 (user, verbatim): "Quiero hacer un hub como los de: https://gentlemanprogramming.com/gentle-hub/ Para tener multicuenta de claude/codex o cualquier otra en gentle-shell, obviamente usar claude-brige para cada una. Pero asi tener perfiles de distinta cuenta, ejemplo: Work y Personal. Debe funcionar para gentle-shell en Linux y Mac y Windows"
 - L2 (user answers): form = "Extensión /profile + launcher mínimo"; location = "Nuevo repo en /Users/federico/dev/my/<nombre>"; providers = claude-bridge, openai-codex, anthropic nativo.
+- L4 (explorer evidence): bridge reads `process.env.CLAUDE_CONFIG_DIR` on every spawn (`index.ts:584,617`, `cc-child.ts:~66`); pi `AuthStorage` reloads `auth.json` by file revision, no public set API, so the extension edits the file and calls `ctx.modelRegistry.refresh()`; switch only when `ctx.isIdle()`; gentle-shell sets only `PI_CODING_AGENT_DIR` (`gentle-shell-launcher.mjs:1121`).
+- L5 (decisions): S12 in the TUI prints the exact `claude auth login` command instead of spawning an interactive child (a child would fight pi's fullscreen TUI); the launcher `gentle-profiles login <name>` runs it. A `default` profile is created whenever no profile is active (extension load, `/profile` switch and launcher), recording the existing Claude dir so the first switch never drops a live login. The launcher runs the TS sources through Node type stripping, so `engines.node` is `>=22.18` and `src/` avoids parameter properties.
+- L6 (unverified): loading inside a real pi/gentle-shell session (tests use a fake ExtensionAPI); macOS Keychain keying of Claude Code logins per `CLAUDE_CONFIG_DIR`; Windows run (covered only by the CI matrix, not yet executed).
 - L3 (evidence): Gentle Hub lists public repos by GitHub topic `gentle-shell-package` (+ `gentle-shell-extension`). pi-claude-bridge README: `CLAUDE_CONFIG_DIR` cannot be set per credential in auth.json; it must be process env. pi agent dir for gentle-shell is `~/.gentle-shell/agent` (settings.json packages include `npm:pi-claude-bridge`).
