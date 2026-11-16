@@ -16,7 +16,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.18"
   },
   "bin": {
     "gentle-profiles": "./bin/gentle-profiles.mjs"
@@ -33,7 +33,7 @@
     ]
   },
   "scripts": {
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "node --import tsx --test \"tests/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -44,5 +44,10 @@
     "@types/node": "^24.13.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
+  },
+  "author": "Federico",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/<owner>/gentle-profiles.git"
   }
 }

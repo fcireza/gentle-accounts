@@ -103,6 +103,8 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
       if (!s.exists(target)) return notify(ctx, MISSING_PROFILE_MESSAGE(target), "error");
       if (!ctx.isIdle()) return notify(ctx, "Wait for the current turn to finish before switching profiles.", "warning");
       try {
+        // Never drop a live login that no profile holds yet (same rule as the launcher).
+        ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
         const result = switchProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env, to: target });
         if (result.status === "noop") return notify(ctx, `Already on profile "${target}".`);
         await ctx.modelRegistry.refresh();
