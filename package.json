@@ -26,6 +26,7 @@
     "src",
     "bin",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
   "pi": {
