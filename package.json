@@ -48,6 +48,10 @@
   "author": "Federico",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<owner>/gentle-profiles.git"
+    "url": "git+https://github.com/fcireza/gentle-profiles.git"
+  },
+  "homepage": "https://github.com/fcireza/gentle-profiles#readme",
+  "bugs": {
+    "url": "https://github.com/fcireza/gentle-profiles/issues"
   }
 }
