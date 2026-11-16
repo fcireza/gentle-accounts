@@ -1,7 +1,7 @@
 name: PR title
 
-# main uses linear history, so the PR title becomes the commit message that
-# release-please reads. It must be a Conventional Commit.
+# main squash-merges, so the PR title becomes the commit message that decides
+# the release version. It must be a Conventional Commit.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]

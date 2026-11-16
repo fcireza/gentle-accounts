@@ -175,15 +175,23 @@ La CI ejecuta las pruebas en Linux, macOS y Windows con Node 22 y 24.
 
 ## Versiones
 
-Las versiones se publican automáticamente y siguen [Conventional Commits](https://www.conventionalcommits.org/). `main` solo acepta Pull Requests fusionados con squash, así que el título del PR se convierte en el mensaje del commit: usa un título convencional (`feat: ...`, `fix: ...`, `docs: ...`). Una verificación lo exige.
+Cada merge a `main` crea una etiqueta `vX.Y.Z` y un GitHub Release con notas generadas. No hay PR de versión ni token que configurar: el workflow usa el `GITHUB_TOKEN` predeterminado.
 
-1. Fusiona tus PR en `main`.
-2. Un bot mantiene abierto un **PR de versión** ("chore(main): release x.y.z") con la nueva versión y el changelog.
-3. Al fusionar ese PR se crean la etiqueta `vx.y.z` y el GitHub Release con sus notas.
+`main` solo acepta Pull Requests fusionados con squash, así que el título del PR se convierte en el mensaje del commit y decide el incremento de versión. Usa un título según [Conventional Commits](https://www.conventionalcommits.org/) (`feat: ...`, `fix: ...`, `docs: ...`). Una verificación lo exige.
 
-La primera versión es `0.1.0`. Mientras la versión sea `0.x`, `feat` y los cambios incompatibles (`!` o un pie `BREAKING CHANGE:`) incrementan la versión menor, y `fix` incrementa el parche.
+| Commit | `0.x` | Desde `1.0.0` |
+| --- | --- | --- |
+| `feat: ...` | menor | menor |
+| `fix: ...` y cualquier otro | parche | parche |
+| `feat!: ...`, `fix!: ...` o un pie `BREAKING CHANGE:` | menor | mayor |
 
-GitHub no ejecuta la CI en los PR que el bot abre o actualiza con el token predeterminado, así que las verificaciones obligatorias del PR de versión quedan pendientes. Agrega un secreto de repositorio `RELEASE_PLEASE_TOKEN` (un token de acceso personal con permisos de escritura en contents y pull requests), o cierra y vuelve a abrir el PR de versión para ejecutar las verificaciones. Sin el token, tendrás que volver a abrirlo después de cada actualización.
+La primera versión es `0.1.0`. `scripts/next-version.ts` calcula la siguiente versión:
+
+```sh
+node scripts/next-version.ts
+```
+
+El campo `version` de `package.json` no se reescribe en `main`; la etiqueta es la fuente de verdad.
 
 ## Gentle Hub
 

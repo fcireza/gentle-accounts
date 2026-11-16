@@ -38,7 +38,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T7 (S16, S17, S18): default profile leaves CLAUDE_CONFIG_DIR unset; masked email and plugin-label status; login detection through `claude auth status` with auto refresh. Route: worker (context backstop), test-first (RED observed by the worker: 17 failing before src changes; 81/81 after; parent re-ran the tests and the real `claude auth status` for the three cases). Commit: see git log "fix(profiles)"
 - [x] T8 (S19): rename to gentle-accounts, command `/gentle:accounts`, launcher `gentle-accounts`. Route: worker (context backstop), test-first (RED observed: 25 failing after renaming only the tests; 87/87 after; parent re-ran tests and grepped leftovers). Commit: see git log "feat!: rename"
 - [ ] T9 (S20): README in Spanish plus README.en.md. Route: worker (context backstop). Commit: -
-- [ ] T10 (S21): tag and Release on every merge to main. Route: worker (context backstop), test-first. Commit: -
+- [x] T10 (S21): tag and Release on every merge to main. Route: worker (context backstop), test-first (RED observed: module missing and 4 failing workflow assertions; 134/134 after; parent fixed the last release-please comment and made the grep test strict). Commit: see git log "ci: tag and release"
 
 ## Log
 
