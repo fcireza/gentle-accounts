@@ -20,10 +20,13 @@ export function validateProfileName(name: string): string | null {
  *   <agentDir>/profiles/current            name of the active profile
  */
 export class ProfileStore {
+  readonly agentDir: string;
   readonly profilesDir: string;
   readonly currentPath: string;
 
-  constructor(readonly agentDir: string) {
+  // No parameter properties: Node's type stripping (used by bin/) rejects them.
+  constructor(agentDir: string) {
+    this.agentDir = agentDir;
     this.profilesDir = join(agentDir, "profiles");
     this.currentPath = join(this.profilesDir, "current");
   }

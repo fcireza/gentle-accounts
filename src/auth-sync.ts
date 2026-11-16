@@ -84,15 +84,17 @@ export function defaultClaudeDir(env: Env): string {
 }
 
 /**
- * First run: wrap the existing login into a `default` profile. The Claude dir is recorded
- * (not copied), so the current `claude auth login` keeps working untouched.
+ * No active profile yet: wrap the existing login into a `default` profile so a later switch
+ * snapshots it instead of dropping it. The Claude dir is recorded (not copied), so the
+ * current `claude auth login` keeps working untouched.
  */
 export function ensureDefaultProfile({ store, liveAuthPath, env }: Omit<SwitchOptions, "to">): string | null {
-  if (store.list().length > 0) return null;
-  const claudeDir = defaultClaudeDir(env);
-  store.create("default", { claudeDir });
-  writeAuthFile(store.authPath("default"), transferCovered(readAuthFile(liveAuthPath), {}));
+  if (store.current()) return null;
+  if (!store.exists("default")) {
+    store.create("default", { claudeDir: defaultClaudeDir(env) });
+    writeAuthFile(store.authPath("default"), transferCovered(readAuthFile(liveAuthPath), {}));
+  }
   store.setCurrent("default");
-  env.CLAUDE_CONFIG_DIR = claudeDir;
+  env.CLAUDE_CONFIG_DIR = store.claudeDir("default");
   return "default";
 }

@@ -129,10 +129,35 @@ test("ensureDefaultProfile creates 'default' from live credentials and the curre
   assert.equal(env.CLAUDE_CONFIG_DIR, "/home/me/.claude-custom");
 });
 
-test("ensureDefaultProfile does nothing when a profile already exists", () => {
+test("ensureDefaultProfile does nothing when a profile is already active", () => {
   const { store, liveAuthPath } = setup();
   store.create("work");
+  store.setCurrent("work");
   const env: Record<string, string | undefined> = {};
   assert.equal(ensureDefaultProfile({ store, liveAuthPath, env }), null);
   assert.deepEqual(store.list(), ["work"]);
+  assert.equal(env.CLAUDE_CONFIG_DIR, undefined);
+});
+
+test("ensureDefaultProfile still creates default when other profiles exist but none is active", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  const env: Record<string, string | undefined> = {};
+  assert.equal(ensureDefaultProfile({ store, liveAuthPath, env }), "default");
+  assert.deepEqual(store.list(), ["default", "work"]);
+  assert.equal(store.current(), "default");
+  assert.deepEqual(readAuthFile(store.authPath("default")), { anthropic: anthropicWork });
+});
+
+test("ensureDefaultProfile reuses an existing default without overwriting its snapshot", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("default");
+  writeAuthFile(store.authPath("default"), { "openai-codex": codexWork });
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  const env: Record<string, string | undefined> = {};
+  assert.equal(ensureDefaultProfile({ store, liveAuthPath, env }), "default");
+  assert.equal(store.current(), "default");
+  assert.deepEqual(readAuthFile(store.authPath("default")), { "openai-codex": codexWork });
+  assert.equal(env.CLAUDE_CONFIG_DIR, store.claudeDir("default"));
 });
