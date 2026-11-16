@@ -149,3 +149,24 @@ test("a corrupt target with no active profile fails without creating default or 
   assert.equal(store.current(), null);
   assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "live" } });
 });
+
+test("S16: launching the system-default profile builds a child env without CLAUDE_CONFIG_DIR", () => {
+  const { store, spawns, deps, env } = setup();
+  store.create("default", { claudeDefault: true });
+  store.create("work");
+  store.setCurrent("work");
+  env.CLAUDE_CONFIG_DIR = "/from/user";
+  assert.equal(runCli(["default"], deps), 0);
+  assert.equal(spawns.length, 1);
+  assert.equal("CLAUDE_CONFIG_DIR" in spawns[0].env, false);
+  assert.equal(spawns[0].env.PATH, "/usr/bin");
+});
+
+test("S16: login for the system-default profile runs claude auth login without CLAUDE_CONFIG_DIR", () => {
+  const { store, spawns, deps, env } = setup();
+  store.create("default", { claudeDefault: true });
+  env.CLAUDE_CONFIG_DIR = "/from/user";
+  assert.equal(runCli(["login", "default"], deps), 0);
+  assert.deepEqual(spawns[0].args, ["auth", "login"]);
+  assert.equal("CLAUDE_CONFIG_DIR" in spawns[0].env, false);
+});

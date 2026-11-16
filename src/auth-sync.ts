@@ -1,6 +1,4 @@
 import { existsSync, readFileSync, renameSync, writeFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { ProfileStore } from "./store.ts";
 
 /** pi auth.json providers whose credentials belong to a profile. */
@@ -75,36 +73,44 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
     writeAuthFile(store.authPath(from), transferCovered(live, outgoing));
   }
   writeAuthFile(liveAuthPath, transferCovered(incoming, live));
-  env.CLAUDE_CONFIG_DIR = store.claudeDir(to);
+  applyClaudeConfigEnv(env, store.claudeConfigEnv(to));
   store.setCurrent(to);
   return { status: "switched", from, to };
 }
 
-/** On load: make the bridge use the current profile's Claude login unless the user forced a dir. */
+/** Sets CLAUDE_CONFIG_DIR, or deletes it for undefined (never assigns the string "undefined"). */
+export function applyClaudeConfigEnv(env: Env, value: string | undefined): void {
+  if (value === undefined) delete env.CLAUDE_CONFIG_DIR;
+  else env.CLAUDE_CONFIG_DIR = value;
+}
+
+/**
+ * On load: make the bridge use the current profile's Claude login unless the user forced a dir.
+ * A profile on Claude Code's default dir leaves the environment alone.
+ */
 export function applyCurrentProfileEnv(store: ProfileStore, env: Env): string | null {
   const current = store.current();
   if (!current) return null;
-  if (!env.CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = store.claudeDir(current);
+  const value = store.claudeConfigEnv(current);
+  if (value !== undefined && !env.CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = value;
   return current;
-}
-
-export function defaultClaudeDir(env: Env): string {
-  return env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
 }
 
 /**
  * No active profile yet: wrap the existing login into a `default` profile so a later switch
- * snapshots it instead of dropping it. The Claude dir is recorded (not copied), so the
- * current `claude auth login` keeps working untouched.
+ * snapshots it instead of dropping it. A user-set CLAUDE_CONFIG_DIR is recorded (not copied);
+ * otherwise the profile keeps Claude Code's default dir with the variable unset, because
+ * setting it to `<home>/.claude` loses the macOS keychain login.
  */
 export function ensureDefaultProfile({ store, liveAuthPath, env }: Omit<SwitchOptions, "to">): string | null {
   if (store.current()) return null;
   if (!store.exists("default")) {
     const live = readAuthFile(liveAuthPath); // before create: a corrupt file leaves no stray profile
-    store.create("default", { claudeDir: defaultClaudeDir(env) });
+    const userDir = env.CLAUDE_CONFIG_DIR;
+    store.create("default", userDir ? { claudeDir: userDir } : { claudeDefault: true });
     writeAuthFile(store.authPath("default"), transferCovered(live, {}));
   }
   store.setCurrent("default");
-  env.CLAUDE_CONFIG_DIR = store.claudeDir("default");
+  applyClaudeConfigEnv(env, store.claudeConfigEnv("default"));
   return "default";
 }

@@ -113,3 +113,33 @@ test("delete removes the profile dir, refuses the active one and a missing one",
   assert.equal(existsSync(store.profileDir("personal")), false);
   assert.deepEqual(store.list(), ["work"]);
 });
+
+test("S16: a profile created with claudeDefault writes the marker and leaves CLAUDE_CONFIG_DIR unset", () => {
+  const { store } = tempStore();
+  store.create("default", { claudeDefault: true });
+  assert.ok(existsSync(join(store.profileDir("default"), "claude-default")));
+  assert.equal(existsSync(store.claudeDirPath("default")), false);
+  assert.equal(existsSync(join(store.profileDir("default"), "claude")), false);
+  assert.equal(store.claudeConfigEnv("default"), undefined);
+});
+
+test("S16: a legacy claude-dir equal to <home>/.claude is treated as the system default", () => {
+  const { store, agentDir } = tempStore();
+  const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+  process.env.HOME = agentDir;
+  process.env.USERPROFILE = agentDir;
+  try {
+    store.create("default", { claudeDir: join(agentDir, ".claude") });
+    assert.equal(store.claudeConfigEnv("default"), undefined);
+    store.create("custom", { claudeDir: join(agentDir, ".claude-custom") });
+    assert.equal(store.claudeConfigEnv("custom"), join(agentDir, ".claude-custom"));
+    store.create("work");
+    assert.equal(store.claudeConfigEnv("work"), join(store.profileDir("work"), "claude"));
+    assert.equal(store.claudeDir("work"), join(store.profileDir("work"), "claude"));
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});

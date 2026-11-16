@@ -32,7 +32,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T4 (S10, S13): launcher CLI `gentle-profiles` (bin). Route: inline; tests and code written together, then an end-to-end run with a fake gentle-shell on PATH. Commit: 96d85d3
 - [x] T5 (S1, S3, S14): package.json metadata (pi-package keyword, bin, files), README, Gentle Hub topics instructions, CI on three OSes, extension tests with a fake ExtensionAPI. Route: inline. Commit: 2772067
 - [x] T6 (S15): account status in the status bar and sidebar. Route: worker (context backstop), test-first (RED observed by the worker, 59/59 after, reviewed by the parent). Commit: see git log "feat(status)"
-- [ ] T7 (S16, S17, S18): default profile leaves CLAUDE_CONFIG_DIR unset; masked email and plugin-label status; login detection through `claude auth status` with auto refresh. Route: worker (context backstop), test-first. Commit: -
+- [x] T7 (S16, S17, S18): default profile leaves CLAUDE_CONFIG_DIR unset; masked email and plugin-label status; login detection through `claude auth status` with auto refresh. Route: worker (context backstop), test-first (RED observed by the worker: 17 failing before src changes; 81/81 after; parent re-ran the tests and the real `claude auth status` for the three cases). Commit: see git log "fix(profiles)"
 
 ## Log
 

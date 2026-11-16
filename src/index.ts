@@ -1,7 +1,7 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { readClaudeAccount, statusText } from "./account.ts";
+import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner } from "./account.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, validateProfileName } from "./store.ts";
 import { applyCurrentProfileEnv, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand } from "./login.ts";
@@ -22,34 +22,92 @@ function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "w
   ctx.ui.notify(message, type);
 }
 
-const STATUS_KEY = "gentle-profiles";
+const STATUS_KEY = PLUGIN_LABEL;
+const REFRESH_MS = 60_000;
+const UNSET_DIR = "(unset: Claude Code default)";
 
-/** Shows `<profile> · <email>` in the status bar; never throws. */
-function updateStatus(ctx: { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void } }, store: ProfileStore): void {
-  try {
-    if (!ctx?.hasUI || !ctx.ui?.setStatus) return;
-    const current = store.current();
-    ctx.ui.setStatus(STATUS_KEY, current ? statusText(current, readClaudeAccount(store.claudeDir(current), homedir())) : undefined);
-  } catch {
-    // The status line is cosmetic; never break the caller.
-  }
+type StatusCtx = { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void } };
+type TimerHandle = { unref?: () => unknown };
+
+/** Test seams; pi calls the factory with the API only. */
+export interface ExtensionDeps {
+  runClaudeStatus?: ClaudeStatusRunner;
+  setInterval?: (fn: () => void, ms: number) => TimerHandle;
+  clearInterval?: (handle: TimerHandle) => void;
 }
 
-export default function gentleProfiles(pi: ExtensionAPI): void {
+function displayDir(store: ProfileStore, name: string): string {
+  return store.claudeConfigEnv(name) ?? UNSET_DIR;
+}
+
+export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {}): void {
   const store = () => new ProfileStore(getAgentDir());
   const liveAuthPath = () => join(getAgentDir(), "auth.json");
+  const startTimer = deps.setInterval ?? ((fn: () => void, ms: number) => setInterval(fn, ms));
+  const stopTimer = deps.clearInterval ?? ((handle: TimerHandle) => clearInterval(handle as ReturnType<typeof setInterval>));
 
-  pi.on("session_start", (_event, ctx) => {
+  let generation = 0;
+  let inFlight: string | null = null;
+  let timer: TimerHandle | undefined;
+  let lastCtx: StatusCtx | undefined;
+
+  /**
+   * Shows `gentle-profiles: <profile> · <masked email>`; never throws. A refresh for the profile
+   * already being computed is skipped, and a result for an older request is dropped.
+   */
+  async function updateStatus(ctx: StatusCtx, s: ProfileStore): Promise<void> {
+    try {
+      if (!ctx?.hasUI || !ctx.ui?.setStatus) return;
+      lastCtx = ctx;
+      const current = s.current();
+      if (current && inFlight === current) return;
+      const gen = ++generation;
+      if (!current) {
+        inFlight = null;
+        ctx.ui.setStatus(STATUS_KEY, undefined);
+        return;
+      }
+      inFlight = current;
+      try {
+        const account = await queryClaudeAccount({ claudeConfigDir: s.claudeConfigEnv(current), homeDir: homedir(), run: deps.runClaudeStatus });
+        if (gen !== generation || s.current() !== current) return;
+        ctx.ui.setStatus(STATUS_KEY, statusText(current, account));
+      } finally {
+        if (gen === generation) inFlight = null;
+      }
+    } catch {
+      // The status line is cosmetic; never break the caller.
+    }
+  }
+
+  pi.on("session_start", async (_event, ctx) => {
     const s = store();
     try {
       if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
         applyCurrentProfileEnv(s, process.env);
       }
-      updateStatus(ctx, s);
     } catch (error) {
       // A corrupt auth.json must not break session start; the user still gets a clear message.
       ctx.ui.notify(`gentle-profiles: ${(error as Error).message}`, "error");
+      return;
     }
+    if (!timer) {
+      timer = startTimer(() => {
+        if (lastCtx) void updateStatus(lastCtx, store());
+      }, REFRESH_MS);
+      timer.unref?.();
+    }
+    await updateStatus(ctx, s);
+  });
+
+  pi.on("agent_end", async (_event, ctx) => {
+    await updateStatus(ctx, store());
+  });
+
+  pi.on("session_shutdown", () => {
+    if (timer) stopTimer(timer);
+    timer = undefined;
+    lastCtx = undefined;
   });
 
   pi.registerCommand("profile", {
@@ -70,8 +128,8 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
       }
       if (sub === "current") {
         const current = s.current();
-        notify(ctx, current ? `Active profile: ${current} (CLAUDE_CONFIG_DIR=${s.claudeDir(current)})` : "No active profile.");
-        updateStatus(ctx, s);
+        notify(ctx, current ? `Active profile: ${current} (CLAUDE_CONFIG_DIR=${displayDir(s, current)})` : "No active profile.");
+        await updateStatus(ctx, s);
         return;
       }
       if (sub === "create") {
@@ -105,7 +163,7 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
         if (arg !== "claude") return notify(ctx, USAGE, "warning");
         const current = s.current();
         if (!current) return notify(ctx, "No active profile.", "error");
-        notify(ctx, `Run this in another terminal to log profile "${current}" into Claude Code:\n${claudeLoginCommand(s.claudeDir(current))}`);
+        notify(ctx, `Run this in another terminal to log profile "${current}" into Claude Code:\n${claudeLoginCommand(s.claudeConfigEnv(current))}`);
         return;
       }
       if (sub === "help" || sub === "--help") return notify(ctx, USAGE);
@@ -131,8 +189,8 @@ export default function gentleProfiles(pi: ExtensionAPI): void {
         const result = switchProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env, to: target });
         if (result.status === "noop") return notify(ctx, `Already on profile "${target}".`);
         await ctx.modelRegistry.refresh();
-        notify(ctx, `Switched to profile "${target}". Claude Code dir: ${s.claudeDir(target)}`);
-        updateStatus(ctx, s);
+        notify(ctx, `Switched to profile "${target}". Claude Code dir: ${displayDir(s, target)}`);
+        await updateStatus(ctx, s);
       } catch (error) {
         notify(ctx, (error as Error).message, "error");
       }
