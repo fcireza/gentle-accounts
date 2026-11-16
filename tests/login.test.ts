@@ -12,3 +12,9 @@ test("claudeLoginCommand renders a PowerShell command on Windows", () => {
   assert.equal(claudeLoginCommand("C:\\Users\\me\\.gentle-shell\\agent\\profiles\\work\\claude", "win32"),
     '$env:CLAUDE_CONFIG_DIR="C:\\Users\\me\\.gentle-shell\\agent\\profiles\\work\\claude"; claude auth login');
 });
+
+test("S16: claudeLoginCommand without a dir is plain `claude auth login` on every shell", () => {
+  assert.equal(claudeLoginCommand(undefined, "linux"), "claude auth login");
+  assert.equal(claudeLoginCommand(undefined, "darwin"), "claude auth login");
+  assert.equal(claudeLoginCommand(undefined, "win32"), "claude auth login");
+});

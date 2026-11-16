@@ -11,6 +11,7 @@ import {
   switchProfile,
   applyCurrentProfileEnv,
   ensureDefaultProfile,
+  applyClaudeConfigEnv,
 } from "../src/auth-sync.ts";
 
 const codexWork = { type: "oauth", access: "a-work", refresh: "r-work", expires: 1, accountId: "acc-w" };
@@ -200,4 +201,46 @@ test("ensureDefaultProfile reuses an existing default without overwriting its sn
   assert.equal(store.current(), "default");
   assert.deepEqual(readAuthFile(store.authPath("default")), { "openai-codex": codexWork });
   assert.equal(env.CLAUDE_CONFIG_DIR, store.claudeDir("default"));
+});
+
+test("S16: applyClaudeConfigEnv deletes the variable for undefined and assigns a value otherwise", () => {
+  const env: Record<string, string | undefined> = { CLAUDE_CONFIG_DIR: "/x" };
+  applyClaudeConfigEnv(env, undefined);
+  assert.equal("CLAUDE_CONFIG_DIR" in env, false);
+  applyClaudeConfigEnv(env, "/y");
+  assert.equal(env.CLAUDE_CONFIG_DIR, "/y");
+});
+
+test("S16: ensureDefaultProfile without a user CLAUDE_CONFIG_DIR writes the marker and leaves the variable unset", () => {
+  const { store, liveAuthPath } = setup();
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  const env: Record<string, string | undefined> = {};
+  assert.equal(ensureDefaultProfile({ store, liveAuthPath, env }), "default");
+  assert.ok(existsSync(join(store.profileDir("default"), "claude-default")));
+  assert.equal(existsSync(store.claudeDirPath("default")), false);
+  assert.equal(store.claudeConfigEnv("default"), undefined);
+  assert.equal("CLAUDE_CONFIG_DIR" in env, false);
+});
+
+test("S16: switching work -> default deletes CLAUDE_CONFIG_DIR, default -> work sets it", () => {
+  const { store, liveAuthPath } = setup();
+  const env: Record<string, string | undefined> = {};
+  ensureDefaultProfile({ store, liveAuthPath, env });
+  store.create("work");
+  switchProfile({ store, liveAuthPath, env, to: "work" });
+  assert.equal(env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
+  switchProfile({ store, liveAuthPath, env, to: "default" });
+  assert.equal("CLAUDE_CONFIG_DIR" in env, false);
+});
+
+test("S16: applyCurrentProfileEnv leaves the environment alone for a system-default profile", () => {
+  const { store } = setup();
+  store.create("default", { claudeDefault: true });
+  store.setCurrent("default");
+  const empty: Record<string, string | undefined> = {};
+  assert.equal(applyCurrentProfileEnv(store, empty), "default");
+  assert.equal("CLAUDE_CONFIG_DIR" in empty, false);
+  const preset: Record<string, string | undefined> = { CLAUDE_CONFIG_DIR: "/preset" };
+  assert.equal(applyCurrentProfileEnv(store, preset), "default");
+  assert.equal(preset.CLAUDE_CONFIG_DIR, "/preset");
 });
