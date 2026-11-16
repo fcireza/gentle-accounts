@@ -8,7 +8,7 @@ import { readAuthFile, writeAuthFile } from "../src/auth-sync.ts";
 import { runCli, type CliDeps, type SpawnCall } from "../src/cli.ts";
 
 function setup(platform: NodeJS.Platform = "linux") {
-  const agentDir = mkdtempSync(join(tmpdir(), "gentle-profiles-cli-"));
+  const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-cli-"));
   const store = new ProfileStore(agentDir);
   const liveAuthPath = join(agentDir, "auth.json");
   const out: string[] = [];
@@ -30,7 +30,7 @@ function setup(platform: NodeJS.Platform = "linux") {
   return { store, liveAuthPath, env, out, err, spawns, deps };
 }
 
-test("gentle-profiles <name> syncs credentials, sets CLAUDE_CONFIG_DIR and execs gentle-shell with the rest", () => {
+test("gentle-accounts <name> syncs credentials, sets CLAUDE_CONFIG_DIR and execs gentle-shell with the rest", () => {
   const { store, liveAuthPath, out, err, spawns, deps } = setup();
   store.create("work");
   store.create("personal");
@@ -91,7 +91,7 @@ test("a missing profile prints the exact message, exits 1 and spawns nothing", (
   store.create("work");
   store.setCurrent("work");
   assert.equal(runCli(["ghost"], deps), 1);
-  assert.deepEqual(err, ['Profile "ghost" does not exist. Create it with: gentle-profiles create <name>']);
+  assert.deepEqual(err, ['Profile "ghost" does not exist. Create it with: gentle-accounts create <name>']);
   assert.deepEqual(spawns, []);
   assert.equal(store.current(), "work");
 });
@@ -99,7 +99,7 @@ test("a missing profile prints the exact message, exits 1 and spawns nothing", (
 test("list, create and current mirror the slash command without a UI", () => {
   const { store, out, err, deps } = setup();
   assert.equal(runCli(["list"], deps), 0);
-  assert.deepEqual(out, ["No profiles. Create one with: gentle-profiles create <name>"]);
+  assert.deepEqual(out, ["No profiles. Create one with: gentle-accounts create <name>"]);
   out.length = 0;
   assert.equal(runCli(["create", "work"], deps), 0);
   assert.equal(runCli(["create", "personal"], deps), 0);
@@ -132,9 +132,9 @@ test("login <name> runs claude auth login with the profile's CLAUDE_CONFIG_DIR",
 test("no args or --help prints usage; --help exits 0, no args exits 1", () => {
   const { out, err, deps } = setup();
   assert.equal(runCli(["--help"], deps), 0);
-  assert.match(out.join("\n"), /gentle-profiles <name> \[gentle-shell args\.\.\.\]/);
+  assert.match(out.join("\n"), /gentle-accounts <name> \[gentle-shell args\.\.\.\]/);
   assert.equal(runCli([], deps), 1);
-  assert.match(err.join("\n"), /gentle-profiles <name>/);
+  assert.match(err.join("\n"), /gentle-accounts <name>/);
 });
 
 test("a corrupt target with no active profile fails without creating default or setting current", () => {

@@ -27,6 +27,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - name: launcher smoke (Node type stripping, no tsx)
-        run: node bin/gentle-profiles.mjs --help
+        run: node bin/gentle-accounts.mjs --help
       - name: package contents
         run: npm pack --dry-run

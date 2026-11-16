@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Launcher: `gentle-profiles <name> [gentle-shell args...]`.
+// Launcher: `gentle-accounts <name> [gentle-shell args...]`.
 // Runs the TypeScript sources through Node's built-in type stripping (Node >= 22.18).
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 22 || (major === 22 && minor < 18)) {
-  console.error(`gentle-profiles needs Node 22.18 or newer (found ${process.versions.node}).`);
+  console.error(`gentle-accounts needs Node 22.18 or newer (found ${process.versions.node}).`);
   process.exit(1);
 }
 

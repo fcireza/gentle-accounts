@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { PLUGIN_LABEL, maskEmail, queryClaudeAccount, readClaudeAccount, statusText } from "../src/account.ts";
 
 function dirs() {
-  const home = mkdtempSync(join(tmpdir(), "gentle-profiles-acct-"));
+  const home = mkdtempSync(join(tmpdir(), "gentle-accounts-acct-"));
   const claudeDir = join(home, "profiles", "work", "claude");
   mkdirSync(claudeDir, { recursive: true });
   return { home, claudeDir };
@@ -52,10 +52,10 @@ test("falls back to <home>/.claude.json only for the <home>/.claude dir", () => 
   assert.deepEqual(readClaudeAccount(homeClaude, home), { email: "dir@x.y" });
 });
 
-test("S17: statusText is `gentle-profiles: <profile> · <masked>` or `· not logged in`", () => {
-  assert.equal(PLUGIN_LABEL, "gentle-profiles");
-  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "gentle-profiles: work · fcir****@gmail.com");
-  assert.equal(statusText("work", null), "gentle-profiles: work · not logged in");
+test("S17: statusText is `gentle-accounts: <profile> · <masked>` or `· not logged in`", () => {
+  assert.equal(PLUGIN_LABEL, "gentle-accounts");
+  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "gentle-accounts: work · fcir****@gmail.com");
+  assert.equal(statusText("work", null), "gentle-accounts: work · not logged in");
 });
 
 test("S17: maskEmail keeps min(4, max(1, local - 3)) chars and the domain", () => {

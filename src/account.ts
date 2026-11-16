@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { applyClaudeConfigEnv, type Env } from "./auth-sync.ts";
 
 /** Plugin label shown in front of every status text. */
-export const PLUGIN_LABEL = "gentle-profiles";
+export const PLUGIN_LABEL = "gentle-accounts";
 
 export interface ClaudeAccount {
   email: string;

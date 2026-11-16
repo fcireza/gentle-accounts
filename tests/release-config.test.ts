@@ -18,3 +18,17 @@ test("the first release is 0.1.0, not release-please's default 1.0.0", () => {
 test("the package name matches package.json", () => {
   assert.equal(pkg["package-name"], JSON.parse(readFileSync("package.json", "utf8")).name);
 });
+
+test("S19: the package, its launcher and the release are named gentle-accounts", () => {
+  const p = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(p.name, "gentle-accounts");
+  assert.deepEqual(p.bin, { "gentle-accounts": "./bin/gentle-accounts.mjs" });
+  assert.equal(pkg["package-name"], "gentle-accounts");
+});
+
+test("package.json links point at the gentle-accounts repository", () => {
+  const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.match(pkg.repository.url, /fcireza\/gentle-accounts\.git$/);
+  assert.match(pkg.homepage, /fcireza\/gentle-accounts#readme$/);
+  assert.match(pkg.bugs.url, /fcireza\/gentle-accounts\/issues$/);
+});
