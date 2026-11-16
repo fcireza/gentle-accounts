@@ -76,3 +76,12 @@ test("launcher e2e: a missing profile exits 1 with the documented message", () =
   assert.equal(r.code, 1);
   assert.equal(r.err.trim(), 'Profile "ghost" does not exist. Create it with: gentle-profiles create <name>');
 });
+
+test("launcher e2e (S16): the default profile starts gentle-shell without CLAUDE_CONFIG_DIR", () => {
+  const { run } = sandbox();
+  assert.equal(run("create", "work").code, 0);
+  assert.match(run("work").out, /dir=.*work.claude/);
+  const d = run("default");
+  assert.equal(d.code, 0, d.err);
+  assert.match(d.out, /^GS args= ?dir=\s*$/m);
+});
