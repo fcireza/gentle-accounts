@@ -477,6 +477,27 @@ test("S27: session_start switches to the startup profile and notifies", async ()
   assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: work · not logged in" }]);
 });
 
+test("S27: the startup profile is applied only when the process starts, not on new, resume, fork or reload", async () => {
+  const { store, events, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal"); // a manual switch made earlier in this process
+  store.setStartup("work");
+  writeFileSync(liveAuthPath, JSON.stringify({ anthropic: { type: "api_key", key: "p" } }));
+  writeFileSync(store.authPath("work"), JSON.stringify({ anthropic: { type: "api_key", key: "w" } }));
+  for (const reason of ["new", "resume", "fork", "reload"]) {
+    const c = fakeCtx();
+    await events.get("session_start")!({ type: "session_start", reason }, c.ctx);
+    assert.equal(store.current(), "personal", reason);
+    assert.deepEqual(c.notes, [], reason);
+    assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "p" } }, reason);
+  }
+  const c = fakeCtx();
+  await events.get("session_start")!({ type: "session_start", reason: "startup" }, c.ctx);
+  assert.equal(store.current(), "work");
+  assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (startup profile).', type: "info" }]);
+});
+
 test("S27: session_start with the startup profile already active changes nothing", async () => {
   const { store, events, liveAuthPath } = setup();
   store.create("work");

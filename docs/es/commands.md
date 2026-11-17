@@ -100,7 +100,7 @@ Muestra, define o borra el perfil de inicio: el perfil con el que empiezan las s
 - Nombre inválido: el mensaje de nombre inválido (error).
 - Perfil inexistente: `Profile "<name>" does not exist.` (error).
 
-Definir el perfil de inicio no cambia el perfil de la sesión en curso. Un inicio explícito con `gentle-accounts <name>` gana para ese inicio: el launcher define `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` para gentle-shell y la extensión omite entonces el perfil de inicio.
+Definir el perfil de inicio no cambia el perfil de la sesión en curso. Un inicio explícito con `gentle-accounts <name>` gana para ese inicio: el launcher define `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` para gentle-shell y la extensión omite entonces el perfil de inicio. El perfil de inicio se aplica solo cuando pi arranca, no en `/new`, `/resume`, `/fork` ni `/reload`.
 
 ### `/gentle:accounts help`
 

@@ -100,7 +100,7 @@ Shows, sets or clears the startup profile: the profile new sessions start on. Wi
 - Invalid name: the invalid name message (error).
 - Missing profile: `Profile "<name>" does not exist.` (error).
 
-Setting the startup profile does not switch the current session. An explicit `gentle-accounts <name>` launch wins for that launch: the launcher sets `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` for gentle-shell and the extension then skips the startup profile.
+Setting the startup profile does not switch the current session. An explicit `gentle-accounts <name>` launch wins for that launch: the launcher sets `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` for gentle-shell and the extension then skips the startup profile. The startup profile is applied only when pi starts, not on `/new`, `/resume`, `/fork` or `/reload`.
 
 ### `/gentle:accounts help`
 

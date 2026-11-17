@@ -81,7 +81,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     }
   }
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
     const s = store();
     try {
       if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
@@ -94,7 +94,9 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     }
     try {
       // An explicit `gentle-accounts <name>` launch already switched: it wins over the startup profile.
-      if (!process.env[LAUNCH_PROFILE_ENV]) {
+      // Only the process start applies it: /new, /resume, /fork and /reload keep a profile the user switched to by hand.
+      const reason = (event as { reason?: string } | undefined)?.reason;
+      if (!process.env[LAUNCH_PROFILE_ENV] && (reason === undefined || reason === "startup")) {
         // The env of the last used profile is already applied; a switch replaces it (set or delete).
         const started = applyStartupProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
         if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (startup profile).`, "info");
