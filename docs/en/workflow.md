@@ -131,7 +131,7 @@ Switched to profile "default". Claude Code dir: (unset: Claude Code default)
 
 Switching to the profile that is already active only says `Already on profile "default".`. Switching waits for the agent: while a turn is running you get `Wait for the current turn to finish before switching profiles.`
 
-Reading the status bar: `👤 gentle-accounts: <profile> · <masked email>` when the profile's Claude login is detected, `🔒 gentle-accounts: <profile> · not logged in` otherwise. The icon shows the state at a glance: `👤` logged in, `🔒` not logged in. The email is masked, for example `mari****@company.com`. The status refreshes on start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds.
+Reading the status bar: `👤 gentle-accounts: <profile> · <masked email>` when the profile's Claude login is detected, `🔒 gentle-accounts: <profile> · not logged in` otherwise. The icon shows the state at a glance: `👤` logged in, `🔒` not logged in. By default the email is masked, for example `mari****@company.com`; see section 7 to show it in full. The status refreshes on start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds.
 
 ## 5. Starting a session on a profile
 
@@ -167,7 +167,31 @@ Startup profile cleared. New sessions start on the last used profile.
 
 The startup profile is shared by every session of the same agent dir; see the known limit in [How it works](how-it-works.md).
 
-## 7. Deleting a profile
+## 7. Show the full email in the status bar
+
+By default the status bar shows a masked email, `👤 gentle-accounts: work · mari****@company.com`. To see the full address:
+
+```
+/gentle:accounts email show
+```
+
+```
+Email display set to shown. The status bar shows the full email.
+```
+
+The status bar refreshes right away and reads `👤 gentle-accounts: work · maria.lopez@company.com`. To mask it again:
+
+```
+/gentle:accounts email hide
+```
+
+```
+Email display set to hidden. The status bar shows a masked email.
+```
+
+Privacy warning: with `show`, anyone who sees your screen can read the address, including screen shares, screenshots and recordings. Hide it before sharing your screen. The setting applies to every session of the same agent dir.
+
+## 8. Deleting a profile
 
 You cannot delete the active profile or the startup profile, so switch away (or run `startup last`) first:
 

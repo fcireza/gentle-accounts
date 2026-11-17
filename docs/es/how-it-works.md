@@ -76,7 +76,7 @@ Así que `default` recibe el marcador `claude-default` y la variable se elimina 
 
 La extensión muestra la cuenta con `setStatus` de pi, bajo la clave `gentle-accounts`. Gentle Shell la muestra en su barra de estado y en la barra lateral.
 
-- Con sesión: `👤 gentle-accounts: <profile> · <masked email>`, por ejemplo `👤 gentle-accounts: work · mari****@company.com`.
+- Con sesión: `👤 gentle-accounts: <profile> · <masked email>`, por ejemplo `👤 gentle-accounts: work · mari****@company.com`. De forma predeterminada el correo está oculto (enmascarado); con `/gentle:accounts email show` la dirección completa aparece en el mismo lugar, por ejemplo `👤 gentle-accounts: work · maria.lopez@company.com`.
 - Sin sesión: `🔒 gentle-accounts: <profile> · not logged in`, por ejemplo `🔒 gentle-accounts: work · not logged in`.
 
 El ícono distingue los dos estados de un vistazo: `👤` indica que se detectó un inicio de sesión de Claude para el perfil y `🔒` que no se detectó.
@@ -99,11 +99,16 @@ Detección:
 
 Actualización: al iniciar la sesión, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos. Una actualización que ya está en curso para el mismo perfil se omite, y el resultado de un perfil que ya no está activo se descarta. Un inicio de sesión hecho en otra terminal aparece solo en menos de un minuto.
 
+Opción de visualización del correo: `/gentle:accounts email [show|hide]` y `gentle-accounts email [show|hide]` la guardan en `profiles/settings.json` con la clave `showEmail` (valor predeterminado `false`). Solo un `true` literal muestra el correo completo. Un archivo inexistente, vacío o inválido significa oculto y nunca se reescribe al leerlo. La escritura conserva cualquier otra clave y usa la misma escritura atómica que los archivos de credenciales (archivo temporal y luego renombrado) con permisos `0600`. El archivo es global para la carpeta del agente y se lee en cada actualización del estado.
+
+El correo completo solo se escribe en la barra de estado, y solo cuando la opción está en mostrar: ninguna notificación, salida de comando, registro ni imagen lo contiene, en ningún modo.
+
 Codex no muestra correo, porque pi solo guarda un identificador de cuenta opaco (según el README existente, no verificado contra el código de pi).
 
 ## Seguridad
 
-- Los tokens nunca se imprimen: el estado y las notificaciones solo usan el nombre del perfil y el correo enmascarado; el correo completo nunca aparece.
+- Los tokens nunca se imprimen: el estado y las notificaciones solo usan el nombre del perfil y el correo enmascarado; el correo completo aparece solo en la barra de estado, y solo después de `/gentle:accounts email show`. Si está visible, cualquier persona que vea su pantalla puede leerlo.
+- `profiles/settings.json` se escribe con permisos `0600`.
 - Los archivos de credenciales, `profiles/current` y `profiles/startup` se escriben con permisos `0600`.
 - Nada sale de su equipo: el paquete solo lee y escribe archivos locales y ejecuta la CLI `claude` local. No hace solicitudes de red propias; `claude auth login` y el `/login` de pi hablan con sus proveedores como siempre.
 - Los comandos se ejecutan con argumentos fijos; en Windows pasan por la shell solo para resolver los shims `.cmd`.

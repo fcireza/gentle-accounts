@@ -76,7 +76,7 @@ So `default` gets the `claude-default` marker and the variable is removed while 
 
 The extension shows the account with pi's `setStatus`, under the key `gentle-accounts`. Gentle Shell shows it in its status bar and sidebar.
 
-- Logged in: `👤 gentle-accounts: <profile> · <masked email>`, for example `👤 gentle-accounts: work · mari****@company.com`.
+- Logged in: `👤 gentle-accounts: <profile> · <masked email>`, for example `👤 gentle-accounts: work · mari****@company.com`. The email is hidden (masked) by default; with `/gentle:accounts email show` the full address appears in the same place, for example `👤 gentle-accounts: work · maria.lopez@company.com`.
 - Not logged in: `🔒 gentle-accounts: <profile> · not logged in`, for example `🔒 gentle-accounts: work · not logged in`.
 
 The icon tells the two states apart at a glance: `👤` means a Claude login was detected for the profile, `🔒` means it was not.
@@ -99,11 +99,16 @@ Detection:
 
 Refresh: on session start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds. A refresh already running for the same profile is skipped, and a result for a profile that is no longer active is dropped. A login done in another terminal shows up on its own within a minute.
 
+Email display setting: `/gentle:accounts email [show|hide]` and `gentle-accounts email [show|hide]` store it in `profiles/settings.json` under the key `showEmail` (default `false`). Only a literal `true` shows the full email. A missing, empty or invalid file means hidden and is never rewritten when it is read. Writing keeps any other key and uses the same atomic write as the credentials files (temporary file, then rename) with `0600` permissions. The file is global to the agent dir and is read on every status refresh.
+
+The full email is only ever written to the status bar, and only when the setting is shown: no notification, command output, log or image contains it, in either mode.
+
 Codex shows no email, because pi stores only an opaque account id for it (from the existing README, not verified against pi's source).
 
 ## Security
 
-- Tokens are never printed: the status and notifications only use the profile name and the masked email; the full email never appears.
+- Tokens are never printed: the status and notifications only use the profile name and the masked email; the full email appears only in the status bar, and only after `/gentle:accounts email show`. With it shown, anyone who sees your screen can read it.
+- `profiles/settings.json` is written with `0600` permissions.
 - Credentials files, `profiles/current` and `profiles/startup` are written with `0600` permissions.
 - Nothing leaves your machine: the package only reads and writes local files and runs the local `claude` CLI. It makes no network requests of its own; `claude auth login` and pi's `/login` talk to their providers as usual.
 - Commands are run with fixed arguments; on Windows they go through the shell only to resolve `.cmd` shims.

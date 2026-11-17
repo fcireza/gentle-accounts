@@ -102,6 +102,19 @@ Shows, sets or clears the startup profile: the profile new sessions start on. Wi
 
 Setting the startup profile does not switch the current session. An explicit `gentle-accounts <name>` launch wins for that launch: the launcher sets `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` for gentle-shell and the extension then skips the startup profile. The startup profile is applied only when pi starts, not on `/new`, `/resume`, `/fork` or `/reload`.
 
+### `/gentle:accounts email [show|hide]`
+
+Shows or sets whether the status bar shows the full email of the active profile. By default it is hidden and the status bar shows a masked email.
+
+- `/gentle:accounts email`: shows `Email display: hidden (masked in the status bar)` or `Email display: shown (full email in the status bar)`.
+- `/gentle:accounts email show`: sets it and shows `Email display set to shown. The status bar shows the full email.`
+- `/gentle:accounts email hide`: sets it and shows `Email display set to hidden. The status bar shows a masked email.`
+- Any other argument: `Usage: /gentle:accounts email [show|hide]` (warning). Nothing changes.
+
+After `show` or `hide` the status bar is refreshed right away. The setting is global to the agent dir (`profiles/settings.json`, see [How it works](how-it-works.md)) and is read on every status refresh, so a change made from the CLI shows up in an open session at its next refresh. These messages never contain the email.
+
+Warning: with `show`, anyone who sees your screen can read the full address, including screen shares, screenshots and recordings.
+
 ### `/gentle:accounts help`
 
 `help` and `--help` show the usage text:
@@ -115,6 +128,7 @@ Setting the startup profile does not switch the current session. An explicit `ge
 /gentle:accounts delete <name>   delete a profile (asks for confirmation)
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
 /gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on
+/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
 ```
 
 ### Extension hooks
@@ -138,6 +152,7 @@ The optional launcher (`bin/gentle-accounts.mjs`). It needs Node 22.18 or newer;
 | `gentle-accounts create <name>` | `Created profile "<name>".` | 0, or 1 on error |
 | `gentle-accounts login <name>` | runs `claude auth login` | exit code of `claude`, or 1 on error |
 | `gentle-accounts startup [<name>\|last]` | shows, sets or clears the startup profile | 0, or 1 on error |
+| `gentle-accounts email [show\|hide]` | shows or sets the email display | 0, or 1 on a usage error |
 | `gentle-accounts <name> [args...]` | starts `gentle-shell` | exit code of `gentle-shell`, or 1 on error |
 
 Usage text:
@@ -150,6 +165,7 @@ Usage:
   gentle-accounts create <name>                   create an empty profile
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
   gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on
+  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email
   gentle-accounts --help                          show this help
 ```
 
@@ -177,6 +193,16 @@ Same as `/gentle:accounts startup`, with the same messages: without an argument 
 gentle-accounts startup work   # new sessions start on "work"
 gentle-accounts startup        # show it
 gentle-accounts startup last   # back to the last used profile
+```
+
+### `gentle-accounts email [show|hide]`
+
+Same as `/gentle:accounts email`, with the same messages, on stdout with exit code 0. Any other argument prints `Usage: gentle-accounts email [show|hide]` on stderr and exits with 1. An open session picks up the change at its next status refresh (after an agent turn, every 60 seconds, or on `/gentle:accounts current`).
+
+```sh
+gentle-accounts email show   # full email in the status bar
+gentle-accounts email        # show the current value
+gentle-accounts email hide   # back to the masked email
 ```
 
 ### `gentle-accounts <name> [args...]`

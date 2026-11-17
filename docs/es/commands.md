@@ -102,6 +102,19 @@ Muestra, define o borra el perfil de inicio: el perfil con el que empiezan las s
 
 Definir el perfil de inicio no cambia el perfil de la sesión en curso. Un inicio explícito con `gentle-accounts <name>` gana para ese inicio: el launcher define `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` para gentle-shell y la extensión omite entonces el perfil de inicio. El perfil de inicio se aplica solo cuando pi arranca, no en `/new`, `/resume`, `/fork` ni `/reload`.
 
+### `/gentle:accounts email [show|hide]`
+
+Muestra o define si la barra de estado muestra el correo completo del perfil activo. De forma predeterminada está oculto y la barra de estado muestra un correo enmascarado.
+
+- `/gentle:accounts email`: muestra `Email display: hidden (masked in the status bar)` o `Email display: shown (full email in the status bar)`.
+- `/gentle:accounts email show`: lo define y muestra `Email display set to shown. The status bar shows the full email.`
+- `/gentle:accounts email hide`: lo define y muestra `Email display set to hidden. The status bar shows a masked email.`
+- Cualquier otro argumento: `Usage: /gentle:accounts email [show|hide]` (advertencia). Nada cambia.
+
+Después de `show` o `hide` la barra de estado se actualiza de inmediato. La opción es global para la carpeta del agente (`profiles/settings.json`, consulte [Cómo funciona](how-it-works.md)) y se lee en cada actualización del estado, así que un cambio hecho desde la CLI aparece en una sesión abierta en su siguiente actualización. Estos mensajes nunca contienen el correo.
+
+Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dirección completa, incluso al compartir pantalla, en capturas de pantalla y en grabaciones.
+
 ### `/gentle:accounts help`
 
 `help` y `--help` muestran el texto de uso:
@@ -115,6 +128,7 @@ Definir el perfil de inicio no cambia el perfil de la sesión en curso. Un inici
 /gentle:accounts delete <name>   delete a profile (asks for confirmation)
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
 /gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on
+/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
 ```
 
 ### Hooks de la extensión
@@ -138,6 +152,7 @@ El launcher opcional (`bin/gentle-accounts.mjs`). Necesita Node 22.18 o posterio
 | `gentle-accounts create <name>` | `Created profile "<name>".` | 0, o 1 si hay error |
 | `gentle-accounts login <name>` | ejecuta `claude auth login` | código de salida de `claude`, o 1 si hay error |
 | `gentle-accounts startup [<name>\|last]` | muestra, define o borra el perfil de inicio | 0, o 1 si hay error |
+| `gentle-accounts email [show\|hide]` | muestra o define la visualización del correo | 0, o 1 si hay error de uso |
 | `gentle-accounts <name> [args...]` | inicia `gentle-shell` | código de salida de `gentle-shell`, o 1 si hay error |
 
 Texto de uso:
@@ -150,6 +165,7 @@ Usage:
   gentle-accounts create <name>                   create an empty profile
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
   gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on
+  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email
   gentle-accounts --help                          show this help
 ```
 
@@ -177,6 +193,16 @@ Igual que `/gentle:accounts startup`, con los mismos mensajes: sin argumento imp
 gentle-accounts startup work   # new sessions start on "work"
 gentle-accounts startup        # show it
 gentle-accounts startup last   # back to the last used profile
+```
+
+### `gentle-accounts email [show|hide]`
+
+Igual que `/gentle:accounts email`, con los mismos mensajes, en stdout con código 0. Cualquier otro argumento imprime `Usage: gentle-accounts email [show|hide]` en stderr y termina con código 1. Una sesión abierta toma el cambio en su siguiente actualización del estado (después de un turno del agente, cada 60 segundos o con `/gentle:accounts current`).
+
+```sh
+gentle-accounts email show   # full email in the status bar
+gentle-accounts email        # show the current value
+gentle-accounts email hide   # back to the masked email
 ```
 
 ### `gentle-accounts <name> [args...]`

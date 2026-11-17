@@ -37,7 +37,7 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 1. Create a profile: `/gentle:accounts create work`
 2. Switch to it: `/gentle:accounts work`
 3. Log Claude in: `/gentle:accounts login claude` shows a command to run in another terminal.
-4. Check the account: `/gentle:accounts current`. The status bar shows `👤 gentle-accounts: work · mari****@company.com` (`🔒` and `not logged in` when there is no login).
+4. Check the account: `/gentle:accounts current`. The status bar shows `👤 gentle-accounts: work · mari****@company.com` (`🔒` and `not logged in` when there is no login). The email is masked by default; `/gentle:accounts email show` shows it in full (visible to anyone who sees your screen).
 5. Optional: `/gentle:accounts startup work` makes new sessions start on `work`; `/gentle:accounts startup last` goes back to the last used profile.
 
 ![Listing profiles and switching with /gentle:accounts](assets/workflow-switch.svg)
@@ -108,6 +108,7 @@ For details, updating, removing or dropping the old package, see [Installation](
 | `/gentle:accounts delete <name>` | Deletes a profile after confirmation. |
 | `/gentle:accounts login claude` | Shows the Claude login command for the active profile. |
 | `/gentle:accounts startup [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
+| `/gentle:accounts email [show\|hide]` | Shows or sets whether the status bar shows the full email. |
 | `/gentle:accounts help` | Shows the command list. |
 
 | From a terminal | What it does |
@@ -118,6 +119,7 @@ For details, updating, removing or dropping the old package, see [Installation](
 | `gentle-accounts create <name>` | Creates an empty profile. |
 | `gentle-accounts login <name>` | Runs `claude auth login` for that profile. |
 | `gentle-accounts startup [<name>\|last]` | Same as `/gentle:accounts startup`. |
+| `gentle-accounts email [show\|hide]` | Same as `/gentle:accounts email`. |
 | `gentle-accounts --help` | Shows the command list. |
 
 The full reference, with every message, is in [Commands](docs/en/commands.md).
