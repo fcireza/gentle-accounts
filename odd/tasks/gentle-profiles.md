@@ -51,10 +51,10 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T12 (S24): assets generator, SVG files and test. Route: worker, test-first; parent rendered every SVG with headless Chrome and sent two fix rounds (logo mark geometry, arrow labels, example email). Commit: see git log "docs: add the logo and usage images"
 - [x] T13 (S25): detailed docs in docs/es and docs/en plus parity test. Route: worker; example email corrected after review. Commit: see git log "docs: add detailed documentation"
 - [x] T14 (S26): short READMEs. Route: worker (after T12 and T13). Commit: see git log "docs: rewrite the README"
-- [ ] T15 (S27, S28): startup profile and status icons in code, tests and regenerated images. Route: worker, test-first. Commit: -
-- [ ] T16 (S27, S28): docs and READMEs for the startup profile and the icons. Route: worker (after T15). Commit: -
+- [x] T15 (S27, S28): startup profile and status icons in code, tests and regenerated images. Route: worker, test-first (RED: 23 failing before src changes; real pi RPC check in a sandbox). Commit: see git log "feat: add a startup profile"
+- [x] T16 (S27, S28): docs and READMEs for the startup profile and the icons. Route: worker (after T15); it found the launch-wins defect. Commit: see git log "docs: document the startup profile"
 - [ ] T17 (S29): `email [show|hide]` command, setting file, status text option. Route: worker (continues T15 on the same branch, after it finishes), test-first. Commit: -
-- [ ] T15b (S27 fixes): launch-wins variable and the missing-startup-profile warning, with the docs lines that depend on them. Route: worker (continues T15). Commit: -
+- [x] T15b (S27 fixes): launch-wins variable and the missing-startup-profile warning, with the docs lines that depend on them. Route: worker (continues T15), test-first (RED: 6 failing); real pi RPC sandbox: no switch with GENTLE_ACCOUNTS_LAUNCH_PROFILE set, warning for a missing startup profile. Commit: see git log "fix: let an explicit launch win"
 
 ## Log
 

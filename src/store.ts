@@ -103,9 +103,14 @@ export class ProfileStore {
 
   /** Profile new sessions start on; null when unset, empty, invalid or naming a missing profile. */
   startup(): string | null {
-    if (!existsSync(this.startupPath)) return null;
-    const name = readFileSync(this.startupPath, "utf8").trim();
+    const name = this.startupRaw();
     return name && this.exists(name) ? name : null;
+  }
+
+  /** Trimmed content of the startup file, even when it names a missing profile; null when absent or empty. */
+  startupRaw(): string | null {
+    if (!existsSync(this.startupPath)) return null;
+    return readFileSync(this.startupPath, "utf8").trim() || null;
   }
 
   setStartup(name: string): void {

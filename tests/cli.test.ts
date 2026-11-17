@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
-import { readAuthFile, writeAuthFile } from "../src/auth-sync.ts";
+import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type CliDeps, type SpawnCall } from "../src/cli.ts";
 
 function setup(platform: NodeJS.Platform = "linux") {
@@ -209,4 +209,21 @@ test("S27: usage lists the startup command", () => {
   const { out, deps } = setup();
   assert.equal(runCli(["--help"], deps), 0);
   assert.match(out.join("\n"), /gentle-accounts startup \[<name>\|last\] +/);
+});
+
+test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list and startup do not", () => {
+  const { store, spawns, deps } = setup();
+  assert.equal(LAUNCH_PROFILE_ENV, "GENTLE_ACCOUNTS_LAUNCH_PROFILE");
+  store.create("work");
+  store.create("personal");
+  store.setStartup("work");
+  assert.equal(runCli(["list"], deps), 0);
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.equal(spawns.length, 0);
+  assert.equal(runCli(["login", "personal"], deps), 0);
+  assert.equal(LAUNCH_PROFILE_ENV in spawns[0].env, false);
+  assert.equal(runCli(["personal", "--x"], deps), 0);
+  assert.equal(spawns[1].command, "gentle-shell");
+  assert.equal(spawns[1].env[LAUNCH_PROFILE_ENV], "personal");
+  assert.equal(LAUNCH_PROFILE_ENV in deps.env, false);
 });

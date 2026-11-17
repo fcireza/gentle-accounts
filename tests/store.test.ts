@@ -191,3 +191,14 @@ test("S27: delete refuses the startup profile after the missing and active check
   store.delete("work");
   assert.deepEqual(store.list(), ["personal"]);
 });
+
+test("S27: startupRaw returns the trimmed stored name even when the profile is missing", () => {
+  const { store } = tempStore();
+  assert.equal(store.startupRaw(), null);
+  mkdirSync(store.profilesDir, { recursive: true });
+  writeFileSync(store.startupPath, "  ghost\n");
+  assert.equal(store.startupRaw(), "ghost");
+  assert.equal(store.startup(), null);
+  writeFileSync(store.startupPath, "\n");
+  assert.equal(store.startupRaw(), null);
+});

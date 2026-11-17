@@ -6,7 +6,8 @@ import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import gentleProfiles from "../src/index.ts";
 import { ProfileStore } from "../src/store.ts";
-import { readAuthFile } from "../src/auth-sync.ts";
+import { readAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
+import { runCli, type SpawnCall } from "../src/cli.ts";
 import { claudeLoginCommand } from "../src/login.ts";
 
 type Handler = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
@@ -520,4 +521,78 @@ test("S27: delete refuses the startup profile", async () => {
   await profile.handler("delete work", c.ctx);
   assert.deepEqual(c.notes, [{ message: 'Cannot delete the startup profile "work". Set another one or clear it with "startup last" first.', type: "error" }]);
   assert.deepEqual(store.list(), ["personal", "work"]);
+});
+
+function startupScenario() {
+  const s = setup();
+  s.store.create("work");
+  s.store.create("personal");
+  s.store.setCurrent("personal");
+  s.store.setStartup("work");
+  writeFileSync(s.liveAuthPath, "{}");
+  return s;
+}
+
+test("S27: session_start launched by `gentle-accounts personal` (env var set) skips the startup switch", async () => {
+  const { store, events, liveAuthPath } = startupScenario();
+  process.env[LAUNCH_PROFILE_ENV] = "personal";
+  try {
+    const c = fakeCtx();
+    await events.get("session_start")!({}, c.ctx);
+    assert.deepEqual(c.notes, []);
+    assert.equal(store.current(), "personal");
+    assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+    assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("personal"));
+    assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
+  } finally {
+    delete process.env[LAUNCH_PROFILE_ENV];
+  }
+});
+
+test("S27: an empty launch variable does not skip the startup switch", async () => {
+  const { store, events } = startupScenario();
+  process.env[LAUNCH_PROFILE_ENV] = "";
+  try {
+    const c = fakeCtx();
+    await events.get("session_start")!({}, c.ctx);
+    assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (startup profile).', type: "info" }]);
+    assert.equal(store.current(), "work");
+  } finally {
+    delete process.env[LAUNCH_PROFILE_ENV];
+  }
+});
+
+test("S27: real launcher env reaches session_start: runCli spawn env drives the extension", async () => {
+  const { store, events, liveAuthPath, agentDir } = startupScenario();
+  const spawns: SpawnCall[] = [];
+  const code = runCli(["personal"], {
+    store, liveAuthPath, env: { PATH: "/usr/bin" }, platform: "linux", stdout: () => {}, stderr: () => {},
+    spawn: (call) => (spawns.push(call), 0),
+  });
+  assert.equal(code, 0);
+  const saved = { ...process.env };
+  Object.assign(process.env, spawns[0].env, { PI_CODING_AGENT_DIR: agentDir, HOME: agentDir, USERPROFILE: agentDir });
+  try {
+    const c = fakeCtx();
+    await events.get("session_start")!({}, c.ctx);
+    assert.deepEqual(c.notes, []);
+    assert.equal(store.current(), "personal");
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
+  }
+});
+
+test("S27: a startup file naming a deleted profile warns at session_start and changes nothing", async () => {
+  const { store, profile, events, liveAuthPath } = startupScenario();
+  writeFileSync(store.startupPath, "ghost\n");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.deepEqual(c.notes, [{ message: 'Startup profile "ghost" does not exist; starting on the last used profile.', type: "warning" }]);
+  assert.equal(store.current(), "personal");
+  assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
+  const l = fakeCtx();
+  await profile.handler("list", l.ctx);
+  assert.deepEqual(l.notes, [{ message: "* personal\n  work", type: "info" }]);
 });

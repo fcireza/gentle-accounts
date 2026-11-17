@@ -1,5 +1,5 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
-import { applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
+import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
 
 export const USAGE = [
   "Usage:",
@@ -102,6 +102,7 @@ export function runCli(argv: string[], deps: CliDeps): number {
     return 1;
   }
   applyClaudeConfigEnv(env, store.claudeConfigEnv(first));
+  env[LAUNCH_PROFILE_ENV] = first; // the extension then skips the startup profile for this session
   return deps.spawn({
     command: "gentle-shell",
     args: [second, ...rest].filter((a): a is string => a !== undefined),

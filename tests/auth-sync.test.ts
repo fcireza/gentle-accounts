@@ -313,3 +313,17 @@ test("S27+S16: switching to a system-default startup profile deletes CLAUDE_CONF
   assert.equal("CLAUDE_CONFIG_DIR" in env, false);
   assert.equal(store.current(), "default");
 });
+
+test("S27: applyStartupProfile reports a missing startup profile and changes nothing", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("personal");
+  store.setCurrent("personal");
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  writeFileSync(store.startupPath, "ghost\n");
+  const files = [liveAuthPath, store.authPath("personal"), store.currentPath, store.startupPath];
+  const before = files.map((f) => readFileSync(f, "utf8"));
+  const env: Record<string, string | undefined> = {};
+  assert.deepEqual(applyStartupProfile({ store, liveAuthPath, env }), { status: "missing", from: "personal", to: "ghost" });
+  assert.deepEqual(files.map((f) => readFileSync(f, "utf8")), before);
+  assert.deepEqual(env, {});
+});

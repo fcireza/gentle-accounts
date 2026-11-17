@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner } from "./account.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
-import { applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
+import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
 
 const USAGE = [
@@ -93,9 +93,15 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       return;
     }
     try {
-      // The env of the last used profile is already applied; a switch replaces it (set or delete).
-      const started = applyStartupProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
-      if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (startup profile).`, "info");
+      // An explicit `gentle-accounts <name>` launch already switched: it wins over the startup profile.
+      if (!process.env[LAUNCH_PROFILE_ENV]) {
+        // The env of the last used profile is already applied; a switch replaces it (set or delete).
+        const started = applyStartupProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
+        if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (startup profile).`, "info");
+        if (started.status === "missing") {
+          ctx.ui.notify(`Startup profile "${started.to}" does not exist; starting on the last used profile.`, "warning");
+        }
+      }
     } catch (error) {
       // A corrupt startup profile leaves everything as it was; the session keeps the last used one.
       ctx.ui.notify(`${PLUGIN_LABEL}: ${(error as Error).message}`, "error");

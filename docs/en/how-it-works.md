@@ -35,6 +35,8 @@ All paths are built with Node's `path` functions, so the same layout works on Li
 
 At session start the extension first creates `default` when no profile is active, or applies the active profile's `CLAUDE_CONFIG_DIR`. Then, if a startup profile is set and is not the active one, it switches to it with the same safe switch as `/gentle:accounts <name>`: every file is read before any is written, the outgoing profile's Codex and Anthropic credentials are saved, and `CLAUDE_CONFIG_DIR` is set or removed (removed for `default`). It then shows `Started on profile "<name>" (startup profile).`. When the startup profile is already active nothing changes. If a file cannot be read, it shows `gentle-accounts: <message>` (error), nothing changes and the session keeps working on the last used profile.
 
+The startup switch is skipped when `GENTLE_ACCOUNTS_LAUNCH_PROFILE` is set (not empty): the launcher sets it when it starts gentle-shell with `gentle-accounts <name>`, which already switched to `<name>`. If `profiles/startup` names a profile that no longer exists, session start shows `Startup profile "<name>" does not exist; starting on the last used profile.` (warning) and nothing changes.
+
 ### Known limit: one agent dir, shared by every session
 
 The startup profile and the active profile are global to the agent dir, not per session. Claude uses `CLAUDE_CONFIG_DIR`, a per-process variable, but the Codex and Anthropic credentials live in the single `auth.json` that every open session shares and pi reads again. So a session that switches profile, at start or with `/gentle:accounts <name>`, changes the credentials the other open sessions read. Per-session isolation is not supported.
