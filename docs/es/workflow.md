@@ -88,7 +88,7 @@ Cuando termine el flujo del navegador, compruebe la cuenta:
 /gentle:accounts current
 ```
 
-La barra de estado muestra entonces `gentle-accounts: work · mari****@company.com`.
+La barra de estado muestra entonces `👤 gentle-accounts: work · mari****@company.com`.
 
 ### Por qué el inicio de sesión no se ejecuta dentro de la TUI
 
@@ -131,7 +131,7 @@ Switched to profile "default". Claude Code dir: (unset: Claude Code default)
 
 Cambiar al perfil que ya está activo solo indica `Already on profile "default".`. El cambio espera al agente: mientras hay un turno en curso aparece `Wait for the current turn to finish before switching profiles.`
 
-Cómo leer la barra de estado: `gentle-accounts: <profile> · <masked email>` cuando se detecta el inicio de sesión de Claude del perfil, `gentle-accounts: <profile> · not logged in` en caso contrario. El correo aparece enmascarado, por ejemplo `mari****@company.com`. El estado se actualiza al iniciar, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos.
+Cómo leer la barra de estado: `👤 gentle-accounts: <profile> · <masked email>` cuando se detecta el inicio de sesión de Claude del perfil, `🔒 gentle-accounts: <profile> · not logged in` en caso contrario. El ícono muestra el estado de un vistazo: `👤` con sesión, `🔒` sin sesión. El correo aparece enmascarado, por ejemplo `mari****@company.com`. El estado se actualiza al iniciar, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos.
 
 ## 5. Iniciar una sesión en un perfil
 
@@ -143,9 +143,33 @@ gentle-accounts work
 
 El launcher hace el mismo cambio que `/gentle:accounts work` (primero crea `default` si no hay un perfil activo) y luego inicia `gentle-shell` con `CLAUDE_CONFIG_DIR` definido para ese perfil, o eliminado para `default`.
 
-## 6. Borrar un perfil
+## 6. Elegir el perfil con el que empiezan las sesiones nuevas
 
-No se puede borrar el perfil activo, así que primero cambie a otro:
+De forma predeterminada, una sesión nueva empieza en el último perfil usado. Para empezar siempre en `work`, defínalo como perfil de inicio:
+
+```
+/gentle:accounts startup work
+```
+
+```
+Startup profile set to "work". New sessions start on it.
+```
+
+Reinicie Gentle Shell o pi. Si había otro perfil activo, la sesión cambia a `work` al iniciar y muestra `Started on profile "work" (startup profile).`. Para volver al último perfil usado:
+
+```
+/gentle:accounts startup last
+```
+
+```
+Startup profile cleared. New sessions start on the last used profile.
+```
+
+El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; consulte el límite conocido en [Cómo funciona](how-it-works.md).
+
+## 7. Borrar un perfil
+
+No se puede borrar el perfil activo ni el perfil de inicio, así que primero cambie a otro (o ejecute `startup last`):
 
 ```
 /gentle:accounts default

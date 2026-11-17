@@ -88,7 +88,7 @@ When the browser flow ends, check the account:
 /gentle:accounts current
 ```
 
-The status bar then reads `gentle-accounts: work · mari****@company.com`.
+The status bar then reads `👤 gentle-accounts: work · mari****@company.com`.
 
 ### Why the login is not run from inside the TUI
 
@@ -131,7 +131,7 @@ Switched to profile "default". Claude Code dir: (unset: Claude Code default)
 
 Switching to the profile that is already active only says `Already on profile "default".`. Switching waits for the agent: while a turn is running you get `Wait for the current turn to finish before switching profiles.`
 
-Reading the status bar: `gentle-accounts: <profile> · <masked email>` when the profile's Claude login is detected, `gentle-accounts: <profile> · not logged in` otherwise. The email is masked, for example `mari****@company.com`. The status refreshes on start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds.
+Reading the status bar: `👤 gentle-accounts: <profile> · <masked email>` when the profile's Claude login is detected, `🔒 gentle-accounts: <profile> · not logged in` otherwise. The icon shows the state at a glance: `👤` logged in, `🔒` not logged in. The email is masked, for example `mari****@company.com`. The status refreshes on start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds.
 
 ## 5. Starting a session on a profile
 
@@ -143,9 +143,33 @@ gentle-accounts work
 
 The launcher does the same switch as `/gentle:accounts work` (creating `default` first when no profile is active), then starts `gentle-shell` with `CLAUDE_CONFIG_DIR` set for that profile, or removed for `default`.
 
-## 6. Deleting a profile
+## 6. Choose the profile new sessions start on
 
-You cannot delete the active profile, so switch away first:
+By default a new session starts on the last used profile. To always start on `work`, set it as the startup profile:
+
+```
+/gentle:accounts startup work
+```
+
+```
+Startup profile set to "work". New sessions start on it.
+```
+
+Restart Gentle Shell or pi. If another profile was active, the session switches to `work` on start and shows `Started on profile "work" (startup profile).`. To go back to the last used profile:
+
+```
+/gentle:accounts startup last
+```
+
+```
+Startup profile cleared. New sessions start on the last used profile.
+```
+
+The startup profile is shared by every session of the same agent dir; see the known limit in [How it works](how-it-works.md).
+
+## 7. Deleting a profile
+
+You cannot delete the active profile or the startup profile, so switch away (or run `startup last`) first:
 
 ```
 /gentle:accounts default
