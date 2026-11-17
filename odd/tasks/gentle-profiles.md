@@ -45,9 +45,9 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [ ] T9 (S20): README in Spanish plus README.en.md. Route: worker (context backstop). Commit: -
 - [x] T10 (S21): tag and Release on every merge to main. Route: worker (context backstop), test-first (RED observed: module missing and 4 failing workflow assertions; 134/134 after; parent fixed the last release-please comment and made the grep test strict). Commit: see git log "ci: tag and release"
 - [x] T11 (S22, S23): highlighted login command message and README restructure. Route: worker (context backstop), test-first for the message (RED: 2 extension tests failed on the old message and login.test.ts failed to load; 140/140 after; parent re-ran tests and read the diff). Commit: see git log "feat: highlight"
-- [ ] T12 (S24): assets generator, SVG files and test. Route: worker. Commit: -
-- [ ] T13 (S25): detailed docs in docs/es and docs/en plus parity test. Route: worker. Commit: -
-- [ ] T14 (S26): short READMEs. Route: worker (after T12 and T13). Commit: -
+- [x] T12 (S24): assets generator, SVG files and test. Route: worker, test-first; parent rendered every SVG with headless Chrome and sent two fix rounds (logo mark geometry, arrow labels, example email). Commit: see git log "docs: add the logo and usage images"
+- [x] T13 (S25): detailed docs in docs/es and docs/en plus parity test. Route: worker; example email corrected after review. Commit: see git log "docs: add detailed documentation"
+- [x] T14 (S26): short READMEs. Route: worker (after T12 and T13). Commit: see git log "docs: rewrite the README"
 
 ## Log
 
@@ -73,3 +73,5 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - L16 (evidence): `claude auth login --help` shows only --claudeai, --console, --email, --sso (interactive browser OAuth, no headless mode); the launcher `gentle-accounts login <profile>` already runs it with inherited stdio.
 
 - L17 (user, verbatim): "generate una rama para eso si, logo, e imagenes del uso. tambien que sea mas entendible el documento, para detallado muevelo a doc/ y ahi lo haces mas detallado" (reply to the Gentle Hub question: add a link to the Hub and an image to the README). Decision: the folder is `docs/` (GitHub convention) in two language folders.
+
+- L18 (evidence): the first SVG example used `you@company.com`, whose real mask is `y****@company.com`; docs and README said `you****@company.com`. Fixed by using `maria.lopez@company.com` (`mari****@company.com`) and a masking table in docs/*/how-it-works.md computed with the real function. Delivery: about 2000 changed lines, split into three sequential PRs (images, detailed docs, short README).
