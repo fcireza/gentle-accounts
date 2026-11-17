@@ -55,6 +55,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T16 (S27, S28): docs and READMEs for the startup profile and the icons. Route: worker (after T15); it found the launch-wins defect. Commit: see git log "docs: document the startup profile"
 - [x] T17 (S29): `email [show|hide]` command, setting file, status text option. Route: worker in its own stacked worktree (branch feat/email-display on top of feat/startup-profile), test-first (RED: 7 failing before src changes; 192/192 after; RPC check with a fake claude confirmed the full email only in the status bar and in no notify). Commit: see git log "feat: add the email display setting"
 - [x] T15b (S27 fixes): launch-wins variable and the missing-startup-profile warning, with the docs lines that depend on them. Route: worker (continues T15), test-first (RED: 6 failing); real pi RPC sandbox: no switch with GENTLE_ACCOUNTS_LAUNCH_PROFILE set, warning for a missing startup profile. Commit: see git log "fix: let an explicit launch win"
+- [ ] T18 (S29): docs and READMEs for the email display setting. Route: worker (after T17). Commit: -
 
 ## Log
 
