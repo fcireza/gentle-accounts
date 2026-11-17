@@ -67,6 +67,7 @@ Deletes a profile folder after a confirmation dialog titled `Delete profile` tha
 - Success: `Deleted profile "<name>".`
 - Cancelled: `Delete cancelled.`
 - Active profile: `Cannot delete the active profile "<name>". Switch to another profile first.` (error).
+- Startup profile: `Cannot delete the startup profile "<name>". Set another one or clear it with "startup last" first.` (error).
 - Missing profile: `Profile "<name>" does not exist.` (error).
 - No interactive UI: `Deleting needs a confirmation dialog; run it from the TUI.` (error).
 - No name: the usage text (warning).
@@ -89,6 +90,18 @@ The command is `claude auth login` for a profile on Claude Code's default folder
 - No active profile: `No active profile.` (error).
 - Anything other than `claude` after `login`: the usage text (warning).
 
+### `/gentle:accounts startup [<name>|last]`
+
+Shows, sets or clears the startup profile: the profile new sessions start on. Without it, new sessions start on the last used profile. See [How it works](how-it-works.md).
+
+- `/gentle:accounts startup`: shows `Startup profile: <name>`, or `Startup profile: none (new sessions start on the last used profile: <current>)`, where `<current>` is `none` when no profile is active.
+- `/gentle:accounts startup <name>`: sets it and shows `Startup profile set to "<name>". New sessions start on it.`
+- `/gentle:accounts startup last`: clears it and shows `Startup profile cleared. New sessions start on the last used profile.`
+- Invalid name: the invalid name message (error).
+- Missing profile: `Profile "<name>" does not exist.` (error).
+
+Setting the startup profile does not switch the current session. An explicit `gentle-accounts <name>` launch wins for that launch: the launcher sets `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` for gentle-shell and the extension then skips the startup profile. The startup profile is applied only when pi starts, not on `/new`, `/resume`, `/fork` or `/reload`.
+
 ### `/gentle:accounts help`
 
 `help` and `--help` show the usage text:
@@ -101,13 +114,14 @@ The command is `claude auth login` for a profile on Claude Code's default folder
 /gentle:accounts create <name>   create an empty profile
 /gentle:accounts delete <name>   delete a profile (asks for confirmation)
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
+/gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on
 ```
 
 ### Extension hooks
 
 Besides the command, the extension registers:
 
-- **Session start**: creates `default` when no profile is active, otherwise sets `CLAUDE_CONFIG_DIR` for the active profile unless the environment already sets it; starts a 60 s status refresh timer and shows the status. If a credentials file cannot be read it shows `gentle-accounts: <message>` (error) and continues.
+- **Session start**: creates `default` when no profile is active, otherwise sets `CLAUDE_CONFIG_DIR` for the active profile unless the environment already sets it; then, if a startup profile is set and is not the active one, switches to it and shows `Started on profile "<name>" (startup profile).`; starts a 60 s status refresh timer and shows the status. If a credentials file cannot be read it shows `gentle-accounts: <message>` (error) and continues.
 - **Agent end**: refreshes the status after every agent turn.
 - **Session shutdown**: stops the 60 s timer.
 
@@ -123,6 +137,7 @@ The optional launcher (`bin/gentle-accounts.mjs`). It needs Node 22.18 or newer;
 | `gentle-accounts current` | the active profile name or `No active profile.` | 0 |
 | `gentle-accounts create <name>` | `Created profile "<name>".` | 0, or 1 on error |
 | `gentle-accounts login <name>` | runs `claude auth login` | exit code of `claude`, or 1 on error |
+| `gentle-accounts startup [<name>\|last]` | shows, sets or clears the startup profile | 0, or 1 on error |
 | `gentle-accounts <name> [args...]` | starts `gentle-shell` | exit code of `gentle-shell`, or 1 on error |
 
 Usage text:
@@ -134,6 +149,7 @@ Usage:
   gentle-accounts current                         print the active profile
   gentle-accounts create <name>                   create an empty profile
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
+  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on
   gentle-accounts --help                          show this help
 ```
 
@@ -152,6 +168,16 @@ Creates an empty profile and prints `Created profile "<name>".`. On an invalid o
 ### `gentle-accounts login <name>`
 
 Runs `claude auth login` with the terminal attached, with `CLAUDE_CONFIG_DIR` set to the profile's Claude folder, or removed for a profile on Claude Code's default folder. It does not switch profiles. Without a name it prints the usage; for a missing profile it prints `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`; both exit with 1. If `claude` cannot be started it prints `Cannot run claude: <error>` and exits with 1.
+
+### `gentle-accounts startup [<name>|last]`
+
+Same as `/gentle:accounts startup`, with the same messages: without an argument it prints the startup profile, `last` clears it and a name sets it. Messages go to stdout with exit code 0; an invalid name (`Invalid profile name ...`) or a missing profile (`Profile "<name>" does not exist.`) goes to stderr with exit code 1.
+
+```sh
+gentle-accounts startup work   # new sessions start on "work"
+gentle-accounts startup        # show it
+gentle-accounts startup last   # back to the last used profile
+```
 
 ### `gentle-accounts <name> [args...]`
 

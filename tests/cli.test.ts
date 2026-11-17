@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
-import { readAuthFile, writeAuthFile } from "../src/auth-sync.ts";
+import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type CliDeps, type SpawnCall } from "../src/cli.ts";
 
 function setup(platform: NodeJS.Platform = "linux") {
@@ -169,4 +169,61 @@ test("S16: login for the system-default profile runs claude auth login without C
   assert.equal(runCli(["login", "default"], deps), 0);
   assert.deepEqual(spawns[0].args, ["auth", "login"]);
   assert.equal("CLAUDE_CONFIG_DIR" in spawns[0].env, false);
+});
+
+test("S27: gentle-accounts startup shows, sets and clears the startup profile", () => {
+  const { store, out, err, spawns, deps } = setup();
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile: none (new sessions start on the last used profile: none)"]);
+  store.create("work");
+  store.setCurrent("work");
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile: none (new sessions start on the last used profile: work)"]);
+  assert.equal(runCli(["startup", "work"], deps), 0);
+  assert.deepEqual(out.splice(0), ['Startup profile set to "work". New sessions start on it.']);
+  assert.equal(store.startup(), "work");
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile: work"]);
+  assert.equal(runCli(["startup", "last"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile cleared. New sessions start on the last used profile."]);
+  assert.equal(store.startup(), null);
+  assert.deepEqual(err, []);
+  assert.deepEqual(spawns, []);
+});
+
+test("S27: gentle-accounts startup rejects invalid and unknown names with exit 1", () => {
+  const { store, out, err, deps } = setup();
+  store.create("work");
+  store.setStartup("work");
+  assert.equal(runCli(["startup", "Bad"], deps), 1);
+  assert.equal(runCli(["startup", "ghost"], deps), 1);
+  assert.deepEqual(err, [
+    'Invalid profile name "Bad": use lowercase letters, digits, "-" or "_" (max 32 chars).',
+    'Profile "ghost" does not exist.',
+  ]);
+  assert.deepEqual(out, []);
+  assert.equal(store.startup(), "work");
+});
+
+test("S27: usage lists the startup command", () => {
+  const { out, deps } = setup();
+  assert.equal(runCli(["--help"], deps), 0);
+  assert.match(out.join("\n"), /gentle-accounts startup \[<name>\|last\] +/);
+});
+
+test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list and startup do not", () => {
+  const { store, spawns, deps } = setup();
+  assert.equal(LAUNCH_PROFILE_ENV, "GENTLE_ACCOUNTS_LAUNCH_PROFILE");
+  store.create("work");
+  store.create("personal");
+  store.setStartup("work");
+  assert.equal(runCli(["list"], deps), 0);
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.equal(spawns.length, 0);
+  assert.equal(runCli(["login", "personal"], deps), 0);
+  assert.equal(LAUNCH_PROFILE_ENV in spawns[0].env, false);
+  assert.equal(runCli(["personal", "--x"], deps), 0);
+  assert.equal(spawns[1].command, "gentle-shell");
+  assert.equal(spawns[1].env[LAUNCH_PROFILE_ENV], "personal");
+  assert.equal(LAUNCH_PROFILE_ENV in deps.env, false);
 });

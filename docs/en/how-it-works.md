@@ -13,6 +13,7 @@ Everything lives under pi's agent dir (`~/.gentle-shell/agent` for Gentle Shell,
 ```
 profiles/
   current             the active profile name
+  startup             optional: the profile new sessions start on
   work/
     claude/           this profile's Claude Code login
     auth.json         this profile's Codex / Anthropic credentials
@@ -22,12 +23,23 @@ profiles/
 ```
 
 - `profiles/current` holds the name of the active profile. A name that does not match an existing profile counts as no active profile.
+- `profiles/startup` holds the startup profile name, written by `startup <name>` and removed by `startup last`. When it is absent, or names a profile that no longer exists, new sessions start on the last used profile.
 - `<name>/claude/` is the profile's `CLAUDE_CONFIG_DIR`, the folder where Claude Code keeps that profile's login. pi-claude-bridge reads `CLAUDE_CONFIG_DIR` from the process environment.
 - `<name>/auth.json` holds the profile's entries for the `openai-codex` and `anthropic` providers, in pi's `auth.json` format. A folder without `auth.json` is not a profile.
 - `claude-default` is an empty marker: the profile uses Claude Code's built-in default folder and `CLAUDE_CONFIG_DIR` must be unset.
 - `claude-dir` holds an explicit folder instead. It is written when `default` is created while you had `CLAUDE_CONFIG_DIR` set. A legacy `claude-dir` that points at `~/.claude` is treated like the `claude-default` marker.
 
 All paths are built with Node's `path` functions, so the same layout works on Linux, macOS and Windows.
+
+## The startup profile at session start
+
+At session start the extension first creates `default` when no profile is active, or applies the active profile's `CLAUDE_CONFIG_DIR`. Then, if a startup profile is set and is not the active one, it switches to it with the same safe switch as `/gentle:accounts <name>`: every file is read before any is written, the outgoing profile's Codex and Anthropic credentials are saved, and `CLAUDE_CONFIG_DIR` is set or removed (removed for `default`). It then shows `Started on profile "<name>" (startup profile).`. When the startup profile is already active nothing changes. If a file cannot be read, it shows `gentle-accounts: <message>` (error), nothing changes and the session keeps working on the last used profile.
+
+The startup switch is skipped when `GENTLE_ACCOUNTS_LAUNCH_PROFILE` is set (not empty): the launcher sets it when it starts gentle-shell with `gentle-accounts <name>`, which already switched to `<name>`. If `profiles/startup` names a profile that no longer exists, session start shows `Startup profile "<name>" does not exist; starting on the last used profile.` (warning) and nothing changes. The startup switch only happens when pi starts. It does not run on `/new`, `/resume`, `/fork` or `/reload`, so a profile you switched to by hand stays active.
+
+### Known limit: one agent dir, shared by every session
+
+The startup profile and the active profile are global to the agent dir, not per session. Claude uses `CLAUDE_CONFIG_DIR`, a per-process variable, but the Codex and Anthropic credentials live in the single `auth.json` that every open session shares and pi reads again. So a session that switches profile, at start or with `/gentle:accounts <name>`, changes the credentials the other open sessions read. Per-session isolation is not supported.
 
 ## Switching, step by step
 
@@ -64,8 +76,10 @@ So `default` gets the `claude-default` marker and the variable is removed while 
 
 The extension shows the account with pi's `setStatus`, under the key `gentle-accounts`. Gentle Shell shows it in its status bar and sidebar.
 
-- Logged in: `gentle-accounts: <profile> · <masked email>`, for example `gentle-accounts: work · mari****@company.com`.
-- Not logged in: `gentle-accounts: <profile> · not logged in`.
+- Logged in: `👤 gentle-accounts: <profile> · <masked email>`, for example `👤 gentle-accounts: work · mari****@company.com`.
+- Not logged in: `🔒 gentle-accounts: <profile> · not logged in`, for example `🔒 gentle-accounts: work · not logged in`.
+
+The icon tells the two states apart at a glance: `👤` means a Claude login was detected for the profile, `🔒` means it was not.
 - No active profile: the status is cleared.
 
 Email mask: keep the first `min(4, max(1, len-3))` characters of the part before `@`, then `****`, then the untouched `@domain`. Examples computed with `maskEmail`:
@@ -90,7 +104,7 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 ## Security
 
 - Tokens are never printed: the status and notifications only use the profile name and the masked email; the full email never appears.
-- Credentials files and `profiles/current` are written with `0600` permissions.
+- Credentials files, `profiles/current` and `profiles/startup` are written with `0600` permissions.
 - Nothing leaves your machine: the package only reads and writes local files and runs the local `claude` CLI. It makes no network requests of its own; `claude auth login` and pi's `/login` talk to their providers as usual.
 - Commands are run with fixed arguments; on Windows they go through the shell only to resolve `.cmd` shims.
 

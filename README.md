@@ -39,7 +39,8 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 1. Crear un perfil: `/gentle:accounts create work`
 2. Cambiar a ese perfil: `/gentle:accounts work`
 3. Iniciar sesión en Claude: `/gentle:accounts login claude` muestra un comando para ejecutar en otra terminal.
-4. Comprobar la cuenta: `/gentle:accounts current`. La barra de estado muestra `gentle-accounts: work · mari****@company.com`.
+4. Comprobar la cuenta: `/gentle:accounts current`. La barra de estado muestra `👤 gentle-accounts: work · mari****@company.com` (`🔒` y `not logged in` si no hay sesión).
+5. Opcional: `/gentle:accounts startup work` hace que las sesiones nuevas empiecen en `work`; `/gentle:accounts startup last` vuelve al último perfil usado.
 
 ![Listar perfiles y cambiar de perfil con /gentle:accounts](assets/workflow-switch.svg)
 
@@ -108,6 +109,7 @@ Para más detalles, actualizar, desinstalar o quitar el paquete anterior, consul
 | `/gentle:accounts create <name>` | Crea un perfil vacío. |
 | `/gentle:accounts delete <name>` | Elimina un perfil, previa confirmación. |
 | `/gentle:accounts login claude` | Muestra el comando de inicio de sesión en Claude del perfil activo. |
+| `/gentle:accounts startup [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
 | `/gentle:accounts help` | Muestra la lista de comandos. |
 
 | Desde la terminal | Qué hace |
@@ -117,6 +119,7 @@ Para más detalles, actualizar, desinstalar o quitar el paquete anterior, consul
 | `gentle-accounts current` | Muestra el perfil activo. |
 | `gentle-accounts create <name>` | Crea un perfil vacío. |
 | `gentle-accounts login <name>` | Ejecuta `claude auth login` para ese perfil. |
+| `gentle-accounts startup [<name>\|last]` | Igual que `/gentle:accounts startup`. |
 | `gentle-accounts --help` | Muestra la lista de comandos. |
 
 La referencia completa, con cada mensaje, está en [Comandos](docs/es/commands.md).

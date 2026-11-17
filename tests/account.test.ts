@@ -52,10 +52,11 @@ test("falls back to <home>/.claude.json only for the <home>/.claude dir", () => 
   assert.deepEqual(readClaudeAccount(homeClaude, home), { email: "dir@x.y" });
 });
 
-test("S17: statusText is `gentle-accounts: <profile> · <masked>` or `· not logged in`", () => {
+test("S28: statusText is `👤 gentle-accounts: <profile> · <masked>` or `🔒 ... · not logged in`", () => {
   assert.equal(PLUGIN_LABEL, "gentle-accounts");
-  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "gentle-accounts: work · fcir****@gmail.com");
-  assert.equal(statusText("work", null), "gentle-accounts: work · not logged in");
+  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "👤 gentle-accounts: work · fcir****@gmail.com");
+  assert.equal(statusText("work", null), "🔒 gentle-accounts: work · not logged in");
+  assert.ok(!statusText("work", { email: "fcireza@gmail.com" }).includes("fcireza@gmail.com"));
 });
 
 test("S17: maskEmail keeps min(4, max(1, local - 3)) chars and the domain", () => {

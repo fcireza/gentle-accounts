@@ -1,5 +1,5 @@
-import { ProfileStore } from "./store.ts";
-import { applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
+import { ProfileStore, runStartupCommand } from "./store.ts";
+import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
 
 export const USAGE = [
   "Usage:",
@@ -8,6 +8,7 @@ export const USAGE = [
   "  gentle-accounts current                         print the active profile",
   "  gentle-accounts create <name>                   create an empty profile",
   "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
+  "  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on",
   "  gentle-accounts --help                          show this help",
 ].join("\n");
 
@@ -66,6 +67,11 @@ export function runCli(argv: string[], deps: CliDeps): number {
       return 1;
     }
   }
+  if (first === "startup") {
+    const result = runStartupCommand(store, second ?? "");
+    (result.ok ? stdout : stderr)(result.message);
+    return result.ok ? 0 : 1;
+  }
   if (first === "login") {
     if (!second || !store.exists(second)) {
       stderr(second ? missingMessage(second) : USAGE);
@@ -96,6 +102,7 @@ export function runCli(argv: string[], deps: CliDeps): number {
     return 1;
   }
   applyClaudeConfigEnv(env, store.claudeConfigEnv(first));
+  env[LAUNCH_PROFILE_ENV] = first; // the extension then skips the startup profile for this session
   return deps.spawn({
     command: "gentle-shell",
     args: [second, ...rest].filter((a): a is string => a !== undefined),

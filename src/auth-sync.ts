@@ -114,3 +114,25 @@ export function ensureDefaultProfile({ store, liveAuthPath, env }: Omit<SwitchOp
   applyClaudeConfigEnv(env, store.claudeConfigEnv("default"));
   return "default";
 }
+
+/** Set by the launcher in gentle-shell's env: an explicit `gentle-accounts <name>` launch wins over the startup profile. */
+export const LAUNCH_PROFILE_ENV = "GENTLE_ACCOUNTS_LAUNCH_PROFILE";
+
+export type StartupResult = { status: "switched" | "same" | "none" | "missing"; from: string | null; to: string | null };
+
+/**
+ * Session start: when a startup profile is set and is not the active one, switch to it with the
+ * same safe switch as a manual switch (target read first, so a corrupt file changes nothing).
+ */
+export function applyStartupProfile({ store, liveAuthPath, env }: Omit<SwitchOptions, "to">): StartupResult {
+  const from = store.current();
+  const to = store.startup();
+  if (!to) {
+    const raw = store.startupRaw();
+    return raw ? { status: "missing", from, to: raw } : { status: "none", from, to: null };
+  }
+  if (to === from) return { status: "same", from, to };
+  assertProfileReadable(store, to);
+  switchProfile({ store, liveAuthPath, env, to });
+  return { status: "switched", from, to };
+}

@@ -17,14 +17,15 @@ function sandbox() {
   mkdirSync(agentDir);
   mkdirSync(binDir);
   if (isWin) {
-    writeFileSync(join(binDir, "gentle-shell.cmd"), "@echo off\r\necho GS args=%* dir=%CLAUDE_CONFIG_DIR%\r\n");
+    writeFileSync(join(binDir, "gentle-shell.cmd"), "@echo off\r\necho GS args=%* dir=%CLAUDE_CONFIG_DIR% launch=%GENTLE_ACCOUNTS_LAUNCH_PROFILE%\r\n");
   } else {
     const shim = join(binDir, "gentle-shell");
-    writeFileSync(shim, '#!/bin/sh\necho "GS args=$* dir=$CLAUDE_CONFIG_DIR"\n');
+    writeFileSync(shim, '#!/bin/sh\necho "GS args=$* dir=$CLAUDE_CONFIG_DIR launch=$GENTLE_ACCOUNTS_LAUNCH_PROFILE"\n');
     chmodSync(shim, 0o755);
   }
   const env: NodeJS.ProcessEnv = { ...process.env, PI_CODING_AGENT_DIR: agentDir, HOME: root, USERPROFILE: root };
   delete env.CLAUDE_CONFIG_DIR;
+  delete env.GENTLE_ACCOUNTS_LAUNCH_PROFILE;
   const pathKey = Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH";
   env[pathKey] = `${binDir}${delimiter}${env[pathKey] ?? ""}`;
   const run = (...args: string[]) => {
@@ -83,5 +84,34 @@ test("launcher e2e (S16): the default profile starts gentle-shell without CLAUDE
   assert.match(run("work").out, /dir=.*work.claude/);
   const d = run("default");
   assert.equal(d.code, 0, d.err);
-  assert.match(d.out, /^GS args= ?dir=\s*$/m);
+  assert.match(d.out, /^GS args= ?dir= launch=default\s*$/m);
+});
+
+test("launcher e2e (S27): startup sets the file, shows it, and an explicit launch still wins", () => {
+  const { agentDir, run } = sandbox();
+  assert.equal(run("create", "work").code, 0);
+  assert.equal(run("create", "personal").code, 0);
+  const s = run("startup", "work");
+  assert.equal(s.code, 0, s.err);
+  assert.equal(s.out, 'Startup profile set to "work". New sessions start on it.\n');
+  assert.equal(readFileSync(join(agentDir, "profiles", "startup"), "utf8"), "work\n");
+  assert.equal(run("startup").out, "Startup profile: work\n");
+  const p = run("personal");
+  assert.equal(p.code, 0, p.err);
+  assert.match(p.out, /GS args= ?dir=.*personal.claude/);
+  assert.equal(run("current").out.trim(), "personal");
+  const g = run("startup", "ghost");
+  assert.equal(g.code, 1);
+  assert.equal(g.err, 'Profile "ghost" does not exist.\n');
+});
+
+test("launcher e2e (S27): gentle-shell receives GENTLE_ACCOUNTS_LAUNCH_PROFILE while startup is another profile", () => {
+  const { run } = sandbox();
+  run("create", "work");
+  run("create", "personal");
+  assert.equal(run("startup", "work").code, 0);
+  const p = run("personal");
+  assert.equal(p.code, 0, p.err);
+  assert.match(p.out, /launch=personal\s*$/m);
+  assert.equal(run("current").out.trim(), "personal");
 });

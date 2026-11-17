@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import gentleProfiles from "../src/index.ts";
 import { ProfileStore } from "../src/store.ts";
-import { readAuthFile } from "../src/auth-sync.ts";
+import { readAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
+import { runCli, type SpawnCall } from "../src/cli.ts";
 import { claudeLoginCommand } from "../src/login.ts";
 
 type Handler = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
@@ -246,11 +247,11 @@ test("status bar shows the active account after session_start, switch and /gentl
 
   const c1 = fakeCtx();
   await events.get("session_start")!({}, c1.ctx);
-  assert.deepEqual(c1.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: work · w****@x.y" }]);
+  assert.deepEqual(c1.statuses, [{ key: "gentle-accounts", text: "👤 gentle-accounts: work · w****@x.y" }]);
 
   const c2 = fakeCtx();
   await profile.handler("personal", c2.ctx);
-  assert.deepEqual(c2.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: personal · not logged in" }]);
+  assert.deepEqual(c2.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
 
   const c3 = fakeCtx();
   await profile.handler("personal", c3.ctx);
@@ -259,7 +260,7 @@ test("status bar shows the active account after session_start, switch and /gentl
   writeAccount(store.claudeDir("personal"), "p@x.y");
   const c4 = fakeCtx();
   await profile.handler("current", c4.ctx);
-  assert.deepEqual(c4.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: personal · p****@x.y" }]);
+  assert.deepEqual(c4.statuses, [{ key: "gentle-accounts", text: "👤 gentle-accounts: personal · p****@x.y" }]);
   assert.match(c4.notes[0].message, /^Active profile: personal/);
 });
 
@@ -324,9 +325,9 @@ test("S17/S18: status uses claude auth status, masks the email and never shows i
   await profile.handler("login claude", c.ctx);
   await profile.handler("list", c.ctx);
   assert.deepEqual(c.statuses.map((x) => x.text), [
-    "gentle-accounts: work · fcir****@gmail.com",
-    "gentle-accounts: personal · fcir****@gmail.com",
-    "gentle-accounts: personal · fcir****@gmail.com",
+    "👤 gentle-accounts: work · fcir****@gmail.com",
+    "👤 gentle-accounts: personal · fcir****@gmail.com",
+    "👤 gentle-accounts: personal · fcir****@gmail.com",
   ]);
   assert.equal(seen[0].CLAUDE_CONFIG_DIR, store.claudeDir("work"));
   const everything = JSON.stringify([c.statuses, c.notes]);
@@ -340,7 +341,7 @@ test("S18: CLI loggedIn false wins over a .claude.json email", async () => {
   writeAccount(store.claudeDir("work"), "w@x.y");
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
-  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: work · not logged in" }]);
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: work · not logged in" }]);
 });
 
 test("S18: the status refreshes on agent_end", async () => {
@@ -353,7 +354,7 @@ test("S18: the status refreshes on agent_end", async () => {
   email = "twotwo@x.y";
   assert.ok(events.get("agent_end"));
   await events.get("agent_end")!({}, c.ctx);
-  assert.deepEqual(c.statuses.map((x) => x.text), ["gentle-accounts: work · o****@x.y", "gentle-accounts: work · two****@x.y"]);
+  assert.deepEqual(c.statuses.map((x) => x.text), ["👤 gentle-accounts: work · o****@x.y", "👤 gentle-accounts: work · two****@x.y"]);
 });
 
 test("S18: a 60 s unref'd timer starts once on session_start, refreshes, and is cleared on session_shutdown", async () => {
@@ -380,7 +381,7 @@ test("S18: a 60 s unref'd timer starts once on session_start, refreshes, and is 
   c.statuses.length = 0;
   timers[0].fn();
   await new Promise((r) => setImmediate(r));
-  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: work · ab****@x.y" }]);
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "👤 gentle-accounts: work · ab****@x.y" }]);
   assert.ok(events.get("session_shutdown"));
   await events.get("session_shutdown")!({ type: "session_shutdown", reason: "quit" }, c.ctx);
   assert.equal(timers[0].cleared, true);
@@ -412,5 +413,207 @@ test("S18: overlapping refreshes are skipped and a stale result never overwrites
   await second;
   pending.get(store.claudeDir("work"))!(JSON.stringify({ loggedIn: true, email: "work@x.y" }));
   await first;
-  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "gentle-accounts: personal · p****@x.y" }]);
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "👤 gentle-accounts: personal · p****@x.y" }]);
+});
+
+test("S27: /gentle:accounts startup shows, sets and clears the startup profile", async () => {
+  const { store, profile } = setup();
+  const show = async () => {
+    const c = fakeCtx();
+    await profile.handler("startup", c.ctx);
+    return c.notes;
+  };
+  assert.deepEqual(await show(), [{ message: "Startup profile: none (new sessions start on the last used profile: none)", type: "info" }]);
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  assert.deepEqual(await show(), [{ message: "Startup profile: none (new sessions start on the last used profile: personal)", type: "info" }]);
+
+  const set = fakeCtx();
+  await profile.handler("startup work", set.ctx);
+  assert.deepEqual(set.notes, [{ message: 'Startup profile set to "work". New sessions start on it.', type: "info" }]);
+  assert.equal(store.startup(), "work");
+  assert.equal(store.current(), "personal");
+  assert.deepEqual(await show(), [{ message: "Startup profile: work", type: "info" }]);
+
+  const bad = fakeCtx();
+  await profile.handler("startup Bad", bad.ctx);
+  assert.deepEqual(bad.notes, [{ message: 'Invalid profile name "Bad": use lowercase letters, digits, "-" or "_" (max 32 chars).', type: "error" }]);
+  const ghost = fakeCtx();
+  await profile.handler("startup ghost", ghost.ctx);
+  assert.deepEqual(ghost.notes, [{ message: 'Profile "ghost" does not exist.', type: "error" }]);
+  assert.equal(store.startup(), "work");
+
+  const last = fakeCtx();
+  await profile.handler("startup last", last.ctx);
+  assert.deepEqual(last.notes, [{ message: "Startup profile cleared. New sessions start on the last used profile.", type: "info" }]);
+  assert.equal(store.startup(), null);
+});
+
+test("S27: help, usage and completions list startup", async () => {
+  const { profile } = setup();
+  const c = fakeCtx();
+  await profile.handler("help", c.ctx);
+  assert.match(c.notes[0].message, /^\/gentle:accounts startup \[<name>\|last\] +/m);
+  const completions = profile.getArgumentCompletions!("sta") as { value: string }[];
+  assert.deepEqual(completions.map((x) => x.value), ["startup"]);
+});
+
+test("S27: session_start switches to the startup profile and notifies", async () => {
+  const { store, events, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  store.setStartup("work");
+  writeFileSync(liveAuthPath, JSON.stringify({ anthropic: { type: "api_key", key: "p" } }));
+  writeFileSync(store.authPath("work"), JSON.stringify({ anthropic: { type: "api_key", key: "w" } }));
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (startup profile).', type: "info" }]);
+  assert.equal(store.current(), "work");
+  assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "w" } });
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { anthropic: { type: "api_key", key: "p" } });
+  assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: work · not logged in" }]);
+});
+
+test("S27: the startup profile is applied only when the process starts, not on new, resume, fork or reload", async () => {
+  const { store, events, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal"); // a manual switch made earlier in this process
+  store.setStartup("work");
+  writeFileSync(liveAuthPath, JSON.stringify({ anthropic: { type: "api_key", key: "p" } }));
+  writeFileSync(store.authPath("work"), JSON.stringify({ anthropic: { type: "api_key", key: "w" } }));
+  for (const reason of ["new", "resume", "fork", "reload"]) {
+    const c = fakeCtx();
+    await events.get("session_start")!({ type: "session_start", reason }, c.ctx);
+    assert.equal(store.current(), "personal", reason);
+    assert.deepEqual(c.notes, [], reason);
+    assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "p" } }, reason);
+  }
+  const c = fakeCtx();
+  await events.get("session_start")!({ type: "session_start", reason: "startup" }, c.ctx);
+  assert.equal(store.current(), "work");
+  assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (startup profile).', type: "info" }]);
+});
+
+test("S27: session_start with the startup profile already active changes nothing", async () => {
+  const { store, events, liveAuthPath } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  store.setStartup("work");
+  writeFileSync(liveAuthPath, '{"anthropic":{"type":"api_key","key":"w"}}');
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.deepEqual(c.notes, []);
+  assert.equal(readFileSync(liveAuthPath, "utf8"), '{"anthropic":{"type":"api_key","key":"w"}}');
+  assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: work · not logged in" }]);
+});
+
+test("S27: session_start with a corrupt startup target notifies an error and keeps working", async () => {
+  const { store, profile, events, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  store.setStartup("work");
+  writeFileSync(store.authPath("work"), "{bad");
+  writeFileSync(liveAuthPath, "{}");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.equal(c.notes.length, 1);
+  assert.equal(c.notes[0].type, "error");
+  assert.match(c.notes[0].message, /^gentle-accounts: Cannot parse/);
+  assert.equal(store.current(), "personal");
+  assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+  const l = fakeCtx();
+  await profile.handler("list", l.ctx);
+  assert.deepEqual(l.notes, [{ message: "* personal\n  work", type: "info" }]);
+});
+
+test("S27: delete refuses the startup profile", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  store.setStartup("work");
+  const c = fakeCtx({ confirm: true });
+  await profile.handler("delete work", c.ctx);
+  assert.deepEqual(c.notes, [{ message: 'Cannot delete the startup profile "work". Set another one or clear it with "startup last" first.', type: "error" }]);
+  assert.deepEqual(store.list(), ["personal", "work"]);
+});
+
+function startupScenario() {
+  const s = setup();
+  s.store.create("work");
+  s.store.create("personal");
+  s.store.setCurrent("personal");
+  s.store.setStartup("work");
+  writeFileSync(s.liveAuthPath, "{}");
+  return s;
+}
+
+test("S27: session_start launched by `gentle-accounts personal` (env var set) skips the startup switch", async () => {
+  const { store, events, liveAuthPath } = startupScenario();
+  process.env[LAUNCH_PROFILE_ENV] = "personal";
+  try {
+    const c = fakeCtx();
+    await events.get("session_start")!({}, c.ctx);
+    assert.deepEqual(c.notes, []);
+    assert.equal(store.current(), "personal");
+    assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+    assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("personal"));
+    assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
+  } finally {
+    delete process.env[LAUNCH_PROFILE_ENV];
+  }
+});
+
+test("S27: an empty launch variable does not skip the startup switch", async () => {
+  const { store, events } = startupScenario();
+  process.env[LAUNCH_PROFILE_ENV] = "";
+  try {
+    const c = fakeCtx();
+    await events.get("session_start")!({}, c.ctx);
+    assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (startup profile).', type: "info" }]);
+    assert.equal(store.current(), "work");
+  } finally {
+    delete process.env[LAUNCH_PROFILE_ENV];
+  }
+});
+
+test("S27: real launcher env reaches session_start: runCli spawn env drives the extension", async () => {
+  const { store, events, liveAuthPath, agentDir } = startupScenario();
+  const spawns: SpawnCall[] = [];
+  const code = runCli(["personal"], {
+    store, liveAuthPath, env: { PATH: "/usr/bin" }, platform: "linux", stdout: () => {}, stderr: () => {},
+    spawn: (call) => (spawns.push(call), 0),
+  });
+  assert.equal(code, 0);
+  const saved = { ...process.env };
+  Object.assign(process.env, spawns[0].env, { PI_CODING_AGENT_DIR: agentDir, HOME: agentDir, USERPROFILE: agentDir });
+  try {
+    const c = fakeCtx();
+    await events.get("session_start")!({}, c.ctx);
+    assert.deepEqual(c.notes, []);
+    assert.equal(store.current(), "personal");
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
+  }
+});
+
+test("S27: a startup file naming a deleted profile warns at session_start and changes nothing", async () => {
+  const { store, profile, events, liveAuthPath } = startupScenario();
+  writeFileSync(store.startupPath, "ghost\n");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.deepEqual(c.notes, [{ message: 'Startup profile "ghost" does not exist; starting on the last used profile.', type: "warning" }]);
+  assert.equal(store.current(), "personal");
+  assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
+  const l = fakeCtx();
+  await profile.handler("list", l.ctx);
+  assert.deepEqual(l.notes, [{ message: "* personal\n  work", type: "info" }]);
 });
