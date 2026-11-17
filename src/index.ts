@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner } from "./account.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, validateProfileName } from "./store.ts";
 import { applyCurrentProfileEnv, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
-import { claudeLoginCommand } from "./login.ts";
+import { claudeLoginCommand, loginHint } from "./login.ts";
 
 const USAGE = [
   "/gentle:accounts                 pick a profile and switch to it",
@@ -163,7 +163,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (arg !== "claude") return notify(ctx, USAGE, "warning");
         const current = s.current();
         if (!current) return notify(ctx, "No active profile.", "error");
-        notify(ctx, `Run this in another terminal to log profile "${current}" into Claude Code:\n${claudeLoginCommand(s.claudeConfigEnv(current))}`);
+        notify(ctx, loginHint(current, claudeLoginCommand(s.claudeConfigEnv(current))));
         return;
       }
       if (sub === "help" || sub === "--help") return notify(ctx, USAGE);

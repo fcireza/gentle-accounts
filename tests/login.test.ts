@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claudeLoginCommand } from "../src/login.ts";
+import { claudeLoginCommand, loginHint } from "../src/login.ts";
 
 test("claudeLoginCommand renders a POSIX command with the dir single-quoted", () => {
   assert.equal(claudeLoginCommand("/home/me/.gentle-shell/agent/profiles/work/claude", "linux"),
@@ -17,4 +17,22 @@ test("S16: claudeLoginCommand without a dir is plain `claude auth login` on ever
   assert.equal(claudeLoginCommand(undefined, "linux"), "claude auth login");
   assert.equal(claudeLoginCommand(undefined, "darwin"), "claude auth login");
   assert.equal(claudeLoginCommand(undefined, "win32"), "claude auth login");
+});
+
+test("S22: loginHint highlights the command with a $ prompt on POSIX", () => {
+  for (const platform of ["linux", "darwin"] as const) {
+    assert.equal(loginHint("work", "CLAUDE_CONFIG_DIR='/x' claude auth login", platform),
+      'To log profile "work" into Claude Code, run this in ANOTHER terminal (it opens your browser):\n\n' +
+      "  $ CLAUDE_CONFIG_DIR='/x' claude auth login\n\n" +
+      "Or run it from a terminal with the launcher: gentle-accounts login work\n" +
+      "When it finishes, run /gentle:accounts current to see the account.");
+  }
+});
+
+test("S22: loginHint uses a PS> prompt on Windows", () => {
+  assert.equal(loginHint("work", '$env:CLAUDE_CONFIG_DIR="C:\\x"; claude auth login', "win32"),
+    'To log profile "work" into Claude Code, run this in ANOTHER terminal (it opens your browser):\n\n' +
+    '  PS> $env:CLAUDE_CONFIG_DIR="C:\\x"; claude auth login\n\n' +
+    "Or run it from a terminal with the launcher: gentle-accounts login work\n" +
+    "When it finishes, run /gentle:accounts current to see the account.");
 });
