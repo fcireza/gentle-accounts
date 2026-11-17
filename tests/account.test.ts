@@ -136,3 +136,12 @@ test("S18: the <home>/.claude.json fallback applies only to the system-default p
   assert.deepEqual(await queryClaudeAccount({ claudeConfigDir: undefined, homeDir: home, run: fail }), { email: "home@x.y" });
   assert.equal(await queryClaudeAccount({ claudeConfigDir: claudeDir, homeDir: home, run: fail }), null);
 });
+
+test("S29: statusText hides by default and prints the full email only when shown", () => {
+  const a = { email: "fcireza@gmail.com" };
+  assert.equal(statusText("work", a, {}), "👤 gentle-accounts: work · fcir****@gmail.com");
+  assert.equal(statusText("work", a, { showEmail: false }), "👤 gentle-accounts: work · fcir****@gmail.com");
+  assert.equal(statusText("work", a, { showEmail: true }), "👤 gentle-accounts: work · fcireza@gmail.com");
+  assert.equal(statusText("work", null, { showEmail: true }), "🔒 gentle-accounts: work · not logged in");
+  assert.equal(statusText("work", null, { showEmail: false }), "🔒 gentle-accounts: work · not logged in");
+});

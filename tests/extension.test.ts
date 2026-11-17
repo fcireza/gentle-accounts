@@ -617,3 +617,65 @@ test("S27: a startup file naming a deleted profile warns at session_start and ch
   await profile.handler("list", l.ctx);
   assert.deepEqual(l.notes, [{ message: "* personal\n  work", type: "info" }]);
 });
+
+const FULL = "maria.lopez@company.com";
+
+test("S29: /gentle:accounts email shows, sets, warns on usage, and refreshes the status right away", async () => {
+  const { store, profile, events, agentDir } = setup({ runClaudeStatus: async () => JSON.stringify({ loggedIn: true, email: FULL }) });
+  store.create("work");
+  store.setCurrent("work");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  await profile.handler("email", c.ctx);
+  await profile.handler("email show", c.ctx);
+  await profile.handler("email", c.ctx);
+  await profile.handler("current", c.ctx);
+  await profile.handler("email hide", c.ctx);
+  await profile.handler("email maybe", c.ctx);
+  assert.deepEqual(c.notes, [
+    { message: "Email display: hidden (masked in the status bar)", type: "info" },
+    { message: "Email display set to shown. The status bar shows the full email.", type: "info" },
+    { message: "Email display: shown (full email in the status bar)", type: "info" },
+    { message: `Active profile: work (CLAUDE_CONFIG_DIR=${store.claudeDir("work")})`, type: "info" },
+    { message: "Email display set to hidden. The status bar shows a masked email.", type: "info" },
+    { message: "Usage: /gentle:accounts email [show|hide]", type: "warning" },
+  ]);
+  assert.deepEqual(c.statuses.map((x) => x.text), [
+    "👤 gentle-accounts: work · mari****@company.com",
+    "👤 gentle-accounts: work · maria.lopez@company.com",
+    "👤 gentle-accounts: work · maria.lopez@company.com",
+    "👤 gentle-accounts: work · mari****@company.com",
+  ]);
+  assert.equal(JSON.stringify(c.notes).includes("maria.lopez"), false);
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "settings.json"), "utf8")), { showEmail: false });
+});
+
+test("S29: refreshes pick up the setting changed on disk; notifications never carry the email", async () => {
+  const { store, profile, events, agentDir } = setup({ runClaudeStatus: async () => JSON.stringify({ loggedIn: true, email: FULL }) });
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  writeFileSync(join(agentDir, "profiles", "settings.json"), JSON.stringify({ showEmail: true }));
+  await events.get("agent_end")!({}, c.ctx);
+  await profile.handler("personal", c.ctx);
+  await profile.handler("list", c.ctx);
+  await profile.handler("help", c.ctx);
+  writeFileSync(join(agentDir, "profiles", "settings.json"), "{broken");
+  await events.get("agent_end")!({}, c.ctx);
+  assert.deepEqual(c.statuses.map((x) => x.text), [
+    "👤 gentle-accounts: work · mari****@company.com",
+    "👤 gentle-accounts: work · maria.lopez@company.com",
+    "👤 gentle-accounts: personal · maria.lopez@company.com",
+    "👤 gentle-accounts: personal · mari****@company.com",
+  ]);
+  assert.equal(readFileSync(join(agentDir, "profiles", "settings.json"), "utf8"), "{broken");
+  assert.equal(JSON.stringify(c.notes).includes("maria.lopez"), false);
+  assert.match(c.notes.at(-1)!.message, /^\/gentle:accounts email \[show\|hide\] +show or set whether the status bar shows the full email/m);
+});
+
+test("S29: argument completions include email", () => {
+  const { profile } = setup();
+  assert.deepEqual(profile.getArgumentCompletions!("em"), [{ value: "email", label: "email" }]);
+});

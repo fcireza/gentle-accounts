@@ -5,6 +5,7 @@ import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner }
 import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
+import { getShowEmail, runEmailCommand, settingsPath } from "./settings.ts";
 
 const USAGE = [
   "/gentle:accounts                 pick a profile and switch to it",
@@ -15,9 +16,10 @@ const USAGE = [
   "/gentle:accounts delete <name>   delete a profile (asks for confirmation)",
   "/gentle:accounts login claude    show the command that logs the active profile into Claude Code",
   "/gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on",
+  "/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email",
 ].join("\n");
 
-const SUBCOMMANDS = ["list", "current", "create", "delete", "login", "startup"];
+const SUBCOMMANDS = ["list", "current", "create", "delete", "login", "startup", "email"];
 
 function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "warning" | "error" = "info"): void {
   ctx.ui.notify(message, type);
@@ -72,7 +74,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       try {
         const account = await queryClaudeAccount({ claudeConfigDir: s.claudeConfigEnv(current), homeDir: homedir(), run: deps.runClaudeStatus });
         if (gen !== generation || s.current() !== current) return;
-        ctx.ui.setStatus(STATUS_KEY, statusText(current, account));
+        ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: getShowEmail(settingsPath(getAgentDir())) }));
       } finally {
         if (gen === generation) inFlight = null;
       }
@@ -187,6 +189,13 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       if (sub === "startup") {
         const result = runStartupCommand(s, arg);
         return notify(ctx, result.message, result.ok ? "info" : "error");
+      }
+      if (sub === "email") {
+        // Never echoes the email: only the fixed S29 messages.
+        const result = runEmailCommand(arg, settingsPath(getAgentDir()), "/gentle:accounts");
+        notify(ctx, result.message, result.type);
+        if (result.changed) await updateStatus(ctx, s);
+        return;
       }
       if (sub === "help" || sub === "--help") return notify(ctx, USAGE);
 

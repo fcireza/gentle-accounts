@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
@@ -226,4 +226,26 @@ test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list
   assert.equal(spawns[1].command, "gentle-shell");
   assert.equal(spawns[1].env[LAUNCH_PROFILE_ENV], "personal");
   assert.equal(LAUNCH_PROFILE_ENV in deps.env, false);
+});
+
+test("S29: gentle-accounts email shows, sets and rejects with exit codes", () => {
+  const { store, out, err, deps } = setup();
+  const path = join(store.profilesDir, "settings.json");
+  assert.equal(runCli(["email"], deps), 0);
+  assert.equal(runCli(["email", "show"], deps), 0);
+  assert.equal(runCli(["email"], deps), 0);
+  assert.equal(runCli(["email", "hide"], deps), 0);
+  assert.deepEqual(out, [
+    "Email display: hidden (masked in the status bar)",
+    "Email display set to shown. The status bar shows the full email.",
+    "Email display: shown (full email in the status bar)",
+    "Email display set to hidden. The status bar shows a masked email.",
+  ]);
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { showEmail: false });
+  assert.deepEqual(err, []);
+  assert.equal(runCli(["email", "maybe"], deps), 1);
+  assert.deepEqual(err, ["Usage: gentle-accounts email [show|hide]"]);
+  const help: string[] = [];
+  runCli(["--help"], { ...deps, stdout: (l) => help.push(l) });
+  assert.match(help[0], /^  gentle-accounts email \[show\|hide\] +show or set whether the status bar shows the full email/m);
 });
