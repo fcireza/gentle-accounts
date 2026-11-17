@@ -7,6 +7,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import gentleProfiles from "../src/index.ts";
 import { ProfileStore } from "../src/store.ts";
 import { readAuthFile } from "../src/auth-sync.ts";
+import { claudeLoginCommand } from "../src/login.ts";
 
 type Handler = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
 
@@ -57,6 +58,8 @@ function setup(deps: Parameters<typeof gentleProfiles>[1] = {}) {
   const profile = commands.get("gentle:accounts")!;
   return { agentDir, store: new ProfileStore(agentDir), profile, events, liveAuthPath: join(agentDir, "auth.json") };
 }
+
+const PROMPT = process.platform === "win32" ? "PS> " : "$ ";
 
 test("registers /gentle:accounts and a session_start hook", () => {
   const { profile, events } = setup();
@@ -201,8 +204,12 @@ test("/gentle:accounts login claude prints the login command for the active prof
   store.setCurrent("work");
   const c = fakeCtx();
   await profile.handler("login claude", c.ctx);
-  assert.match(c.notes[0].message, /claude auth login/);
-  assert.ok(c.notes[0].message.includes(store.claudeDir("work")));
+  const cmd = claudeLoginCommand(store.claudeDir("work"));
+  assert.equal(c.notes[0].message,
+    'To log profile "work" into Claude Code, run this in ANOTHER terminal (it opens your browser):\n\n' +
+    `  ${PROMPT}${cmd}\n\n` +
+    "Or run it from a terminal with the launcher: gentle-accounts login work\n" +
+    "When it finishes, run /gentle:accounts current to see the account.");
 });
 
 test("argument completions offer subcommands and profile names", () => {
@@ -285,7 +292,11 @@ test("S16: /gentle:accounts default -> work -> default sets then deletes CLAUDE_
   await profile.handler("current", c3.ctx);
   assert.equal(c3.notes[0].message, "Active profile: default (CLAUDE_CONFIG_DIR=(unset: Claude Code default))");
   await profile.handler("login claude", c3.ctx);
-  assert.equal(c3.notes[1].message, 'Run this in another terminal to log profile "default" into Claude Code:\nclaude auth login');
+  assert.equal(c3.notes[1].message,
+    'To log profile "default" into Claude Code, run this in ANOTHER terminal (it opens your browser):\n\n' +
+    `  ${PROMPT}claude auth login\n\n` +
+    "Or run it from a terminal with the launcher: gentle-accounts login default\n" +
+    "When it finishes, run /gentle:accounts current to see the account.");
 });
 
 test("S16: a legacy default whose claude-dir is <home>/.claude is treated as the system default", async () => {

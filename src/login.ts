@@ -6,3 +6,12 @@ export function claudeLoginCommand(claudeDir: string | undefined, platform: Node
   }
   return `CLAUDE_CONFIG_DIR='${claudeDir.replaceAll("'", `'\\''`)}' claude auth login`;
 }
+
+/** S22: the message that highlights the login command on its own prompt line (`PS> ` on Windows, `$ ` elsewhere). */
+export function loginHint(profile: string, command: string, platform: NodeJS.Platform = process.platform): string {
+  const prompt = platform === "win32" ? "PS> " : "$ ";
+  return `To log profile "${profile}" into Claude Code, run this in ANOTHER terminal (it opens your browser):\n\n` +
+    `  ${prompt}${command}\n\n` +
+    `Or run it from a terminal with the launcher: gentle-accounts login ${profile}\n` +
+    "When it finishes, run /gentle:accounts current to see the account.";
+}

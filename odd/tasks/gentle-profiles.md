@@ -41,7 +41,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T8 (S19): rename to gentle-accounts, command `/gentle:accounts`, launcher `gentle-accounts`. Route: worker (context backstop), test-first (RED observed: 25 failing after renaming only the tests; 87/87 after; parent re-ran tests and grepped leftovers). Commit: see git log "feat!: rename"
 - [ ] T9 (S20): README in Spanish plus README.en.md. Route: worker (context backstop). Commit: -
 - [x] T10 (S21): tag and Release on every merge to main. Route: worker (context backstop), test-first (RED observed: module missing and 4 failing workflow assertions; 134/134 after; parent fixed the last release-please comment and made the grep test strict). Commit: see git log "ci: tag and release"
-- [ ] T11 (S22, S23): highlighted login command message and README restructure. Route: worker (context backstop), test-first for the message. Commit: -
+- [x] T11 (S22, S23): highlighted login command message and README restructure. Route: worker (context backstop), test-first for the message (RED: 2 extension tests failed on the old message and login.test.ts failed to load; 140/140 after; parent re-ran tests and read the diff). Commit: see git log "feat: highlight"
 
 ## Log
 

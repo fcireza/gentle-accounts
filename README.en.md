@@ -4,89 +4,165 @@
 
 > **Renamed from gentle-profiles.** The `/profile` command is now `/gentle:accounts` (same sub-commands), the launcher is `gentle-accounts`, and the GitHub repository was renamed to `fcireza/gentle-accounts` (old URLs redirect). Your profiles on disk are unchanged.
 
-Use **more than one account** in [Gentle Shell](https://gentlemanprogramming.com/gentle-hub/) (and pi): a `work` Claude and a `personal` Claude, two Codex logins, and so on. Switch between them with one command, and always see which account is active.
+## Objective
 
-Works on Linux, macOS and Windows.
+Claude Code keeps one login per machine, and pi keeps your Codex and Anthropic credentials in a single `auth.json`, so out of the box you work with one account per provider. gentle-accounts lets you keep named **profiles**, such as `work` and `personal`, each with its own logins. You switch between them with one command and always see which account is active. It works the same on Linux, macOS and Windows, as a pi extension or inside [Gentle Shell](https://gentlemanprogramming.com/gentle-hub/).
+
+## Providers
+
+Gentle Shell talks to Claude through [pi-claude-bridge](https://github.com/elidickinson/pi-claude-bridge), which uses the login of the `claude` CLI. This package gives every profile its own folder and its own credentials, and swaps them when you switch:
+
+| Provider | What a profile keeps | How to log in |
+| --- | --- | --- |
+| Claude (via claude-bridge) | its own Claude Code login (a separate `CLAUDE_CONFIG_DIR`) | run the command printed by `/gentle:accounts login claude` in another terminal, or `gentle-accounts login <profile>` |
+| Codex (`openai-codex`) | its own credentials in pi's `auth.json` | pi's `/login` |
+| Anthropic (pi's native provider) | its own credentials in pi's `auth.json` | pi's `/login` |
+
+Any other provider you have in pi is left alone. The status bar always shows the active profile and its masked account:
 
 ```
 status bar:   gentle-accounts: work · you****@company.com
 ```
 
-## What it does
+## Workflow
 
-Gentle Shell talks to Claude through [pi-claude-bridge](https://github.com/elidickinson/pi-claude-bridge), which uses the login of the `claude` CLI. That login lives in one folder, so normally you get one account. This package gives every **profile** its own folder and its own credentials, and swaps them when you switch:
+A worked example for someone with a work and a personal Claude account:
 
-| Provider | What a profile keeps |
-| --- | --- |
-| Claude (via claude-bridge) | its own Claude Code login (a separate `CLAUDE_CONFIG_DIR`) |
-| Codex (`openai-codex`) | its own credentials in pi's `auth.json` |
-| Anthropic (pi's native provider) | its own credentials in pi's `auth.json` |
+1. Install the package (see Installation below) and restart Gentle Shell or pi.
+2. On the first start your current logins are wrapped into a profile called `default`. Nothing is moved or copied: `default` keeps using Claude Code's own default folder with `CLAUDE_CONFIG_DIR` left **unset** (setting it to `~/.claude` would make Claude Code lose the login on macOS, where the keychain entry depends on that variable). If you had set `CLAUDE_CONFIG_DIR` yourself, that folder is recorded and kept. Here `default` is your personal account.
+3. Create a profile for work:
+   ```
+   /gentle:accounts create work
+   ```
+4. Switch to it:
+   ```
+   /gentle:accounts work
+   ```
+5. Log that profile into Claude:
+   ```
+   /gentle:accounts login claude
+   ```
+   It prints a command; copy it and run it in **another terminal**, because it opens your browser. The profile's Claude folder is `~/.gentle-shell/agent/profiles/work/claude`. On macOS or Linux the output looks like this:
+   ```
+   To log profile "work" into Claude Code, run this in ANOTHER terminal (it opens your browser):
 
-Any other provider you have in pi is left alone.
+     $ CLAUDE_CONFIG_DIR='/Users/you/.gentle-shell/agent/profiles/work/claude' claude auth login
 
-## Install
+   Or run it from a terminal with the launcher: gentle-accounts login work
+   When it finishes, run /gentle:accounts current to see the account.
+   ```
+   On Windows (PowerShell):
+   ```
+   To log profile "work" into Claude Code, run this in ANOTHER terminal (it opens your browser):
 
-### In Gentle Shell
+     PS> $env:CLAUDE_CONFIG_DIR="C:\Users\you\.gentle-shell\agent\profiles\work\claude"; claude auth login
+
+   Or run it from a terminal with the launcher: gentle-accounts login work
+   When it finishes, run /gentle:accounts current to see the account.
+   ```
+   Or run the launcher directly from a terminal:
+   ```sh
+   gentle-accounts login work
+   ```
+   The login is not started from inside the TUI on purpose: `claude auth login` is interactive (a browser flow) and the TUI owns the terminal. The launcher command is the way to run it directly.
+6. If you use Codex or Anthropic, log this profile in with pi's normal `/login`.
+7. Check the account:
+   ```
+   /gentle:accounts current
+   ```
+   The status bar shows `gentle-accounts: work · you****@company.com` (or `gentle-accounts: <profile> · not logged in`).
+8. Switch back to your personal account whenever you want:
+   ```
+   /gentle:accounts default
+   ```
+9. To start a session already on a profile, use the launcher:
+   ```sh
+   gentle-accounts work
+   ```
+
+## Installation
+
+| | Gentle Shell | plain pi |
+| --- | --- | --- |
+| Who it is for | you use Gentle Shell | you use pi without Gentle Shell |
+| Command | `gentle-shell -- install git:github.com/fcireza/gentle-accounts` | `pi install git:github.com/fcireza/gentle-accounts` |
+| Installs into | `~/.gentle-shell/agent` (or `GENTLE_SHELL_HOME`) | pi's agent dir, `~/.pi/agent` (or `PI_CODING_AGENT_DIR`) |
+
+With Gentle Shell, everything after `--` goes to pi, which clones the package into the agent dir and adds it to that dir's `settings.json`. Gentle Shell options such as `--home <path>` go before the `--`. Restart and `/gentle:accounts` is available.
+
+The `gentle-accounts` launcher is optional: installing from git does not put it on your `PATH`, so add an alias. With plain pi, replace `.gentle-shell/agent` with `.pi/agent` in the alias path.
+
+### macOS
+
+Requirements: Node 22.18 or newer, the `claude` CLI, and pi-claude-bridge for Claude profiles (pi 1.5.1 or newer).
 
 ```sh
 gentle-shell -- install git:github.com/fcireza/gentle-accounts
 ```
 
-Everything after `--` goes to pi, which clones the package into Gentle Shell's home (`~/.gentle-shell/agent`) and adds it to that home's `settings.json`. Restart Gentle Shell and `/gentle:accounts` is available. Gentle Shell options such as `--home <path>` go before the `--`.
+```sh
+pi install git:github.com/fcireza/gentle-accounts
+```
 
-If you installed the old package (`git:github.com/fcireza/gentle-profiles`), remove that line from the `packages` list in `~/.gentle-shell/agent/settings.json` first. With both installed, the old `/profile` and the new `/gentle:accounts` would run side by side.
+Agent dir: `~/.gentle-shell/agent`. Launcher alias for zsh (`~/.zshrc`) or bash (`~/.bashrc`):
 
-### In plain pi
+```sh
+alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'
+```
+
+Verify inside Gentle Shell or pi with `/gentle:accounts list`.
+
+### Linux
+
+Requirements: Node 22.18 or newer, the `claude` CLI, and pi-claude-bridge for Claude profiles (pi 1.5.1 or newer).
+
+```sh
+gentle-shell -- install git:github.com/fcireza/gentle-accounts
+```
 
 ```sh
 pi install git:github.com/fcireza/gentle-accounts
 ```
 
-Requirements: pi 1.5.1 or newer, the `claude` CLI and pi-claude-bridge for Claude profiles, and Node 22.18 or newer for the launcher.
-
-### The `gentle-accounts` launcher (optional)
-
-The extension already gives you `/gentle:accounts` inside Gentle Shell. The launcher is for starting a session already on a profile. Installing the package from git does not put it on your `PATH`, so call it by path or add an alias:
+Agent dir: `~/.gentle-shell/agent`. Launcher alias for bash (`~/.bashrc`) or zsh (`~/.zshrc`):
 
 ```sh
-# bash / zsh
 alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'
 ```
 
+Verify inside Gentle Shell or pi with `/gentle:accounts list`.
+
+### Windows (PowerShell)
+
+Requirements: Node 22.18 or newer, the `claude` CLI, and pi-claude-bridge for Claude profiles (pi 1.5.1 or newer).
+
 ```powershell
-# PowerShell profile
+gentle-shell -- install git:github.com/fcireza/gentle-accounts
+```
+
+```powershell
+pi install git:github.com/fcireza/gentle-accounts
+```
+
+Agent dir: `%USERPROFILE%\.gentle-shell\agent`. Launcher function for your PowerShell profile (`$PROFILE`):
+
+```powershell
 function gentle-accounts { node "$env:USERPROFILE\.gentle-shell\agent\git\github.com\fcireza\gentle-accounts\bin\gentle-accounts.mjs" @args }
 ```
 
-## Update and remove
+Verify inside Gentle Shell or pi with `/gentle:accounts list`.
+
+### Old package
+
+If you installed the old package (`git:github.com/fcireza/gentle-profiles`), remove that line from the `packages` list in `~/.gentle-shell/agent/settings.json` first. With both installed, the old `/profile` and the new `/gentle:accounts` would run side by side.
+
+### Update and remove
 
 Reinstalling pulls the latest `main`. To remove it, delete the `git:github.com/fcireza/gentle-accounts` line from the `packages` list in `~/.gentle-shell/agent/settings.json`. Your profiles stay on disk under `profiles/` until you delete that folder.
 
-## Quick start
-
-The first time it loads, your current logins are wrapped into a profile called `default`. Nothing is moved or copied: `default` keeps using Claude Code's own default folder with `CLAUDE_CONFIG_DIR` left **unset** (setting it to `~/.claude` would make Claude Code lose the login on macOS, where the keychain entry depends on that variable). If you had set `CLAUDE_CONFIG_DIR` yourself, that folder is recorded and kept.
-
-1. Create a second profile and switch to it, inside Gentle Shell:
-   ```
-   /gentle:accounts create work
-   /gentle:accounts work
-   ```
-2. Log that profile into Claude. This prints a command; run it in **another terminal**:
-   ```
-   /gentle:accounts login claude
-   ```
-3. Log into Codex or Anthropic with pi's normal `/login`, if you use them.
-4. Switch back and forth whenever you want:
-   ```
-   /gentle:accounts default
-   /gentle:accounts work
-   ```
-
-The status bar shows `gentle-accounts: <profile> · <masked email>` (for example `gentle-accounts: work · fcir****@gmail.com`), or `gentle-accounts: <profile> · not logged in`.
-
 ## Commands
 
-### Inside Gentle Shell: `/gentle:accounts`
+### Inside Gentle Shell or pi: `/gentle:accounts`
 
 | Command | What it does |
 | --- | --- |
@@ -96,7 +172,7 @@ The status bar shows `gentle-accounts: <profile> · <masked email>` (for example
 | `/gentle:accounts current` | Shows the active profile and its Claude folder (`Active profile: work (CLAUDE_CONFIG_DIR=...)`; for `default`: `CLAUDE_CONFIG_DIR=(unset: Claude Code default)`), and refreshes the status bar. |
 | `/gentle:accounts create <name>` | Creates an empty profile. |
 | `/gentle:accounts delete <name>` | Deletes a profile after a confirmation. You cannot delete the active one. |
-| `/gentle:accounts login claude` | Prints the command that logs the active profile into Claude Code (plain `claude auth login` for `default`). |
+| `/gentle:accounts login claude` | Prints the command that logs the active profile into Claude Code, highlighted on its own line (plain `claude auth login` for `default`). It does not run it. |
 | `/gentle:accounts help` | Shows the command list. |
 
 Profile names use lowercase letters, digits, `-` or `_` (up to 32 characters). Switching waits until the agent is idle.
