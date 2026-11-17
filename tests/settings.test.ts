@@ -69,3 +69,12 @@ test("S29: runEmailCommand shows, sets and rejects with the exact messages", () 
   assert.deepEqual(runEmailCommand("on", path, "gentle-accounts"), { message: "Usage: gentle-accounts email [show|hide]", type: "warning", changed: false });
   assert.equal(readFileSync(path, "utf8"), before);
 });
+
+test("S30: setShowEmail uses a unique temp name, so a stale settings.json.tmp never collides", () => {
+  const { agentDir, path } = tmp();
+  mkdirSync(join(agentDir, "profiles"));
+  mkdirSync(`${path}.tmp`);
+  setShowEmail(path, true);
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { showEmail: true });
+  assert.deepEqual(readdirSync(join(agentDir, "profiles")).sort(), ["settings.json", "settings.json.tmp"]);
+});

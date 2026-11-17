@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, renameSync, writeFileSync, rmSync } from "node:fs";
-import { ProfileStore } from "./store.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { ProfileStore, isAlreadyExistsError, writeFileAtomic } from "./store.ts";
 
 /** pi auth.json providers whose credentials belong to a profile. */
 export const COVERED_PROVIDERS = ["openai-codex", "anthropic"] as const;
@@ -21,18 +21,11 @@ export function readAuthFile(path: string): AuthData {
 
 /** Write then rename, so a reader never sees a partial file; pi reloads auth.json by file revision. */
 export function writeAuthFile(path: string, data: AuthData): void {
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-  try {
-    renameSync(tmp, path);
-  } catch (error) {
-    rmSync(tmp, { force: true });
-    throw error;
-  }
+  writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 /** Copies the covered provider entries of `source` into `target`, removing entries absent in `source`. */
-function transferCovered(source: AuthData, target: AuthData): AuthData {
+export function transferCovered(source: AuthData, target: AuthData): AuthData {
   const next: AuthData = { ...target };
   for (const provider of COVERED_PROVIDERS) {
     if (provider in source) next[provider] = source[provider];
@@ -107,8 +100,15 @@ export function ensureDefaultProfile({ store, liveAuthPath, env }: Omit<SwitchOp
   if (!store.exists("default")) {
     const live = readAuthFile(liveAuthPath); // before create: a corrupt file leaves no stray profile
     const userDir = env.CLAUDE_CONFIG_DIR;
-    store.create("default", userDir ? { claudeDir: userDir } : { claudeDefault: true });
-    writeAuthFile(store.authPath("default"), transferCovered(live, {}));
+    let created = true;
+    try {
+      store.create("default", userDir ? { claudeDir: userDir } : { claudeDefault: true });
+    } catch (error) {
+      // Another session created it first (S30): theirs wins, nothing is overwritten.
+      if (!isAlreadyExistsError(error)) throw error;
+      created = false;
+    }
+    if (created) writeAuthFile(store.authPath("default"), transferCovered(live, {}));
   }
   store.setCurrent("default");
   applyClaudeConfigEnv(env, store.claudeConfigEnv("default"));

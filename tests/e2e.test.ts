@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { after } from "node:test";
+import { buildSessionHome } from "../src/session-home.ts";
 import { fileURLToPath } from "node:url";
 
 const BIN = fileURLToPath(new URL("../bin/gentle-accounts.mjs", import.meta.url));
@@ -11,34 +13,60 @@ const isWin = process.platform === "win32";
 
 /** Real launcher + a fake `gentle-shell` on PATH (a .cmd shim on Windows) inside an isolated agent dir. */
 function sandbox() {
-  const root = mkdtempSync(join(tmpdir(), "gentle-accounts-e2e-"));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "gentle-accounts-e2e-")));
+  after(() => rmSync(root, { recursive: true, force: true }));
   const agentDir = join(root, "agent");
   const binDir = join(root, "bin");
+  const tmp = join(root, "tmp");
   mkdirSync(agentDir);
   mkdirSync(binDir);
+  mkdirSync(tmp);
   if (isWin) {
-    writeFileSync(join(binDir, "gentle-shell.cmd"), "@echo off\r\necho GS args=%* dir=%CLAUDE_CONFIG_DIR% launch=%GENTLE_ACCOUNTS_LAUNCH_PROFILE%\r\n");
+    writeFileSync(
+      join(binDir, "gentle-shell.cmd"),
+      "@echo off\r\necho GS args=%* dir=%CLAUDE_CONFIG_DIR% launch=%GENTLE_ACCOUNTS_LAUNCH_PROFILE% noauto=%GENTLE_SHELL_NO_AUTO_SETUP%\r\nif defined FAKE_AUTH echo %FAKE_AUTH%> \"%2\\auth.json\"\r\nif defined FAKE_EXIT exit /b %FAKE_EXIT%\r\n",
+    );
   } else {
+    // Fake gentle-shell: prints what it got, optionally sleeps until SIGTERM, then rewrites its auth.json in place.
     const shim = join(binDir, "gentle-shell");
-    writeFileSync(shim, '#!/bin/sh\necho "GS args=$* dir=$CLAUDE_CONFIG_DIR launch=$GENTLE_ACCOUNTS_LAUNCH_PROFILE"\n');
+    writeFileSync(
+      shim,
+      [
+        "#!/bin/sh",
+        'echo "GS args=$* dir=$CLAUDE_CONFIG_DIR launch=$GENTLE_ACCOUNTS_LAUNCH_PROFILE noauto=$GENTLE_SHELL_NO_AUTO_SETUP"',
+        'if [ -n "$FAKE_SLEEP" ]; then',
+        '  trap \'printf "%s" "$FAKE_AUTH" > "$2/auth.json"; exit 143\' TERM',
+        "  echo READY",
+        "  while :; do sleep 0.1; done",
+        "fi",
+        'if [ -n "$FAKE_CAT" ]; then printf "AUTH=%s\\n" "$(tr -d "\\n " < "$2/auth.json")"; fi',
+        'if [ -n "$FAKE_AUTH" ]; then printf "%s" "$FAKE_AUTH" > "$2/auth.json"; fi',
+        "exit ${FAKE_EXIT:-0}",
+        "",
+      ].join("\n"),
+    );
     chmodSync(shim, 0o755);
   }
-  const env: NodeJS.ProcessEnv = { ...process.env, PI_CODING_AGENT_DIR: agentDir, HOME: root, USERPROFILE: root };
+  // Session homes go under <os.tmpdir()>/gentle-accounts: keep them inside the sandbox.
+  const env: NodeJS.ProcessEnv = { ...process.env, PI_CODING_AGENT_DIR: agentDir, HOME: root, USERPROFILE: root, TMPDIR: tmp, TEMP: tmp, TMP: tmp };
   delete env.CLAUDE_CONFIG_DIR;
   delete env.GENTLE_ACCOUNTS_LAUNCH_PROFILE;
   const pathKey = Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH";
   env[pathKey] = `${binDir}${delimiter}${env[pathKey] ?? ""}`;
-  const run = (...args: string[]) => {
-    const r = spawnSync(process.execPath, [BIN, ...args], { env, encoding: "utf8" });
+  const run = (...args: string[]) => runWith({}, ...args);
+  const runWith = (extra: NodeJS.ProcessEnv, ...args: string[]) => {
+    const r = spawnSync(process.execPath, [BIN, ...args], { env: { ...env, ...extra }, encoding: "utf8" });
     return { code: r.status, out: (r.stdout ?? "").replaceAll("\r\n", "\n"), err: (r.stderr ?? "").replaceAll("\r\n", "\n") };
   };
-  return { agentDir, run, live: join(agentDir, "auth.json") };
+  const homesDir = join(tmp, "gentle-accounts");
+  const homes = () => (existsSync(homesDir) ? readdirSync(homesDir) : []);
+  return { root, agentDir, env, run, runWith, homes, homesDir, live: join(agentDir, "auth.json") };
 }
 
 const auth = { "openai-codex": { type: "oauth", access: "a", refresh: "r", expires: 1 }, other: { type: "api_key", key: "u" } };
 
-test("launcher e2e: create, launch, switch back and forth keeps every credential", () => {
-  const { agentDir, run, live } = sandbox();
+test("launcher e2e (S30): launches run on private homes, never switch the global profile, and copy credentials back", () => {
+  const { agentDir, run, runWith, live, homes } = sandbox();
   writeFileSync(live, JSON.stringify(auth));
 
   assert.equal(run("create", "work").code, 0);
@@ -46,16 +74,67 @@ test("launcher e2e: create, launch, switch back and forth keeps every credential
 
   const w = run("work", "--flag");
   assert.equal(w.code, 0, w.err);
-  assert.match(w.out, /GS args=--flag dir=.*work.claude/);
-  assert.deepEqual(JSON.parse(readFileSync(live, "utf8")), { other: auth.other });
+  assert.match(w.out, /^GS args=--home \S+gentle-accounts\S+ --flag dir=.*work.claude launch=work noauto=1$/m);
+  assert.equal(readFileSync(live, "utf8"), JSON.stringify(auth), "the shared auth.json is untouched");
   assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "default", "auth.json"), "utf8")), { "openai-codex": auth["openai-codex"] });
+  assert.equal(run("current").out.trim(), "default");
 
-  assert.equal(run("personal").code, 0);
-  const d = run("default");
-  assert.equal(d.code, 0, d.err);
-  assert.deepEqual(JSON.parse(readFileSync(live, "utf8")), auth);
+  const rotated = { "openai-codex": { type: "oauth", access: "p2", refresh: "p2", expires: 9 } };
+  const p = runWith({ FAKE_AUTH: JSON.stringify({ ...rotated, other: auth.other }), FAKE_EXIT: "5" }, "personal");
+  assert.equal(p.code, 5, p.err);
+  assert.equal(p.err, "");
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "personal", "auth.json"), "utf8")), rotated);
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), {});
+  assert.equal(readFileSync(live, "utf8"), JSON.stringify(auth));
   assert.equal(run("current").out.trim(), "default");
   assert.equal(run("list").out, "* default\n  personal\n  work\n");
+  assert.deepEqual(homes(), []);
+});
+
+test("launcher e2e (S30): --home, --link and --isolated are refused and nothing is built", () => {
+  const { run, homes } = sandbox();
+  run("create", "work");
+  for (const flag of ["--home", "--link", "--isolated"]) {
+    const r = run("work", flag, "x");
+    assert.equal(r.code, 1);
+    assert.equal(r.err, "gentle-accounts manages the agent home; do not pass --home, --link or --isolated.\n");
+    assert.equal(r.out, "");
+  }
+  assert.deepEqual(homes(), []);
+  assert.equal(run("current").out.trim(), "No active profile.");
+});
+
+test("launcher e2e (S30): the sweeper finishes a home left by a dead launcher", () => {
+  const { agentDir, run, homes, homesDir } = sandbox();
+  run("create", "work");
+  run("create", "personal");
+  const late = { anthropic: { type: "oauth", access: "late", refresh: "late", expires: 3 } };
+  const { home } = buildSessionHome({ sharedAgentDir: agentDir, profile: "personal", baseDir: homesDir, pid: 9_999_991 });
+  writeFileSync(join(home, "auth.json"), JSON.stringify(late));
+  const r = run("work");
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(homes(), []);
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "personal", "auth.json"), "utf8")), late);
+});
+
+test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its credentials back and removes the home", { skip: isWin }, async () => {
+  const { agentDir, env, homes } = sandbox();
+  spawnSync(process.execPath, [BIN, "create", "work"], { env });
+  const rotated = { anthropic: { type: "oauth", access: "sigterm", refresh: "sigterm", expires: 4 } };
+  const child = spawn(process.execPath, [BIN, "work"], { env: { ...env, FAKE_SLEEP: "1", FAKE_AUTH: JSON.stringify(rotated) }, stdio: ["ignore", "pipe", "pipe"] });
+  let out = "";
+  let err = "";
+  child.stderr.on("data", (d) => (err += d));
+  const ready = new Promise<void>((resolve) => child.stdout.on("data", (d) => ((out += d), out.includes("READY") && resolve())));
+  const closed = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
+  await ready;
+  assert.equal(homes().length, 1);
+  child.kill("SIGTERM");
+  const code = await closed;
+  assert.equal(code, 143, err);
+  assert.equal(err, "");
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
+  assert.deepEqual(homes(), []);
 });
 
 test("launcher e2e: a corrupt auth.json exits 1 and changes nothing", () => {
@@ -84,7 +163,7 @@ test("launcher e2e (S16): the default profile starts gentle-shell without CLAUDE
   assert.match(run("work").out, /dir=.*work.claude/);
   const d = run("default");
   assert.equal(d.code, 0, d.err);
-  assert.match(d.out, /^GS args= ?dir= launch=default\s*$/m);
+  assert.match(d.out, /^GS args=--home \S+ dir= launch=default noauto=1\s*$/m);
 });
 
 test("launcher e2e (S27): startup sets the file, shows it, and an explicit launch still wins", () => {
@@ -98,8 +177,8 @@ test("launcher e2e (S27): startup sets the file, shows it, and an explicit launc
   assert.equal(run("startup").out, "Startup profile: work\n");
   const p = run("personal");
   assert.equal(p.code, 0, p.err);
-  assert.match(p.out, /GS args= ?dir=.*personal.claude/);
-  assert.equal(run("current").out.trim(), "personal");
+  assert.match(p.out, /GS args=--home \S+ dir=.*personal.claude/);
+  assert.equal(run("current").out.trim(), "default", "S30: the launch no longer switches the global profile");
   const g = run("startup", "ghost");
   assert.equal(g.code, 1);
   assert.equal(g.err, 'Profile "ghost" does not exist.\n');
@@ -112,8 +191,8 @@ test("launcher e2e (S27): gentle-shell receives GENTLE_ACCOUNTS_LAUNCH_PROFILE w
   assert.equal(run("startup", "work").code, 0);
   const p = run("personal");
   assert.equal(p.code, 0, p.err);
-  assert.match(p.out, /launch=personal\s*$/m);
-  assert.equal(run("current").out.trim(), "personal");
+  assert.match(p.out, /launch=personal noauto=1\s*$/m);
+  assert.equal(run("current").out.trim(), "default", "S30: the launch no longer switches the global profile");
 });
 
 test("launcher e2e (S29): email is hidden by default, show persists it, list ignores the settings file", () => {
@@ -131,4 +210,21 @@ test("launcher e2e (S29): email is hidden by default, show persists it, list ign
   assert.equal(u.err, "Usage: gentle-accounts email [show|hide]\n");
   assert.equal(run("create", "work").code, 0);
   assert.equal(run("list").out, "  work\n");
+});
+
+test("launcher e2e (S30): a token rotated in a session reaches the next launch of the global current profile", { skip: isWin }, () => {
+  const { agentDir, run, runWith, live } = sandbox();
+  const old = { type: "oauth", access: "old", refresh: "old", expires: 1 };
+  writeFileSync(live, JSON.stringify({ anthropic: old }));
+  assert.equal(run("create", "work").code, 0);
+  writeFileSync(join(agentDir, "profiles", "work", "auth.json"), JSON.stringify({ anthropic: old }));
+  writeFileSync(join(agentDir, "profiles", "current"), "work\n");
+  const rotated = { type: "oauth", access: "new", refresh: "new", expires: 2 };
+  const first = runWith({ FAKE_AUTH: JSON.stringify({ anthropic: rotated }) }, "work");
+  assert.equal(first.code, 0, first.err);
+  assert.deepEqual(JSON.parse(readFileSync(live, "utf8")), { anthropic: old }, "the shared live file is never written");
+  const second = runWith({ FAKE_CAT: "1" }, "work");
+  assert.equal(second.code, 0, second.err);
+  assert.match(second.out, /^AUTH=\{"anthropic":\{"type":"oauth","access":"new","refresh":"new","expires":2\}\}$/m);
+  assert.equal(run("current").out.trim(), "work");
 });

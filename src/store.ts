@@ -1,6 +1,27 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+
+/**
+ * Writes through a unique temp file (`<path>.<pid>.<random>.tmp`) then renames, so a reader never
+ * sees a partial file and two processes writing at once never share a temp name.
+ */
+export function writeFileAtomic(path: string, data: string, mode = 0o600): void {
+  const tmp = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+  writeFileSync(tmp, data, { mode });
+  try {
+    renameSync(tmp, path);
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+
+/** True for the "already exists" error of `create`, also when another process won the race. */
+export function isAlreadyExistsError(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === "EEXIST";
+}
 
 const NAME_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
@@ -33,10 +54,11 @@ export class ProfileStore {
   readonly startupPath: string;
 
   // No parameter properties: Node's type stripping (used by bin/) rejects them.
-  constructor(agentDir: string) {
+  // `currentPath` lets a private session home keep its own current profile (S30); everything else stays shared.
+  constructor(agentDir: string, options: { currentPath?: string } = {}) {
     this.agentDir = agentDir;
     this.profilesDir = join(agentDir, "profiles");
-    this.currentPath = join(this.profilesDir, "current");
+    this.currentPath = options.currentPath ?? join(this.profilesDir, "current");
     this.startupPath = join(this.profilesDir, "startup");
   }
 
@@ -98,7 +120,7 @@ export class ProfileStore {
 
   setCurrent(name: string): void {
     this.assertExists(name);
-    writeFileSync(this.currentPath, `${name}\n`, { mode: 0o600 });
+    writeFileAtomic(this.currentPath, `${name}\n`);
   }
 
   /** Profile new sessions start on; null when unset, empty, invalid or naming a missing profile. */
@@ -115,7 +137,7 @@ export class ProfileStore {
 
   setStartup(name: string): void {
     this.assertExists(name);
-    writeFileSync(this.startupPath, `${name}\n`, { mode: 0o600 });
+    writeFileAtomic(this.startupPath, `${name}\n`);
   }
 
   clearStartup(): void {
@@ -125,7 +147,7 @@ export class ProfileStore {
   create(name: string, options: { claudeDir?: string; claudeDefault?: boolean } = {}): void {
     const invalid = validateProfileName(name);
     if (invalid) throw new Error(invalid);
-    if (this.exists(name)) throw new Error(`Profile "${name}" already exists.`);
+    if (this.exists(name)) throw alreadyExists(name);
     mkdirSync(this.profileDir(name), { recursive: true, mode: 0o700 });
     if (options.claudeDefault) {
       writeFileSync(this.claudeDefaultPath(name), "", { mode: 0o600 });
@@ -134,7 +156,13 @@ export class ProfileStore {
     } else {
       mkdirSync(this.claudeDir(name), { recursive: true, mode: 0o700 });
     }
-    writeFileSync(this.authPath(name), "{}\n", { mode: 0o600 });
+    try {
+      // Exclusive: when another session created the profile in between, its snapshot is never overwritten.
+      writeFileSync(this.authPath(name), "{}\n", { mode: 0o600, flag: "wx" });
+    } catch (error) {
+      if (isAlreadyExistsError(error)) throw alreadyExists(name);
+      throw error;
+    }
   }
 
   delete(name: string): void {
@@ -149,6 +177,10 @@ export class ProfileStore {
   assertExists(name: string): void {
     if (!this.exists(name)) throw new Error(MISSING_PROFILE_MESSAGE(name));
   }
+}
+
+function alreadyExists(name: string): Error {
+  return Object.assign(new Error(`Profile "${name}" already exists.`), { code: "EEXIST" });
 }
 
 /**

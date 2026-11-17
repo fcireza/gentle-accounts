@@ -1,7 +1,12 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
-import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
+import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, type Env } from "./auth-sync.ts";
 import { runEmailCommand } from "./settings.ts";
+import { buildSessionHome, finishSessionHome, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
+import { realpathSync } from "node:fs";
 import { join } from "node:path";
+
+export const MANAGED_HOME_MESSAGE = "gentle-accounts manages the agent home; do not pass --home, --link or --isolated.";
+const MANAGED_FLAGS = ["--home", "--link", "--isolated"];
 
 export const USAGE = [
   "Usage:",
@@ -29,11 +34,18 @@ export interface CliDeps {
   platform: NodeJS.Platform;
   stdout: (line: string) => void;
   stderr: (line: string) => void;
-  /** Runs the command with inherited stdio and returns its exit code. */
-  spawn: (call: SpawnCall) => number;
+  /** Runs the command with inherited stdio and returns (or resolves to) its exit code. */
+  spawn: (call: SpawnCall) => number | Promise<number>;
+  /** Parent of the session homes (S30); defaults to `<os.tmpdir()>/gentle-accounts`. */
+  sessionBaseDir?: string;
+  /** Liveness check used by the sweeper; defaults to a signal-0 probe. */
+  isAlive?: (pid: number) => boolean;
+  /** Registers a best-effort synchronous cleanup for an abrupt process exit (the real launcher uses process "exit"). */
+  onExit?: (cleanup: () => void) => void;
 }
 
-export function runCli(argv: string[], deps: CliDeps): number {
+/** Only the `<name>` launch is asynchronous; every other command returns synchronously. */
+export function runCli(argv: string[], deps: CliDeps): number | Promise<number> {
   const { store, stdout, stderr } = deps;
   const [first, second, ...rest] = argv;
 
@@ -95,28 +107,68 @@ export function runCli(argv: string[], deps: CliDeps): number {
     });
   }
 
+  const userArgs = [second, ...rest].filter((a): a is string => a !== undefined);
+  if (userArgs.some((a) => MANAGED_FLAGS.some((flag) => a === flag || a.startsWith(`${flag}=`)))) {
+    stderr(MANAGED_HOME_MESSAGE);
+    return 1;
+  }
   if (!store.exists(first)) {
     stderr(missingMessage(first));
     return 1;
   }
-  const env: Env = { ...deps.env };
   try {
     assertProfileReadable(store, first); // atomic: nothing is created if the target is corrupt
     // Same first-run rule as the extension: never drop a live login that no profile holds yet.
-    ensureDefaultProfile({ store, liveAuthPath: deps.liveAuthPath, env });
-    switchProfile({ store, liveAuthPath: deps.liveAuthPath, env, to: first });
+    ensureDefaultProfile({ store, liveAuthPath: deps.liveAuthPath, env: { ...deps.env } });
   } catch (error) {
     stderr((error as Error).message);
     return 1;
   }
-  applyClaudeConfigEnv(env, store.claudeConfigEnv(first));
-  env[LAUNCH_PROFILE_ENV] = first; // the extension then skips the startup profile for this session
-  return deps.spawn({
-    command: "gentle-shell",
-    args: [second, ...rest].filter((a): a is string => a !== undefined),
-    env,
-    shell: deps.platform === "win32",
-  });
+  return launchSession(first, userArgs, deps);
+}
+
+/**
+ * S30: the launch never switches the global profile. It runs gentle-shell on a private home built
+ * for `name`, then copies the session credentials back and removes the home, whatever the exit.
+ */
+async function launchSession(name: string, userArgs: string[], deps: CliDeps): Promise<number> {
+  const { store, stderr } = deps;
+  const baseDir = deps.sessionBaseDir ?? sessionBaseDir();
+  let home: string;
+  let sharedAgentDir: string;
+  try {
+    sweepSessionHomes(baseDir, deps.isAlive, stderr);
+    home = buildSessionHome({ sharedAgentDir: store.agentDir, profile: name, baseDir }).home;
+    sharedAgentDir = realpathSync(store.agentDir);
+  } catch (error) {
+    stderr((error as Error).message);
+    return 1;
+  }
+  let finished = false;
+  const finish = (): void => {
+    if (finished) return;
+    finished = true;
+    finishSessionHome(home, { sharedAgentDir, stderr });
+  };
+  deps.onExit?.(finish);
+
+  const env: Env = { ...deps.env };
+  // gentle-shell sets PI_CODING_AGENT_DIR itself from --home.
+  delete env.PI_CODING_AGENT_DIR;
+  delete env.GENTLE_SHELL_HOME;
+  // The Claude dir always resolves through the canonical shared path (macOS keychain key).
+  applyClaudeConfigEnv(env, new ProfileStore(sharedAgentDir).claudeConfigEnv(name));
+  env.GENTLE_SHELL_NO_AUTO_SETUP = "1";
+  env[LAUNCH_PROFILE_ENV] = name; // the extension then skips the startup profile for this session
+  let code: number;
+  try {
+    code = await deps.spawn({ command: "gentle-shell", args: ["--home", home, ...userArgs], env, shell: deps.platform === "win32" });
+  } catch (error) {
+    stderr(`Cannot run gentle-shell: ${(error as Error).message}`);
+    code = 1;
+  }
+  finish();
+  return code;
 }
 
 function missingMessage(name: string): string {
