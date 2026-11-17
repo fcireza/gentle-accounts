@@ -40,6 +40,38 @@ export function assertProfileReadable(store: ProfileStore, name: string): void {
   readAuthFile(store.authPath(name));
 }
 
+function oauthExpires(entry: unknown): number | null {
+  const e = entry as { type?: unknown; expires?: unknown } | null | undefined;
+  return e && typeof e === "object" && e.type === "oauth" && typeof e.expires === "number" && Number.isFinite(e.expires) ? e.expires : null;
+}
+
+/**
+ * The fresher of two credential entries of one provider, whole (fields are never mixed): the oauth
+ * entry with the larger numeric `expires`; otherwise (ties, api keys, no expiry) `preferred`.
+ * A missing side yields the other one.
+ */
+export function pickFreshest<T>(preferred: T | undefined, other: T | undefined): T | undefined {
+  if (preferred === undefined) return other;
+  if (other === undefined) return preferred;
+  const a = oauthExpires(preferred);
+  const b = oauthExpires(other);
+  return a !== null && b !== null && b > a ? other : preferred;
+}
+
+/**
+ * Outgoing snapshot after a switch: each covered provider of `live` replaces the snapshot entry
+ * unless the snapshot holds a fresher oauth token (another session may have rotated it); a covered
+ * provider absent from `live` is removed.
+ */
+function snapshotOutgoing(live: AuthData, outgoing: AuthData): AuthData {
+  const next: AuthData = { ...outgoing };
+  for (const provider of COVERED_PROVIDERS) {
+    if (provider in live) next[provider] = pickFreshest(live[provider], outgoing[provider]);
+    else delete next[provider];
+  }
+  return next;
+}
+
 export interface SwitchOptions {
   store: ProfileStore;
   liveAuthPath: string;
@@ -63,7 +95,7 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
   const incoming = readAuthFile(store.authPath(to));
   const outgoing = from ? readAuthFile(store.authPath(from)) : null;
   if (from && outgoing) {
-    writeAuthFile(store.authPath(from), transferCovered(live, outgoing));
+    writeAuthFile(store.authPath(from), snapshotOutgoing(live, outgoing));
   }
   writeAuthFile(liveAuthPath, transferCovered(incoming, live));
   applyClaudeConfigEnv(env, store.claudeConfigEnv(to));

@@ -18,6 +18,8 @@ import {
   removeSessionHome,
   resolveContext,
   sweepSessionHomes,
+  ensureBaseDir,
+  sessionBaseDir,
 } from "../src/session-home.ts";
 
 const W = { anthropic: { type: "oauth", access: "w-access", refresh: "w-refresh", expires: 1 } };
@@ -384,4 +386,92 @@ test("S30: the sweeper keeps a home whose child is alive even when the launcher 
   assert.equal(readFileSync(store.authPath("work"), "utf8"), before, "nothing copied while the child runs");
   assert.deepEqual(sweepSessionHomes(base, () => false, () => {}), [home]);
   assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: oauth("in-use", 70) });
+});
+
+// ---- T19d ----
+
+test("S30: a dangling symlink in the shared dir is linked as is and does not break the build", { skip: process.platform === "win32" }, () => {
+  const { root, shared, base } = sandbox();
+  fs.symlinkSync(join(root, "nowhere"), join(shared, "dangling"));
+  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  assert.equal(lstatSync(join(home, "dangling")).isSymbolicLink(), true);
+  assert.equal(fs.readlinkSync(join(home, "dangling")), join(realpathSync(shared), "dangling"));
+});
+
+test("S30: a failed build leaves no home behind (corrupt shared auth.json)", () => {
+  const { shared, base } = sandbox();
+  mkdirSync(base, { mode: 0o700 });
+  writeFileSync(join(shared, "auth.json"), "{corrupt");
+  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }), /Cannot parse/);
+  assert.deepEqual(readdirSync(base), []);
+});
+
+test("S30: a failure after the home exists removes it without following links", () => {
+  const { shared, base } = sandbox();
+  let calls = 0;
+  const facade = {
+    ...fs,
+    writeFileSync: (...args: Parameters<typeof fs.writeFileSync>) => {
+      if (String(args[0]).endsWith(SESSION_MARKER) && ++calls) throw new Error("disk full");
+      return fs.writeFileSync(...args);
+    },
+  } as unknown as typeof fs;
+  mkdirSync(base, { mode: 0o700 });
+  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, fs: facade }), /disk full/);
+  assert.deepEqual(readdirSync(base), []);
+  assert.equal(readFileSync(join(shared, "skills", "s.md"), "utf8"), "skill");
+});
+
+test("S30: invalid JSON in the shared settings.json fails the build with a clear error and builds nothing", () => {
+  const { shared, base } = sandbox();
+  mkdirSync(base, { mode: 0o700 });
+  writeFileSync(join(shared, "settings.json"), "{bad");
+  assert.throws(
+    () => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }),
+    (e: Error) => e.message.startsWith(`gentle-accounts: cannot read ${join(realpathSync(shared), "settings.json")}: `),
+  );
+  assert.deepEqual(readdirSync(base), []);
+});
+
+test("S30: the default base dir is per user on POSIX", () => {
+  const expected = process.platform === "win32" ? "gentle-accounts" : `gentle-accounts-${process.getuid!()}`;
+  assert.equal(sessionBaseDir(), join(tmpdir(), expected));
+});
+
+test("S30: the base dir is created 0700 and refused when it is a symlink, world writable or owned by someone else", { skip: process.platform === "win32" }, () => {
+  const { root, shared } = sandbox();
+  const fresh = join(root, "fresh");
+  ensureBaseDir(fresh);
+  assert.equal(statSync(fresh).mode & 0o777, 0o700);
+  const link = join(root, "link");
+  fs.symlinkSync(fresh, link);
+  assert.throws(() => ensureBaseDir(link), { message: `gentle-accounts: refusing to use ${link}: it is a symbolic link` });
+  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: link }), /refusing to use/);
+  assert.deepEqual(readdirSync(fresh), []);
+  const open = join(root, "open");
+  mkdirSync(open);
+  fs.chmodSync(open, 0o777);
+  assert.throws(() => ensureBaseDir(open), { message: `gentle-accounts: refusing to use ${open}: it is group or world writable` });
+  assert.throws(() => ensureBaseDir(fresh, { uid: process.getuid!() + 1 }), { message: `gentle-accounts: refusing to use ${fresh}: it is owned by another user` });
+  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: fresh, uid: process.getuid!() + 1 }), /owned by another user/);
+  assert.deepEqual(readdirSync(fresh), []);
+});
+
+test("S30: the sweeper checks the base dir and ignores markers of another agent dir", { skip: process.platform === "win32" }, () => {
+  const { root, shared, base, store } = sandbox();
+  const dead = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999201 });
+  writeAuthFile(join(dead.home, "auth.json"), { anthropic: oauth("x", 3) });
+  const before = readFileSync(store.authPath("work"), "utf8");
+  const err: string[] = [];
+  const other = join(root, "other-agent");
+  mkdirSync(other);
+  assert.deepEqual(sweepSessionHomes(base, () => false, (l) => err.push(l), { sharedAgentDir: other }), []);
+  assert.equal(existsSync(dead.home), true);
+  assert.equal(readFileSync(store.authPath("work"), "utf8"), before);
+  assert.deepEqual(err, [`gentle-accounts: leaving ${dead.home}: it belongs to another agent dir (${realpathSync(shared)})`]);
+  err.length = 0;
+  assert.deepEqual(sweepSessionHomes(base, () => false, (l) => err.push(l), { uid: process.getuid!() + 1 }), []);
+  assert.deepEqual(err, [`gentle-accounts: refusing to use ${base}: it is owned by another user`]);
+  assert.equal(existsSync(dead.home), true);
+  assert.deepEqual(sweepSessionHomes(base, () => false, () => {}, { sharedAgentDir: shared }), [dead.home]);
 });

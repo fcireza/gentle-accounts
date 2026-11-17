@@ -5,7 +5,9 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { ProfileStore, writeFileAtomic } from "./store.ts";
-import { COVERED_PROVIDERS, readAuthFile, transferCovered, writeAuthFile, type AuthData } from "./auth-sync.ts";
+import { COVERED_PROVIDERS, pickFreshest, readAuthFile, transferCovered, writeAuthFile, type AuthData } from "./auth-sync.ts";
+
+export { pickFreshest };
 
 export const SESSION_MARKER = ".gentle-accounts-session.json";
 export const SESSION_CURRENT = ".gentle-accounts-current";
@@ -22,9 +24,42 @@ export interface SessionMarker {
   childPid?: number;
 }
 
-/** `<os.tmpdir()>/gentle-accounts`: parent of every session home. */
+/** Parent of every session home: `<os.tmpdir()>/gentle-accounts-<uid>` on POSIX, `<os.tmpdir()>/gentle-accounts` on Windows. */
 export function sessionBaseDir(): string {
-  return join(tmpdir(), "gentle-accounts");
+  return join(tmpdir(), typeof process.getuid === "function" ? `gentle-accounts-${process.getuid()}` : "gentle-accounts");
+}
+
+export interface BaseDirOptions {
+  fs?: SessionFs;
+  platform?: NodeJS.Platform;
+  /** Expected owner; defaults to the current uid (test seam for a foreign owner). */
+  uid?: number;
+}
+
+/**
+ * Creates the base dir (0700) when missing and refuses it unless it is a real directory owned by
+ * the current user and not group or world writable (POSIX). Throws `gentle-accounts: refusing to use <path>: <reason>`.
+ */
+export function ensureBaseDir(base: string, options: BaseDirOptions = {}): void {
+  const fs = options.fs ?? nodeFs;
+  const platform = options.platform ?? process.platform;
+  if (!fs.existsSync(base) && !isLink(fs, base)) fs.mkdirSync(base, { recursive: true, mode: 0o700 });
+  const refuse = (reason: string) => new Error(`gentle-accounts: refusing to use ${base}: ${reason}`);
+  const stat = fs.lstatSync(base);
+  if (stat.isSymbolicLink()) throw refuse("it is a symbolic link");
+  if (!stat.isDirectory()) throw refuse("it is not a directory");
+  if (platform === "win32") return;
+  const uid = options.uid ?? process.getuid?.();
+  if (uid !== undefined && stat.uid !== uid) throw refuse("it is owned by another user");
+  if (stat.mode & 0o022) throw refuse("it is group or world writable");
+}
+
+function isLink(fs: SessionFs, path: string): boolean {
+  try {
+    return fs.lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 /** Shared entries a session home never links: its own auth/settings, lock and temp files, gentle markers. */
@@ -38,12 +73,13 @@ function absolutePackage(source: string, sharedAgentDir: string): string {
   return resolve(sharedAgentDir, source);
 }
 
-function sessionSettings(raw: string, sharedAgentDir: string): string {
+function sessionSettings(raw: string, sharedAgentDir: string, path: string): string {
   let data: unknown;
   try {
     data = JSON.parse(raw);
-  } catch {
-    return raw; // pi reports an invalid file itself; never rewrite what we cannot parse
+  } catch (error) {
+    // Without a valid settings.json the home would silently load no packages: fail before building.
+    throw new Error(`gentle-accounts: cannot read ${path}: ${(error as Error).message}`);
   }
   if (!data || typeof data !== "object" || Array.isArray(data)) return raw;
   const settings = { ...(data as Record<string, unknown>) };
@@ -78,22 +114,10 @@ function sessionAuth(shared: ProfileStore, liveAuthPath: string, profile: string
   return transferCovered(source, live);
 }
 
-function oauthExpires(entry: unknown): number | null {
-  const e = entry as { type?: unknown; expires?: unknown } | null | undefined;
-  return e && typeof e === "object" && e.type === "oauth" && typeof e.expires === "number" && Number.isFinite(e.expires) ? e.expires : null;
-}
-
-/**
- * The fresher of two credential entries of one provider, whole (fields are never mixed): the oauth
- * entry with the larger numeric `expires`; otherwise (ties, api keys, no expiry) `preferred`.
- * A missing side yields the other one.
- */
-export function pickFreshest<T>(preferred: T | undefined, other: T | undefined): T | undefined {
-  if (preferred === undefined) return other;
-  if (other === undefined) return preferred;
-  const a = oauthExpires(preferred);
-  const b = oauthExpires(other);
-  return a !== null && b !== null && b > a ? other : preferred;
+/** Fails with `gentle-accounts: cannot read <path>: <message>` when the shared settings.json is not valid JSON; a missing file is fine. */
+export function assertSharedSettingsReadable(sharedAgentDir: string): void {
+  const path = join(nodeFs.realpathSync(sharedAgentDir), "settings.json");
+  if (nodeFs.existsSync(path)) sessionSettings(nodeFs.readFileSync(path, "utf8"), resolve(sharedAgentDir), path);
 }
 
 export interface BuildOptions {
@@ -104,56 +128,72 @@ export interface BuildOptions {
   fs?: SessionFs;
   pid?: number;
   id?: string;
+  /** Expected owner of the base dir (test seam). */
+  uid?: number;
 }
 
 export function buildSessionHome(options: BuildOptions): { home: string; marker: SessionMarker } {
   const fs = options.fs ?? nodeFs;
   const platform = options.platform ?? process.platform;
   const shared = fs.realpathSync(options.sharedAgentDir);
-  const base = options.baseDir ?? sessionBaseDir();
-  fs.mkdirSync(base, { recursive: true, mode: 0o700 });
-  const home = join(base, options.id ?? randomUUID());
-  fs.mkdirSync(home, { mode: 0o700 });
-  // Everything is read before the home gets credentials, so a corrupt file leaves an empty home only.
+  // Everything is read before the home exists, so a corrupt file builds nothing.
   const store = new ProfileStore(shared);
   const auth = sessionAuth(store, join(shared, "auth.json"), options.profile);
+  const settingsPath = join(shared, "settings.json");
+  // pi resolves relative package paths against the agent dir as it was given (before realpath):
+  // through a symlinked path (macOS /tmp -> /private/tmp) the canonical dir would point elsewhere.
+  const settings = fs.existsSync(settingsPath) ? sessionSettings(fs.readFileSync(settingsPath, "utf8"), resolve(options.sharedAgentDir), settingsPath) : null;
+  const base = options.baseDir ?? sessionBaseDir();
+  ensureBaseDir(base, { fs, platform, uid: options.uid });
+  const home = join(base, options.id ?? randomUUID());
+  fs.mkdirSync(home, { mode: 0o700 });
+  try {
+    for (const name of fs.readdirSync(shared)) {
+      if (skipEntry(name)) continue;
+      linkEntry(fs, platform, join(shared, name), join(home, name));
+    }
+    writeAuthFile(join(home, "auth.json"), auth);
+    if (settings !== null) fs.writeFileSync(join(home, "settings.json"), settings, { mode: 0o600 });
+    fs.writeFileSync(join(home, SESSION_CURRENT), `${options.profile}\n`, { mode: 0o600 });
+    const marker: SessionMarker = {
+      version: 1,
+      sharedAgentDir: shared,
+      profile: options.profile,
+      pid: options.pid ?? process.pid,
+      createdAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(join(home, SESSION_MARKER), `${JSON.stringify(marker, null, 2)}\n`, { mode: 0o600 });
+    return { home, marker };
+  } catch (error) {
+    try {
+      removeSessionHome(home, { platform, fs });
+    } catch {
+      // Best effort: the original error is the one worth reporting.
+    }
+    throw error;
+  }
+}
 
-  for (const name of fs.readdirSync(shared)) {
-    if (skipEntry(name)) continue;
-    const target = join(shared, name);
-    const link = join(home, name);
-    const isDir = fs.statSync(target).isDirectory();
-    if (platform !== "win32") {
-      fs.symlinkSync(target, link);
-    } else if (isDir) {
-      fs.symlinkSync(target, link, "junction"); // absolute target: junctions need no privilege
-    } else {
-      try {
-        fs.linkSync(target, link);
-      } catch {
-        fs.copyFileSync(target, link);
-      }
+/**
+ * Links one shared entry, classified with lstat so a link is never followed: a symlink entry (even a
+ * dangling one) becomes a symlink to it; on Windows real directories become junctions and files
+ * fall back to a hard link, then a copy.
+ */
+function linkEntry(fs: SessionFs, platform: NodeJS.Platform, target: string, link: string): void {
+  const stat = fs.lstatSync(target);
+  if (platform !== "win32") {
+    fs.symlinkSync(target, link);
+  } else if (stat.isDirectory()) {
+    fs.symlinkSync(target, link, "junction"); // absolute target: junctions need no privilege
+  } else if (stat.isSymbolicLink()) {
+    fs.symlinkSync(target, link, "file");
+  } else {
+    try {
+      fs.linkSync(target, link);
+    } catch {
+      fs.copyFileSync(target, link);
     }
   }
-
-  writeAuthFile(join(home, "auth.json"), auth);
-  const settingsPath = join(shared, "settings.json");
-  if (fs.existsSync(settingsPath)) {
-    // pi resolves relative package paths against the agent dir as it was given (before realpath):
-    // through a symlinked path (macOS /tmp -> /private/tmp) the canonical dir would point elsewhere.
-    const given = resolve(options.sharedAgentDir);
-    fs.writeFileSync(join(home, "settings.json"), sessionSettings(fs.readFileSync(settingsPath, "utf8"), given), { mode: 0o600 });
-  }
-  fs.writeFileSync(join(home, SESSION_CURRENT), `${options.profile}\n`, { mode: 0o600 });
-  const marker: SessionMarker = {
-    version: 1,
-    sharedAgentDir: shared,
-    profile: options.profile,
-    pid: options.pid ?? process.pid,
-    createdAt: new Date().toISOString(),
-  };
-  fs.writeFileSync(join(home, SESSION_MARKER), `${JSON.stringify(marker, null, 2)}\n`, { mode: 0o600 });
-  return { home, marker };
 }
 
 /** The marker of a session home; null when missing, unreadable or not a version 1 marker. */
@@ -253,19 +293,36 @@ function pidAlive(pid: number): boolean {
 }
 
 /** Finishes every home whose launcher is gone; unreadable markers are left alone. Returns the swept homes. */
-export function sweepSessionHomes(baseDir: string = sessionBaseDir(), isAlive: (pid: number) => boolean = pidAlive, stderr?: (line: string) => void): string[] {
-  let names: string[];
+export function sweepSessionHomes(
+  baseDir: string = sessionBaseDir(),
+  isAlive: (pid: number) => boolean = pidAlive,
+  stderr: (line: string) => void = (line) => console.error(line),
+  options: BaseDirOptions & { sharedAgentDir?: string } = {},
+): string[] {
+  const fs = options.fs ?? nodeFs;
+  if (!fs.existsSync(baseDir) && !isLink(fs, baseDir)) return [];
   try {
-    names = nodeFs.readdirSync(baseDir);
-  } catch {
+    ensureBaseDir(baseDir, options); // never trust markers in a dir someone else controls
+  } catch (error) {
+    stderr((error as Error).message);
     return [];
   }
+  let shared: string | undefined;
+  try {
+    shared = options.sharedAgentDir === undefined ? undefined : fs.realpathSync(options.sharedAgentDir);
+  } catch {
+    shared = resolve(options.sharedAgentDir!);
+  }
   const swept: string[] = [];
-  for (const name of names) {
+  for (const name of fs.readdirSync(baseDir)) {
     const home = join(baseDir, name);
     const marker = readSessionMarker(home);
     // In use while the launcher or its gentle-shell runs (an orphan survives a kill -9 of the launcher).
     if (!marker || isAlive(marker.pid) || (typeof marker.childPid === "number" && isAlive(marker.childPid))) continue;
+    if (shared !== undefined && marker.sharedAgentDir !== shared) {
+      stderr(`gentle-accounts: leaving ${home}: it belongs to another agent dir (${marker.sharedAgentDir})`);
+      continue;
+    }
     if (finishSessionHome(home, { sharedAgentDir: marker.sharedAgentDir, stderr })) swept.push(home);
   }
   return swept;

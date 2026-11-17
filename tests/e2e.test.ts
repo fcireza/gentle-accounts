@@ -59,7 +59,7 @@ function sandbox() {
     const r = spawnSync(process.execPath, [BIN, ...args], { env: { ...env, ...extra }, encoding: "utf8" });
     return { code: r.status, out: (r.stdout ?? "").replaceAll("\r\n", "\n"), err: (r.stderr ?? "").replaceAll("\r\n", "\n") };
   };
-  const homesDir = join(tmp, "gentle-accounts");
+  const homesDir = join(tmp, isWin ? "gentle-accounts" : `gentle-accounts-${process.getuid!()}`);
   const homes = () => (existsSync(homesDir) ? readdirSync(homesDir) : []);
   return { root, agentDir, env, run, runWith, homes, homesDir, live: join(agentDir, "auth.json") };
 }
@@ -129,9 +129,10 @@ test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its
   const ready = new Promise<void>((resolve) => child.stdout.on("data", (d) => ((out += d), out.includes("READY") && resolve())));
   const closed = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
   await ready;
-  assert.equal(homes().length, 1);
-  child.kill("SIGTERM");
+  const during = homes().length;
+  child.kill("SIGTERM"); // before any assertion, so a failure never leaves the launcher running
   const code = await closed;
+  assert.equal(during, 1);
   assert.equal(code, 143, err);
   assert.equal(err, "");
   assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
@@ -284,4 +285,18 @@ test("launcher e2e (S30): after kill -9 of the launcher the orphaned gentle-shel
       process.kill(childPid, "SIGKILL");
     } catch {}
   }
+});
+
+test("launcher e2e (S30): invalid JSON in the shared settings.json fails before building anything", () => {
+  const { agentDir, run, homes } = sandbox();
+  run("create", "work");
+  writeFileSync(join(agentDir, "settings.json"), "{bad");
+  const before = run("current").out;
+  const r = run("work");
+  assert.equal(r.code, 1);
+  assert.equal(r.out, "");
+  assert.match(r.err, new RegExp(`^gentle-accounts: cannot read ${join(realpathSync(agentDir), "settings.json").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: .+\n$`));
+  assert.deepEqual(homes(), []);
+  assert.equal(run("current").out, before);
+  assert.equal(readFileSync(join(agentDir, "settings.json"), "utf8"), "{bad");
 });

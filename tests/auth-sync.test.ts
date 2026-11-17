@@ -13,6 +13,7 @@ import {
   ensureDefaultProfile,
   applyClaudeConfigEnv,
   applyStartupProfile,
+  pickFreshest,
 } from "../src/auth-sync.ts";
 
 const codexWork = { type: "oauth", access: "a-work", refresh: "r-work", expires: 1, accountId: "acc-w" };
@@ -358,4 +359,29 @@ test("S30: ensureDefaultProfile treats a default created by another session in b
   assert.equal(store.current(), "default");
   assert.equal(readFileSync(store.authPath("default"), "utf8"), theirs, "the winner's snapshot is kept");
   assert.equal("CLAUDE_CONFIG_DIR" in env, false);
+});
+
+const tok = (access: string, expires: number) => ({ type: "oauth", access, refresh: access, expires });
+
+test("S30: a global switch never replaces a fresher snapshot token with an older live one", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("work"), { anthropic: tok("new", 900), "openai-codex": tok("snap-codex", 5) });
+  writeAuthFile(liveAuthPath, { anthropic: tok("old", 100), "openai-codex": tok("live-codex", 50), other });
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: tok("new", 900), "openai-codex": tok("live-codex", 50) });
+});
+
+test("S30: a switch removes a covered provider absent from live and keeps the live api key on ties", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("work"), { anthropic: { type: "api_key", key: "snap" }, "openai-codex": tok("gone", 9) });
+  writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "live" } });
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: { type: "api_key", key: "live" } });
+  assert.equal(pickFreshest(tok("a", 1), tok("b", 2))?.access, "b");
 });

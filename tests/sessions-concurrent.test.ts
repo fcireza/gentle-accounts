@@ -179,3 +179,17 @@ for (const order of ["rotating session first", "idle session first"]) {
     assert.equal(existsSync(join(shared, "auth.json")), false);
   });
 }
+
+test("S30: a stale session switching away never overwrites the token another session rotated (verifier D1)", () => {
+  const { shared, base, store } = sandbox();
+  store.create("work");
+  store.create("personal");
+  writeAuthFile(store.authPath("work"), rot("OLD", 100));
+  const a = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
+  const b = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
+  writeAuthFile(join(b, "auth.json"), rot("NEW", 900));
+  assert.equal(finishSessionHome(b, { sharedAgentDir: shared, stderr: () => {} }), true);
+  const ctx = resolveContext(a);
+  switchProfile({ store: ctx.store, liveAuthPath: ctx.liveAuthPath, env: {}, to: "personal" });
+  assert.deepEqual(readAuthFile(store.authPath("work")), rot("NEW", 900));
+});

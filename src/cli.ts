@@ -1,7 +1,7 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, type Env } from "./auth-sync.ts";
 import { runEmailCommand } from "./settings.ts";
-import { buildSessionHome, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
+import { assertSharedSettingsReadable, buildSessionHome, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
@@ -120,6 +120,7 @@ export function runCli(argv: string[], deps: CliDeps): number | Promise<number> 
   }
   try {
     assertProfileReadable(store, first); // atomic: nothing is created if the target is corrupt
+    assertSharedSettingsReadable(store.agentDir); // S30: a home without valid settings would load no packages
     // Same first-run rule as the extension: never drop a live login that no profile holds yet.
     ensureDefaultProfile({ store, liveAuthPath: deps.liveAuthPath, env: { ...deps.env } });
   } catch (error) {
@@ -139,7 +140,7 @@ async function launchSession(name: string, userArgs: string[], deps: CliDeps): P
   let home: string;
   let sharedAgentDir: string;
   try {
-    sweepSessionHomes(baseDir, deps.isAlive, stderr);
+    sweepSessionHomes(baseDir, deps.isAlive, stderr, { sharedAgentDir: store.agentDir });
     home = buildSessionHome({ sharedAgentDir: store.agentDir, profile: name, baseDir }).home;
     sharedAgentDir = realpathSync(store.agentDir);
   } catch (error) {
