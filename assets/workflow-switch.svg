@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img">
+<title>Switching profiles with /gentle:accounts</title>
+<desc>Listing profiles, switching to &quot;work&quot; and checking the active profile. Illustration generated from the project's real messages, not a screenshot.</desc>
+<rect width="1200" height="640" rx="16" fill="#1a1218"/>
+<rect x="40" y="32" width="1120" height="576" rx="12" fill="#241822" stroke="#342230" stroke-width="2"/>
+<line x1="40" y1="72" x2="1160" y2="72" stroke="#342230" stroke-width="2"/>
+<circle cx="62" cy="52" r="6" fill="#ff718f"/>
+<circle cx="82" cy="52" r="6" fill="#e0c27a"/>
+<circle cx="102" cy="52" r="6" fill="#b4e7c7"/>
+<text x="600" y="58" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="15" fill="#a78e9b">gentle-shell</text>
+<text x="64" y="118" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#a78e9b">&gt; </tspan><tspan fill="#ff76c3" font-weight="700">/gentle:accounts list</tspan></text>
+<text x="84" y="148" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#f6eff3">  default</tspan></text>
+<text x="84" y="176" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#f6eff3">* work</tspan></text>
+<text x="64" y="238" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#a78e9b">&gt; </tspan><tspan fill="#ff76c3" font-weight="700">/gentle:accounts work</tspan></text>
+<text x="84" y="268" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#f6eff3">Switched to profile &quot;work&quot;. Claude Code dir: ~/.gentle-shell/agent/profiles/work/claude</tspan></text>
+<text x="64" y="330" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#a78e9b">&gt; </tspan><tspan fill="#ff76c3" font-weight="700">/gentle:accounts current</tspan></text>
+<text x="84" y="360" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#f6eff3">Active profile: work (CLAUDE_CONFIG_DIR=~/.gentle-shell/agent/profiles/work/claude)</tspan></text>
+<rect x="40" y="556" width="1120" height="48" fill="#1a1218" stroke="#342230" stroke-width="2"/>
+<text x="56" y="588" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="20"><tspan fill="#a78e9b">gentle-accounts: </tspan><tspan fill="#ff76c3" font-weight="700">work</tspan><tspan fill="#f6eff3"> · mari****@company.com</tspan></text>
+</svg>
