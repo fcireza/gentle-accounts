@@ -36,7 +36,8 @@
   },
   "scripts": {
     "test": "node --import tsx --test \"tests/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "assets": "node scripts/render-assets.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=1.5.1"

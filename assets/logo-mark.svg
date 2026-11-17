@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img">
+<title>gentle-accounts mark</title>
+<desc>Two overlapping account avatars with a switch arrow. Illustration generated from the project's real messages, not a screenshot.</desc>
+<rect width="256" height="256" rx="16" fill="#1a1218"/>
+<circle cx="96" cy="54" r="26" fill="none" stroke="#ffb1dd" stroke-width="8" stroke-linejoin="round"/>
+<path d="M 50 148 V 114 A 22 22 0 0 1 72 92 H 120 A 22 22 0 0 1 142 114 V 148 Z" fill="none" stroke="#ffb1dd" stroke-width="8" stroke-linejoin="round"/>
+<circle cx="160" cy="96" r="26" fill="#1a1218" stroke="#1a1218" stroke-width="12" stroke-linejoin="round"/>
+<path d="M 114 190 V 156 A 22 22 0 0 1 136 134 H 184 A 22 22 0 0 1 206 156 V 190 Z" fill="#1a1218" stroke="#1a1218" stroke-width="12" stroke-linejoin="round"/>
+<circle cx="160" cy="96" r="26" fill="#ff76c3"/>
+<path d="M 114 190 V 156 A 22 22 0 0 1 136 134 H 184 A 22 22 0 0 1 206 156 V 190 Z" fill="#ff76c3"/>
+<path d="M 72 214 Q 128 238 184 214" fill="none" stroke="#ffb1dd" stroke-width="6" stroke-linecap="round"/>
+<polygon points="195.0,209.3 185.3,222.1 179.0,207.4" fill="#ffb1dd"/>
+<polygon points="61.0,209.3 77.0,207.4 70.7,222.1" fill="#ffb1dd"/>
+</svg>
