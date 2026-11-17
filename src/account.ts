@@ -50,9 +50,15 @@ export function maskEmail(email: string): string {
   return `${local.slice(0, keep)}****${email.slice(at)}`;
 }
 
-export function statusText(profile: string, account: { email: string } | null): string {
+export interface StatusTextOptions {
+  /** Print the full email instead of the masked one (S29); default false. */
+  showEmail?: boolean;
+}
+
+export function statusText(profile: string, account: { email: string } | null, options: StatusTextOptions = {}): string {
   const icon = account ? "👤" : "🔒";
-  return `${icon} ${PLUGIN_LABEL}: ${profile} · ${account ? maskEmail(account.email) : "not logged in"}`;
+  const shown = account ? (options.showEmail === true ? account.email : maskEmail(account.email)) : "not logged in";
+  return `${icon} ${PLUGIN_LABEL}: ${profile} · ${shown}`;
 }
 
 /** Runs `claude auth status` with the given env and resolves its stdout; rejects when no output is usable. */

@@ -115,3 +115,20 @@ test("launcher e2e (S27): gentle-shell receives GENTLE_ACCOUNTS_LAUNCH_PROFILE w
   assert.match(p.out, /launch=personal\s*$/m);
   assert.equal(run("current").out.trim(), "personal");
 });
+
+test("launcher e2e (S29): email is hidden by default, show persists it, list ignores the settings file", () => {
+  const { agentDir, run } = sandbox();
+  const h = run("email");
+  assert.equal(h.code, 0, h.err);
+  assert.equal(h.out, "Email display: hidden (masked in the status bar)\n");
+  const s = run("email", "show");
+  assert.equal(s.code, 0, s.err);
+  assert.equal(s.out, "Email display set to shown. The status bar shows the full email.\n");
+  assert.equal(run("email").out, "Email display: shown (full email in the status bar)\n");
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "settings.json"), "utf8")), { showEmail: true });
+  const u = run("email", "x");
+  assert.equal(u.code, 1);
+  assert.equal(u.err, "Usage: gentle-accounts email [show|hide]\n");
+  assert.equal(run("create", "work").code, 0);
+  assert.equal(run("list").out, "  work\n");
+});

@@ -131,7 +131,7 @@ Switched to profile "default". Claude Code dir: (unset: Claude Code default)
 
 Cambiar al perfil que ya está activo solo indica `Already on profile "default".`. El cambio espera al agente: mientras hay un turno en curso aparece `Wait for the current turn to finish before switching profiles.`
 
-Cómo leer la barra de estado: `👤 gentle-accounts: <profile> · <masked email>` cuando se detecta el inicio de sesión de Claude del perfil, `🔒 gentle-accounts: <profile> · not logged in` en caso contrario. El ícono muestra el estado de un vistazo: `👤` con sesión, `🔒` sin sesión. El correo aparece enmascarado, por ejemplo `mari****@company.com`. El estado se actualiza al iniciar, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos.
+Cómo leer la barra de estado: `👤 gentle-accounts: <profile> · <masked email>` cuando se detecta el inicio de sesión de Claude del perfil, `🔒 gentle-accounts: <profile> · not logged in` en caso contrario. El ícono muestra el estado de un vistazo: `👤` con sesión, `🔒` sin sesión. De forma predeterminada el correo aparece enmascarado, por ejemplo `mari****@company.com`; consulte la sección 7 para mostrarlo completo. El estado se actualiza al iniciar, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos.
 
 ## 5. Iniciar una sesión en un perfil
 
@@ -167,7 +167,31 @@ Startup profile cleared. New sessions start on the last used profile.
 
 El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; consulte el límite conocido en [Cómo funciona](how-it-works.md).
 
-## 7. Borrar un perfil
+## 7. Mostrar el correo completo en la barra de estado
+
+De forma predeterminada la barra de estado muestra un correo enmascarado, `👤 gentle-accounts: work · mari****@company.com`. Para ver la dirección completa:
+
+```
+/gentle:accounts email show
+```
+
+```
+Email display set to shown. The status bar shows the full email.
+```
+
+La barra de estado se actualiza de inmediato y muestra `👤 gentle-accounts: work · maria.lopez@company.com`. Para volver a enmascararlo:
+
+```
+/gentle:accounts email hide
+```
+
+```
+Email display set to hidden. The status bar shows a masked email.
+```
+
+Advertencia de privacidad: con `show`, cualquier persona que vea su pantalla puede leer la dirección, incluso al compartir pantalla, en capturas de pantalla y en grabaciones. Oculte el correo antes de compartir su pantalla. La opción se aplica a todas las sesiones de la misma carpeta del agente.
+
+## 8. Borrar un perfil
 
 No se puede borrar el perfil activo ni el perfil de inicio, así que primero cambie a otro (o ejecute `startup last`):
 

@@ -1,5 +1,7 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
+import { runEmailCommand } from "./settings.ts";
+import { join } from "node:path";
 
 export const USAGE = [
   "Usage:",
@@ -9,6 +11,7 @@ export const USAGE = [
   "  gentle-accounts create <name>                   create an empty profile",
   "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
   "  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on",
+  "  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email",
   "  gentle-accounts --help                          show this help",
 ].join("\n");
 
@@ -71,6 +74,11 @@ export function runCli(argv: string[], deps: CliDeps): number {
     const result = runStartupCommand(store, second ?? "");
     (result.ok ? stdout : stderr)(result.message);
     return result.ok ? 0 : 1;
+  }
+  if (first === "email") {
+    const result = runEmailCommand(second ?? "", join(store.profilesDir, "settings.json"), "gentle-accounts");
+    (result.type === "info" ? stdout : stderr)(result.message);
+    return result.type === "info" ? 0 : 1;
   }
   if (first === "login") {
     if (!second || !store.exists(second)) {
