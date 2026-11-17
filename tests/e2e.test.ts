@@ -12,6 +12,18 @@ const BIN = fileURLToPath(new URL("../bin/gentle-accounts.mjs", import.meta.url)
 const isWin = process.platform === "win32";
 
 /** Real launcher + a fake `gentle-shell` on PATH (a .cmd shim on Windows) inside an isolated agent dir. */
+/**
+ * Node prints runtime warnings on stderr (for example DEP0190 on Windows with Node 24, because the launcher starts
+ * the .cmd shim of gentle-shell with `shell: true`). They are not product output: keep them out of exact stderr checks.
+ * Follow-up: start gentle-shell on Windows through an explicit cmd.exe invocation with proper quoting.
+ */
+function stripNodeWarnings(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !/^\(node:\d+\) /.test(line) && !/^\(Use `node /.test(line))
+    .join("\n");
+}
+
 function sandbox() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "gentle-accounts-e2e-")));
   after(() => rmSync(root, { recursive: true, force: true }));
@@ -58,7 +70,7 @@ function sandbox() {
   const run = (...args: string[]) => runWith({}, ...args);
   const runWith = (extra: NodeJS.ProcessEnv, ...args: string[]) => {
     const r = spawnSync(process.execPath, [BIN, ...args], { env: { ...env, ...extra }, encoding: "utf8" });
-    return { code: r.status, out: (r.stdout ?? "").replaceAll("\r\n", "\n"), err: (r.stderr ?? "").replaceAll("\r\n", "\n") };
+    return { code: r.status, out: (r.stdout ?? "").replaceAll("\r\n", "\n"), err: stripNodeWarnings((r.stderr ?? "").replaceAll("\r\n", "\n")) };
   };
   const homesDir = join(tmp, isWin ? "gentle-accounts" : `gentle-accounts-${process.getuid!()}`);
   const homes = () => (existsSync(homesDir) ? readdirSync(homesDir) : []);
