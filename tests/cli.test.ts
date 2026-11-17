@@ -345,3 +345,16 @@ test("S29: gentle-accounts email shows, sets and rejects with exit codes", () =>
   runCli(["--help"], { ...deps, stdout: (l) => help.push(l) });
   assert.match(help[0], /^  gentle-accounts email \[show\|hide\] +show or set whether the status bar shows the full email/m);
 });
+
+test("S30: the launcher records the spawned gentle-shell pid in the session marker", async () => {
+  const { store, deps } = setup();
+  store.create("work");
+  let seen: unknown;
+  deps.spawn = (call) => {
+    call.onSpawn?.(31337);
+    seen = readSessionMarker(call.args[1])?.childPid;
+    return 0;
+  };
+  assert.equal(await runCli(["work"], deps), 0);
+  assert.equal(seen, 31337);
+});

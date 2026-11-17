@@ -4,7 +4,7 @@ import * as nodeFs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import { ProfileStore } from "./store.ts";
+import { ProfileStore, writeFileAtomic } from "./store.ts";
 import { COVERED_PROVIDERS, readAuthFile, transferCovered, writeAuthFile, type AuthData } from "./auth-sync.ts";
 
 export const SESSION_MARKER = ".gentle-accounts-session.json";
@@ -18,6 +18,8 @@ export interface SessionMarker {
   profile: string;
   pid: number;
   createdAt: string;
+  /** pid of the gentle-shell started by the launcher, once spawned. */
+  childPid?: number;
 }
 
 /** `<os.tmpdir()>/gentle-accounts`: parent of every session home. */
@@ -166,6 +168,17 @@ export function readSessionMarker(dir: string): SessionMarker | null {
   }
 }
 
+/** Records the spawned gentle-shell pid in the marker (atomic rewrite, other fields kept); never throws. */
+export function recordSessionChildPid(home: string, childPid: number): void {
+  try {
+    const marker = readSessionMarker(home);
+    if (!marker) return;
+    writeFileAtomic(join(home, SESSION_MARKER), `${JSON.stringify({ ...marker, childPid }, null, 2)}\n`);
+  } catch {
+    // Best effort: without it the sweeper only knows the launcher pid.
+  }
+}
+
 /** The session's current profile name (trimmed), or null when absent or empty. */
 export function readSessionCurrent(home: string): string | null {
   try {
@@ -191,7 +204,13 @@ export function finishSessionHome(
     store.assertExists(profile);
     const live = readAuthFile(join(home, "auth.json"));
     const snapshot = readAuthFile(store.authPath(profile));
-    writeAuthFile(store.authPath(profile), transferCovered(live, snapshot));
+    // Same freshness rule as the build: another session on this profile may have saved a newer token.
+    const merged: AuthData = { ...snapshot };
+    for (const provider of COVERED_PROVIDERS) {
+      if (provider in live) merged[provider] = pickFreshest(live[provider], snapshot[provider]);
+      else delete merged[provider]; // the user logged this provider out inside the session
+    }
+    writeAuthFile(store.authPath(profile), merged);
   } catch (error) {
     stderr(`gentle-accounts: cannot save the session credentials of "${profile ?? "unknown"}": ${(error as Error).message}; they are kept in ${join(home, "auth.json")}`);
     return false;
@@ -245,7 +264,8 @@ export function sweepSessionHomes(baseDir: string = sessionBaseDir(), isAlive: (
   for (const name of names) {
     const home = join(baseDir, name);
     const marker = readSessionMarker(home);
-    if (!marker || isAlive(marker.pid)) continue;
+    // In use while the launcher or its gentle-shell runs (an orphan survives a kill -9 of the launcher).
+    if (!marker || isAlive(marker.pid) || (typeof marker.childPid === "number" && isAlive(marker.childPid))) continue;
     if (finishSessionHome(home, { sharedAgentDir: marker.sharedAgentDir, stderr })) swept.push(home);
   }
   return swept;

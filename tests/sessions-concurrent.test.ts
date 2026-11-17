@@ -162,3 +162,20 @@ test("S30: first-run default creation from 8 real processes at once (4 sessions,
   assert.deepEqual(leftovers, []);
   assert.deepEqual(readAuthFile(join(shared, "auth.json")), live);
 });
+
+const rot = (access: string, expires: number) => ({ anthropic: { type: "oauth", access, refresh: access, expires } });
+
+for (const order of ["rotating session first", "idle session first"]) {
+  test(`S30: two sessions on the same profile: a rotation survives the idle session's copy-back (${order})`, () => {
+    const { shared, base, store } = sandbox();
+    store.create("work");
+    writeAuthFile(store.authPath("work"), rot("orig", 10));
+    const a = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
+    const c = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
+    writeAuthFile(join(a, "auth.json"), { ...COPILOT, ...rot("rotated", 20) });
+    const homes = order === "rotating session first" ? [a, c] : [c, a];
+    for (const h of homes) assert.equal(finishSessionHome(h, { sharedAgentDir: shared, stderr: () => {} }), true);
+    assert.deepEqual(readAuthFile(store.authPath("work")), rot("rotated", 20));
+    assert.equal(existsSync(join(shared, "auth.json")), false);
+  });
+}

@@ -36,9 +36,10 @@ function sandbox() {
         'echo "GS args=$* dir=$CLAUDE_CONFIG_DIR launch=$GENTLE_ACCOUNTS_LAUNCH_PROFILE noauto=$GENTLE_SHELL_NO_AUTO_SETUP"',
         'if [ -n "$FAKE_SLEEP" ]; then',
         '  trap \'printf "%s" "$FAKE_AUTH" > "$2/auth.json"; exit 143\' TERM',
-        "  echo READY",
+        '  echo "READY $$"',
         "  while :; do sleep 0.1; done",
         "fi",
+        'if [ -n "$FAKE_MARKER" ]; then echo "PID=$$"; printf "MARKER=%s\\n" "$(tr -d "\\n " < "$2/.gentle-accounts-session.json")"; fi',
         'if [ -n "$FAKE_CAT" ]; then printf "AUTH=%s\\n" "$(tr -d "\\n " < "$2/auth.json")"; fi',
         'if [ -n "$FAKE_AUTH" ]; then printf "%s" "$FAKE_AUTH" > "$2/auth.json"; fi',
         "exit ${FAKE_EXIT:-0}",
@@ -227,4 +228,60 @@ test("launcher e2e (S30): a token rotated in a session reaches the next launch o
   assert.equal(second.code, 0, second.err);
   assert.match(second.out, /^AUTH=\{"anthropic":\{"type":"oauth","access":"new","refresh":"new","expires":2\}\}$/m);
   assert.equal(run("current").out.trim(), "work");
+});
+
+test("launcher e2e (S30): the marker holds the gentle-shell pid while it runs", { skip: isWin }, () => {
+  const { run, runWith } = sandbox();
+  run("create", "work");
+  const r = runWith({ FAKE_MARKER: "1" }, "work");
+  assert.equal(r.code, 0, r.err);
+  const pid = /^PID=(\d+)$/m.exec(r.out)?.[1];
+  assert.ok(pid);
+  assert.match(r.out, new RegExp(`^MARKER=.*"childPid":${pid}\\}$`, "m"));
+});
+
+test("launcher e2e (S30): after kill -9 of the launcher the orphaned gentle-shell keeps its home until it dies", { skip: isWin }, async () => {
+  const { agentDir, env, run, homes } = sandbox();
+  run("create", "work");
+  run("create", "personal");
+  const rotated = { anthropic: { type: "oauth", access: "orphan", refresh: "orphan", expires: 8 } };
+  const launcher = spawn(process.execPath, [BIN, "work"], { env: { ...env, FAKE_SLEEP: "1", FAKE_AUTH: JSON.stringify(rotated) }, stdio: ["ignore", "pipe", "pipe"] });
+  let out = "";
+  const childPid = await new Promise<number>((resolve) =>
+    launcher.stdout.on("data", (d) => {
+      out += d;
+      const m = /READY (\d+)/.exec(out);
+      if (m) resolve(Number(m[1]));
+    }),
+  );
+  const launcherGone = new Promise((r) => launcher.on("exit", r)); // "close" waits for the orphan holding stdout
+  launcher.kill("SIGKILL");
+  await launcherGone;
+  launcher.stdout.destroy();
+  launcher.stderr.destroy();
+  try {
+    assert.equal(homes().length, 1);
+    const kept = homes()[0];
+    const r = run("personal");
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(homes(), [kept], "the orphan's home is in use and kept");
+    assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), {});
+    process.kill(childPid, "SIGTERM"); // the fake writes its rotated token, then exits
+    for (let i = 0; i < 50; i++) {
+      try {
+        process.kill(childPid, 0);
+        await new Promise((res) => setTimeout(res, 100));
+      } catch {
+        break;
+      }
+    }
+    const s = run("personal");
+    assert.equal(s.code, 0, s.err);
+    assert.deepEqual(homes(), []);
+    assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
+  } finally {
+    try {
+      process.kill(childPid, "SIGKILL");
+    } catch {}
+  }
 });

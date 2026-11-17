@@ -1,7 +1,7 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, type Env } from "./auth-sync.ts";
 import { runEmailCommand } from "./settings.ts";
-import { buildSessionHome, finishSessionHome, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
+import { buildSessionHome, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
@@ -25,6 +25,8 @@ export interface SpawnCall {
   args: string[];
   env: Env;
   shell: boolean;
+  /** Called with the child pid right after it starts (the launch records it in the session marker). */
+  onSpawn?: (pid: number) => void;
 }
 
 export interface CliDeps {
@@ -162,7 +164,7 @@ async function launchSession(name: string, userArgs: string[], deps: CliDeps): P
   env[LAUNCH_PROFILE_ENV] = name; // the extension then skips the startup profile for this session
   let code: number;
   try {
-    code = await deps.spawn({ command: "gentle-shell", args: ["--home", home, ...userArgs], env, shell: deps.platform === "win32" });
+    code = await deps.spawn({ command: "gentle-shell", args: ["--home", home, ...userArgs], env, shell: deps.platform === "win32", onSpawn: (pid) => recordSessionChildPid(home, pid) });
   } catch (error) {
     stderr(`Cannot run gentle-shell: ${(error as Error).message}`);
     code = 1;

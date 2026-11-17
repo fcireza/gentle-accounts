@@ -28,7 +28,7 @@ const code = await runCli(process.argv.slice(2), {
   onExit: (cleanup) => process.on("exit", cleanup),
   // Asynchronous spawn (spawnSync blocks signal handlers): while the child runs, SIGINT is left to the
   // child (same terminal group) and SIGTERM/SIGHUP are forwarded; the result arrives on "close".
-  spawn: ({ command, args, env, shell }) =>
+  spawn: ({ command, args, env, shell, onSpawn }) =>
     new Promise((resolve) => {
       let settled = false;
       const settle = (value) => {
@@ -38,6 +38,7 @@ const code = await runCli(process.argv.slice(2), {
         resolve(value);
       };
       const child = spawn(command, args, { stdio: "inherit", env, shell });
+      if (child.pid !== undefined) onSpawn?.(child.pid);
       const handlers = [
         ["SIGINT", () => {}],
         ["SIGTERM", () => child.kill("SIGTERM")],

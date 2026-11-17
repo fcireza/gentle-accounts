@@ -11,6 +11,7 @@ import {
   SESSION_MARKER,
   buildSessionHome,
   pickFreshest,
+  recordSessionChildPid,
   finishSessionHome,
   readSessionCurrent,
   readSessionMarker,
@@ -313,4 +314,74 @@ test("S30: a profile that is not the global current uses only its snapshot, even
   writeAuthFile(join(shared, "auth.json"), { ...COPILOT, "openai-codex": oauth("live", 99) });
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...COPILOT, "openai-codex": oauth("snap", 1) });
+});
+
+// ---- T19c: copy-back merge by freshness, and the child pid in the marker ----
+
+test("S30: copy-back keeps the fresher oauth entry of the snapshot over an older private one", () => {
+  const { shared, base, store } = sandbox();
+  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  writeAuthFile(store.authPath("work"), { anthropic: oauth("rotated-by-other", 50) });
+  writeAuthFile(join(home, "auth.json"), { ...COPILOT, anthropic: oauth("stale", 10) });
+  assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
+  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: oauth("rotated-by-other", 50) });
+});
+
+test("S30: a covered provider logged out inside the session is removed from the snapshot at copy-back", () => {
+  const { shared, base, store } = sandbox();
+  writeAuthFile(store.authPath("work"), { anthropic: oauth("a", 10), "openai-codex": oauth("c", 10) });
+  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  writeAuthFile(join(home, "auth.json"), { ...COPILOT, "openai-codex": oauth("c", 10) }); // the user logged anthropic out
+  assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": oauth("c", 10) });
+});
+
+test("S30: copy-back: a fresher private oauth entry wins; ties and api keys take the private entry", () => {
+  const { shared, base, store } = sandbox();
+  const cases: [unknown, unknown, unknown][] = [
+    [oauth("mine", 60), oauth("snap", 50), oauth("mine", 60)],
+    [oauth("mine", 50), oauth("snap", 50), oauth("mine", 50)],
+    [oauth("mine", "x"), oauth("snap", 99), oauth("mine", "x")],
+    [{ type: "api_key", key: "mine" }, { type: "api_key", key: "snap" }, { type: "api_key", key: "mine" }],
+  ];
+  for (const [mine, snap, expected] of cases) {
+    const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+    writeAuthFile(store.authPath("work"), { anthropic: snap });
+    writeAuthFile(join(home, "auth.json"), { anthropic: mine });
+    assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
+    assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: expected }, JSON.stringify(mine));
+  }
+});
+
+test("S30: copy-back adds a provider missing in the snapshot, drops one missing in the private file, never writes non covered ones", () => {
+  const { shared, base, store } = sandbox();
+  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  writeAuthFile(store.authPath("work"), { anthropic: oauth("snap", 5) });
+  writeAuthFile(join(home, "auth.json"), { ...COPILOT, "openai-codex": oauth("new", 7) });
+  assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": oauth("new", 7) });
+  assert.equal(existsSync(join(shared, "auth.json")), false);
+});
+
+test("S30: recordSessionChildPid rewrites the marker keeping every field and tolerates failures", () => {
+  const { shared, base, root } = sandbox();
+  const { home, marker } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 11 });
+  assert.equal(readSessionMarker(home)?.childPid, undefined);
+  recordSessionChildPid(home, 4321);
+  assert.deepEqual(readSessionMarker(home), { ...marker, childPid: 4321 });
+  assert.deepEqual(readdirSync(home).filter((n) => n.endsWith(".tmp")), []);
+  assert.doesNotThrow(() => recordSessionChildPid(join(root, "missing"), 1));
+});
+
+test("S30: the sweeper keeps a home whose child is alive even when the launcher is dead; both dead sweeps it", () => {
+  const { shared, base, store } = sandbox();
+  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999101 });
+  recordSessionChildPid(home, 999102);
+  writeAuthFile(join(home, "auth.json"), { anthropic: oauth("in-use", 70) });
+  const before = readFileSync(store.authPath("work"), "utf8");
+  assert.deepEqual(sweepSessionHomes(base, (pid) => pid === 999102, () => {}), []);
+  assert.equal(existsSync(home), true);
+  assert.equal(readFileSync(store.authPath("work"), "utf8"), before, "nothing copied while the child runs");
+  assert.deepEqual(sweepSessionHomes(base, () => false, () => {}), [home]);
+  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: oauth("in-use", 70) });
 });
