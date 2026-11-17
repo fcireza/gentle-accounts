@@ -1,4 +1,4 @@
-import { ProfileStore } from "./store.ts";
+import { ProfileStore, runStartupCommand } from "./store.ts";
 import { applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, switchProfile, type Env } from "./auth-sync.ts";
 
 export const USAGE = [
@@ -8,6 +8,7 @@ export const USAGE = [
   "  gentle-accounts current                         print the active profile",
   "  gentle-accounts create <name>                   create an empty profile",
   "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
+  "  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on",
   "  gentle-accounts --help                          show this help",
 ].join("\n");
 
@@ -65,6 +66,11 @@ export function runCli(argv: string[], deps: CliDeps): number {
       stderr((error as Error).message);
       return 1;
     }
+  }
+  if (first === "startup") {
+    const result = runStartupCommand(store, second ?? "");
+    (result.ok ? stdout : stderr)(result.message);
+    return result.ok ? 0 : 1;
   }
   if (first === "login") {
     if (!second || !store.exists(second)) {

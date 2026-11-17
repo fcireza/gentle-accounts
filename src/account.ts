@@ -51,7 +51,8 @@ export function maskEmail(email: string): string {
 }
 
 export function statusText(profile: string, account: { email: string } | null): string {
-  return `${PLUGIN_LABEL}: ${profile} · ${account ? maskEmail(account.email) : "not logged in"}`;
+  const icon = account ? "👤" : "🔒";
+  return `${icon} ${PLUGIN_LABEL}: ${profile} · ${account ? maskEmail(account.email) : "not logged in"}`;
 }
 
 /** Runs `claude auth status` with the given env and resolves its stdout; rejects when no output is usable. */

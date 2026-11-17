@@ -12,6 +12,7 @@ import {
   applyCurrentProfileEnv,
   ensureDefaultProfile,
   applyClaudeConfigEnv,
+  applyStartupProfile,
 } from "../src/auth-sync.ts";
 
 const codexWork = { type: "oauth", access: "a-work", refresh: "r-work", expires: 1, accountId: "acc-w" };
@@ -243,4 +244,72 @@ test("S16: applyCurrentProfileEnv leaves the environment alone for a system-defa
   const preset: Record<string, string | undefined> = { CLAUDE_CONFIG_DIR: "/preset" };
   assert.equal(applyCurrentProfileEnv(store, preset), "default");
   assert.equal(preset.CLAUDE_CONFIG_DIR, "/preset");
+});
+
+test("S27: applyStartupProfile does nothing without a startup profile", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  const env: Record<string, string | undefined> = {};
+  assert.deepEqual(applyStartupProfile({ store, liveAuthPath, env }), { status: "none", from: "work", to: null });
+  assert.equal(store.current(), "work");
+  assert.deepEqual(env, {});
+});
+
+test("S27: applyStartupProfile is a no-op when the startup profile is already active", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  store.setStartup("work");
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  const before = readFileSync(liveAuthPath, "utf8");
+  const env: Record<string, string | undefined> = {};
+  assert.deepEqual(applyStartupProfile({ store, liveAuthPath, env }), { status: "same", from: "work", to: "work" });
+  assert.equal(readFileSync(liveAuthPath, "utf8"), before);
+  assert.deepEqual(env, {});
+});
+
+test("S27: applyStartupProfile switches with the safe switch (snapshot outgoing, load incoming, env)", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  store.setStartup("work");
+  writeAuthFile(liveAuthPath, { "openai-codex": codexPersonal, other });
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork, anthropic: anthropicWork });
+  const env: Record<string, string | undefined> = {};
+  assert.deepEqual(applyStartupProfile({ store, liveAuthPath, env }), { status: "switched", from: "personal", to: "work" });
+  assert.equal(store.current(), "work");
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": codexPersonal });
+  assert.deepEqual(readAuthFile(liveAuthPath), { "openai-codex": codexWork, anthropic: anthropicWork, other });
+  assert.equal(env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
+});
+
+test("S27: a corrupt startup target throws and leaves every file byte-identical", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  store.setStartup("work");
+  writeAuthFile(liveAuthPath, { "openai-codex": codexPersonal });
+  writeFileSync(store.authPath("work"), "{bad");
+  const files = [liveAuthPath, store.authPath("personal"), store.authPath("work"), store.currentPath, store.startupPath];
+  const before = files.map((f) => readFileSync(f, "utf8"));
+  const env: Record<string, string | undefined> = { CLAUDE_CONFIG_DIR: "/keep" };
+  assert.throws(() => applyStartupProfile({ store, liveAuthPath, env }), /Cannot parse/);
+  assert.deepEqual(files.map((f) => readFileSync(f, "utf8")), before);
+  assert.deepEqual(env, { CLAUDE_CONFIG_DIR: "/keep" });
+});
+
+test("S27+S16: switching to a system-default startup profile deletes CLAUDE_CONFIG_DIR", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("default", { claudeDefault: true });
+  store.create("work");
+  store.setCurrent("work");
+  store.setStartup("default");
+  const env: Record<string, string | undefined> = { CLAUDE_CONFIG_DIR: store.claudeDir("work") };
+  assert.equal(applyStartupProfile({ store, liveAuthPath, env }).status, "switched");
+  assert.equal("CLAUDE_CONFIG_DIR" in env, false);
+  assert.equal(store.current(), "default");
 });

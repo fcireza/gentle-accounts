@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE } from "../src/store.ts";
@@ -142,4 +142,52 @@ test("S16: a legacy claude-dir equal to <home>/.claude is treated as the system 
       else process.env[k] = v;
     }
   }
+});
+
+test("S27: startup profile get/set/clear under <profilesDir>/startup", () => {
+  const { store, agentDir } = tempStore();
+  assert.equal(store.startupPath, join(agentDir, "profiles", "startup"));
+  assert.equal(store.startup(), null);
+  store.create("work");
+  store.setStartup("work");
+  assert.equal(readFileSync(store.startupPath, "utf8"), "work\n");
+  assert.equal(store.startup(), "work");
+  if (process.platform !== "win32") assert.equal(statSync(store.startupPath).mode & 0o777, 0o600);
+  store.clearStartup();
+  assert.equal(existsSync(store.startupPath), false);
+  assert.equal(store.startup(), null);
+  store.clearStartup(); // absent: no error
+});
+
+test("S27: setStartup refuses unknown profiles and leaves no file", () => {
+  const { store } = tempStore();
+  assert.throws(() => store.setStartup("ghost"), { message: 'Profile "ghost" does not exist.' });
+  assert.equal(existsSync(store.startupPath), false);
+});
+
+test("S27: startup() is null for empty, invalid or deleted-profile content", () => {
+  const { store } = tempStore();
+  store.create("work");
+  for (const content of ["", "\n", "Bad Name\n", "../x\n", "ghost\n"]) {
+    writeFileSync(store.startupPath, content);
+    assert.equal(store.startup(), null, JSON.stringify(content));
+  }
+});
+
+test("S27: delete refuses the startup profile after the missing and active checks", () => {
+  const { store } = tempStore();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  store.setStartup("work");
+  assert.throws(() => store.delete("ghost"), { message: 'Profile "ghost" does not exist.' });
+  assert.throws(() => store.delete("work"), { message: 'Cannot delete the active profile "work". Switch to another profile first.' });
+  store.setCurrent("personal");
+  assert.throws(() => store.delete("work"), {
+    message: 'Cannot delete the startup profile "work". Set another one or clear it with "startup last" first.',
+  });
+  assert.deepEqual(store.list(), ["personal", "work"]);
+  store.clearStartup();
+  store.delete("work");
+  assert.deepEqual(store.list(), ["personal"]);
 });

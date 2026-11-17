@@ -9,6 +9,9 @@ export const INVALID_NAME_MESSAGE = (name: string): string =>
 
 export const MISSING_PROFILE_MESSAGE = (name: string): string => `Profile "${name}" does not exist.`;
 
+export const STARTUP_DELETE_MESSAGE = (name: string): string =>
+  `Cannot delete the startup profile "${name}". Set another one or clear it with "startup last" first.`;
+
 /** Returns null when the name is valid, otherwise the exact user-facing error message. */
 export function validateProfileName(name: string): string | null {
   return NAME_RE.test(name) ? null : INVALID_NAME_MESSAGE(name);
@@ -21,17 +24,20 @@ export function validateProfileName(name: string): string | null {
  *   <agentDir>/profiles/<name>/claude-dir  optional: explicit CLAUDE_CONFIG_DIR of the profile
  *   <agentDir>/profiles/<name>/claude-default  marker: use Claude Code's default dir (variable unset)
  *   <agentDir>/profiles/current            name of the active profile
+ *   <agentDir>/profiles/startup            optional: profile new sessions start on (absent = last used)
  */
 export class ProfileStore {
   readonly agentDir: string;
   readonly profilesDir: string;
   readonly currentPath: string;
+  readonly startupPath: string;
 
   // No parameter properties: Node's type stripping (used by bin/) rejects them.
   constructor(agentDir: string) {
     this.agentDir = agentDir;
     this.profilesDir = join(agentDir, "profiles");
     this.currentPath = join(this.profilesDir, "current");
+    this.startupPath = join(this.profilesDir, "startup");
   }
 
   profileDir(name: string): string {
@@ -95,6 +101,22 @@ export class ProfileStore {
     writeFileSync(this.currentPath, `${name}\n`, { mode: 0o600 });
   }
 
+  /** Profile new sessions start on; null when unset, empty, invalid or naming a missing profile. */
+  startup(): string | null {
+    if (!existsSync(this.startupPath)) return null;
+    const name = readFileSync(this.startupPath, "utf8").trim();
+    return name && this.exists(name) ? name : null;
+  }
+
+  setStartup(name: string): void {
+    this.assertExists(name);
+    writeFileSync(this.startupPath, `${name}\n`, { mode: 0o600 });
+  }
+
+  clearStartup(): void {
+    rmSync(this.startupPath, { force: true });
+  }
+
   create(name: string, options: { claudeDir?: string; claudeDefault?: boolean } = {}): void {
     const invalid = validateProfileName(name);
     if (invalid) throw new Error(invalid);
@@ -115,10 +137,36 @@ export class ProfileStore {
     if (this.current() === name) {
       throw new Error(`Cannot delete the active profile "${name}". Switch to another profile first.`);
     }
+    if (this.startup() === name) throw new Error(STARTUP_DELETE_MESSAGE(name));
     rmSync(this.profileDir(name), { recursive: true, force: true });
   }
 
   assertExists(name: string): void {
     if (!this.exists(name)) throw new Error(MISSING_PROFILE_MESSAGE(name));
   }
+}
+
+/**
+ * Shared `startup [<name>|last]` command of the extension and the CLI: no argument shows the
+ * startup profile, `last` clears it, a name sets it. Returns the exact user-facing message.
+ */
+export function runStartupCommand(store: ProfileStore, arg: string): { ok: boolean; message: string } {
+  if (!arg) {
+    const startup = store.startup();
+    return {
+      ok: true,
+      message: startup
+        ? `Startup profile: ${startup}`
+        : `Startup profile: none (new sessions start on the last used profile: ${store.current() ?? "none"})`,
+    };
+  }
+  if (arg === "last") {
+    store.clearStartup();
+    return { ok: true, message: "Startup profile cleared. New sessions start on the last used profile." };
+  }
+  const invalid = validateProfileName(arg);
+  if (invalid) return { ok: false, message: invalid };
+  if (!store.exists(arg)) return { ok: false, message: MISSING_PROFILE_MESSAGE(arg) };
+  store.setStartup(arg);
+  return { ok: true, message: `Startup profile set to "${arg}". New sessions start on it.` };
 }

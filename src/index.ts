@@ -2,8 +2,8 @@ import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@e
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner } from "./account.ts";
-import { ProfileStore, MISSING_PROFILE_MESSAGE, validateProfileName } from "./store.ts";
-import { applyCurrentProfileEnv, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
+import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
+import { applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
 
 const USAGE = [
@@ -14,9 +14,10 @@ const USAGE = [
   "/gentle:accounts create <name>   create an empty profile",
   "/gentle:accounts delete <name>   delete a profile (asks for confirmation)",
   "/gentle:accounts login claude    show the command that logs the active profile into Claude Code",
+  "/gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on",
 ].join("\n");
 
-const SUBCOMMANDS = ["list", "current", "create", "delete", "login"];
+const SUBCOMMANDS = ["list", "current", "create", "delete", "login", "startup"];
 
 function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "warning" | "error" = "info"): void {
   ctx.ui.notify(message, type);
@@ -91,6 +92,14 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       ctx.ui.notify(`${PLUGIN_LABEL}: ${(error as Error).message}`, "error");
       return;
     }
+    try {
+      // The env of the last used profile is already applied; a switch replaces it (set or delete).
+      const started = applyStartupProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
+      if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (startup profile).`, "info");
+    } catch (error) {
+      // A corrupt startup profile leaves everything as it was; the session keeps the last used one.
+      ctx.ui.notify(`${PLUGIN_LABEL}: ${(error as Error).message}`, "error");
+    }
     if (!timer) {
       timer = startTimer(() => {
         if (lastCtx) void updateStatus(lastCtx, store());
@@ -148,6 +157,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (s.current() === arg) {
           return notify(ctx, `Cannot delete the active profile "${arg}". Switch to another profile first.`, "error");
         }
+        if (s.startup() === arg) return notify(ctx, STARTUP_DELETE_MESSAGE(arg), "error");
         if (!ctx.hasUI) return notify(ctx, "Deleting needs a confirmation dialog; run it from the TUI.", "error");
         const ok = await ctx.ui.confirm("Delete profile", `Delete profile "${arg}" and its Claude login and credentials? This cannot be undone.`);
         if (!ok) return notify(ctx, "Delete cancelled.");
@@ -165,6 +175,10 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (!current) return notify(ctx, "No active profile.", "error");
         notify(ctx, loginHint(current, claudeLoginCommand(s.claudeConfigEnv(current))));
         return;
+      }
+      if (sub === "startup") {
+        const result = runStartupCommand(s, arg);
+        return notify(ctx, result.message, result.ok ? "info" : "error");
       }
       if (sub === "help" || sub === "--help") return notify(ctx, USAGE);
 

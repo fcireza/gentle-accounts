@@ -170,3 +170,43 @@ test("S16: login for the system-default profile runs claude auth login without C
   assert.deepEqual(spawns[0].args, ["auth", "login"]);
   assert.equal("CLAUDE_CONFIG_DIR" in spawns[0].env, false);
 });
+
+test("S27: gentle-accounts startup shows, sets and clears the startup profile", () => {
+  const { store, out, err, spawns, deps } = setup();
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile: none (new sessions start on the last used profile: none)"]);
+  store.create("work");
+  store.setCurrent("work");
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile: none (new sessions start on the last used profile: work)"]);
+  assert.equal(runCli(["startup", "work"], deps), 0);
+  assert.deepEqual(out.splice(0), ['Startup profile set to "work". New sessions start on it.']);
+  assert.equal(store.startup(), "work");
+  assert.equal(runCli(["startup"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile: work"]);
+  assert.equal(runCli(["startup", "last"], deps), 0);
+  assert.deepEqual(out.splice(0), ["Startup profile cleared. New sessions start on the last used profile."]);
+  assert.equal(store.startup(), null);
+  assert.deepEqual(err, []);
+  assert.deepEqual(spawns, []);
+});
+
+test("S27: gentle-accounts startup rejects invalid and unknown names with exit 1", () => {
+  const { store, out, err, deps } = setup();
+  store.create("work");
+  store.setStartup("work");
+  assert.equal(runCli(["startup", "Bad"], deps), 1);
+  assert.equal(runCli(["startup", "ghost"], deps), 1);
+  assert.deepEqual(err, [
+    'Invalid profile name "Bad": use lowercase letters, digits, "-" or "_" (max 32 chars).',
+    'Profile "ghost" does not exist.',
+  ]);
+  assert.deepEqual(out, []);
+  assert.equal(store.startup(), "work");
+});
+
+test("S27: usage lists the startup command", () => {
+  const { out, deps } = setup();
+  assert.equal(runCli(["--help"], deps), 0);
+  assert.match(out.join("\n"), /gentle-accounts startup \[<name>\|last\] +/);
+});
