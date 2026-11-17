@@ -1,24 +1,40 @@
 name: Release
 
-# Keeps a "release PR" up to date from the Conventional Commits on main.
-# Merging that PR creates the vX.Y.Z tag and the GitHub Release with notes.
+# Every merge to main gets a vX.Y.Z tag and a GitHub Release with generated
+# notes. The version comes from scripts/next-version.ts (latest tag + the
+# squashed commit message); commit text is never interpolated into a script.
 on:
   push:
     branches: [main]
 
 permissions:
   contents: write
-  pull-requests: write
-  issues: write
+
+# Releases run one at a time and are never cancelled midway.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v5
+      - uses: actions/checkout@v4
         with:
-          # A personal token lets CI run on the release PR (the default
-          # GITHUB_TOKEN does not trigger workflows). Falls back to GITHUB_TOKEN.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          fetch-depth: 0 # full history and tags for git describe
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Tag and release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Re-runs are idempotent: skip when this commit is already tagged.
+          if [ -n "$(git tag --points-at HEAD)" ]; then
+            echo "HEAD is already tagged; nothing to release."
+            exit 0
+          fi
+          VERSION="$(node scripts/next-version.ts)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes
