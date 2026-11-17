@@ -39,7 +39,8 @@ function sandbox() {
         '  echo "READY $$"',
         "  while :; do sleep 0.1; done",
         "fi",
-        'if [ -n "$FAKE_MARKER" ]; then echo "PID=$$"; printf "MARKER=%s\\n" "$(tr -d "\\n " < "$2/.gentle-accounts-session.json")"; fi',
+        // The launcher records the child pid right after the spawn: wait (bounded) for it instead of racing it.
+        'if [ -n "$FAKE_MARKER" ]; then i=0; while ! grep -q childPid "$2/.gentle-accounts-session.json" && [ "$i" -lt 100 ]; do sleep 0.05; i=$((i+1)); done; echo "PID=$$"; printf "MARKER=%s\\n" "$(tr -d "\\n " < "$2/.gentle-accounts-session.json")"; fi',
         'if [ -n "$FAKE_CAT" ]; then printf "AUTH=%s\\n" "$(tr -d "\\n " < "$2/auth.json")"; fi',
         'if [ -n "$FAKE_AUTH" ]; then printf "%s" "$FAKE_AUTH" > "$2/auth.json"; fi',
         "exit ${FAKE_EXIT:-0}",

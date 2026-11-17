@@ -62,13 +62,15 @@ test("S30: build creates the recipe: links, private auth.json, absolute settings
   writeAuthFile(join(shared, "auth.json"), { ...COPILOT, anthropic: { type: "api_key", key: "live" } });
   const { home, marker } = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, pid: 4242 });
   assert.equal(home.startsWith(base), true);
-  assert.equal(statSync(home).mode & 0o777, 0o700);
+  if (process.platform !== "win32") assert.equal(statSync(home).mode & 0o777, 0o700); // Windows has no POSIX modes
   assert.deepEqual(readdirSync(home).sort(), [SESSION_MARKER, SESSION_CURRENT, "AGENTS.md", "auth.json", "models-store.json", "profiles", "sessions", "settings.json", "skills"].sort());
   for (const name of ["AGENTS.md", "models-store.json", "profiles", "sessions", "skills"]) {
-    assert.equal(lstatSync(join(home, name)).isSymbolicLink(), true, name);
+    // On Windows without symlink rights the file entries fall back to a hard link or a copy.
+    if (process.platform === "win32") assert.equal(existsSync(join(home, name)), true, name);
+    else assert.equal(lstatSync(join(home, name)).isSymbolicLink(), true, name);
   }
   assert.equal(lstatSync(join(home, "auth.json")).isFile(), true);
-  assert.equal(statSync(join(home, "auth.json")).mode & 0o777, 0o600);
+  if (process.platform !== "win32") assert.equal(statSync(join(home, "auth.json")).mode & 0o777, 0o600);
   // Non covered providers of the shared live auth are kept, covered ones come from the profile snapshot.
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...COPILOT, ...P });
   const settings = JSON.parse(readFileSync(join(home, "settings.json"), "utf8"));
@@ -94,7 +96,8 @@ test("S30: re-scan at build time picks up new shared entries", () => {
   writeFileSync(join(shared, "new-file.json"), "{}");
   const b = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.equal(existsSync(join(a.home, "new-file.json")), false);
-  assert.equal(lstatSync(join(b.home, "new-file.json")).isSymbolicLink(), true);
+  if (process.platform === "win32") assert.equal(existsSync(join(b.home, "new-file.json")), true);
+  else assert.equal(lstatSync(join(b.home, "new-file.json")).isSymbolicLink(), true);
   assert.notEqual(a.home, b.home);
 });
 
