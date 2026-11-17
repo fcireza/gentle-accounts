@@ -191,6 +191,8 @@ node scripts/next-version.ts
 
 The `version` field in `package.json` is not rewritten on `main`; the tag is the source of truth.
 
+Note: the PR body counts too. A line that starts with `BREAKING CHANGE:` bumps the version, even if you are only quoting it.
+
 ## Gentle Hub
 
 This repository carries the `gentle-shell-package` and `gentle-shell-extension` topics so it is listed in the [Gentle Hub](https://gentlemanprogramming.com/gentle-hub/).

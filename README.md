@@ -56,7 +56,7 @@ alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-
 ```
 
 ```powershell
-# perfil de PowerShell
+# PowerShell profile
 function gentle-accounts { node "$env:USERPROFILE\.gentle-shell\agent\git\github.com\fcireza\gentle-accounts\bin\gentle-accounts.mjs" @args }
 ```
 
@@ -192,6 +192,8 @@ node scripts/next-version.ts
 ```
 
 El campo `version` de `package.json` no se reescribe en `main`; la etiqueta es la fuente de verdad.
+
+Ojo: el cuerpo del PR también cuenta. Una línea que empiece con `BREAKING CHANGE:` sube la versión, aunque solo la cites como ejemplo.
 
 ## Gentle Hub
 

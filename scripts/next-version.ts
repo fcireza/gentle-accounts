@@ -44,6 +44,10 @@ function latestReachableTag(): string | null {
 
 function main(): void {
   try {
+    // A shallow clone hides older tags and would silently yield 0.1.0.
+    if (git(["rev-parse", "--is-shallow-repository"]).trim() === "true") {
+      throw new Error("next-version: shallow clone detected; fetch the full history and tags (checkout with fetch-depth: 0)");
+    }
     const message = git(["log", "-1", "--format=%B", "HEAD"]);
     process.stdout.write(nextVersion({ latestTag: latestReachableTag(), message }) + "\n");
   } catch (err) {

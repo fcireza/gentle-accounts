@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { nextVersion } from "../scripts/next-version.ts";
@@ -129,5 +130,31 @@ test("CLI: malformed state exits non-zero with stderr", () => {
       assert.equal(e.stdout.toString(), "");
       return true;
     });
+  });
+});
+
+test("CLI: a shallow clone is rejected instead of silently yielding 0.1.0", () => {
+  withRepo((dir, git) => {
+    git("commit", "-q", "--allow-empty", "-m", "feat: first");
+    git("tag", "v0.1.0");
+    git("commit", "-q", "--allow-empty", "-m", "fix: second");
+    const clone = mkdtempSync(join(tmpdir(), "next-version-shallow-"));
+    try {
+      execFileSync("git", ["clone", "-q", "--depth", "1", pathToFileURL(dir).href, clone], {
+        encoding: "utf8",
+        env: { ...process.env, HOME: clone, USERPROFILE: clone, GIT_CONFIG_GLOBAL: join(clone, "none"), GIT_CONFIG_NOSYSTEM: "1" },
+      });
+      assert.throws(
+        () => execFileSync(process.execPath, [script], { cwd: clone, stdio: "pipe", env: { ...process.env, HOME: clone, USERPROFILE: clone, GIT_CONFIG_GLOBAL: join(clone, "none"), GIT_CONFIG_NOSYSTEM: "1" } }),
+        (e: { status: number; stderr: Buffer; stdout: Buffer }) => {
+          assert.notEqual(e.status, 0);
+          assert.match(e.stderr.toString(), /shallow/);
+          assert.equal(e.stdout.toString(), "");
+          return true;
+        },
+      );
+    } finally {
+      rmSync(clone, { recursive: true, force: true });
+    }
   });
 });
