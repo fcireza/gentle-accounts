@@ -61,7 +61,7 @@ const plan = (...a: Parameters<typeof planNewTab>) => { const p = planNewTab(...
 test("S32 Linux: detection order tmux, gnome-terminal, konsole, kitty, wezterm; argv only", () => {
   const all = { TMUX: "x", GNOME_TERMINAL_SCREEN: "x", KONSOLE_VERSION: "1", KITTY_WINDOW_ID: "1", WEZTERM_PANE: "1" };
   const envTail = ["env", `CLAUDE_CONFIG_DIR=${DIR}`, "claude", "auth", "login"];
-  assert.deepEqual(plan(all, "linux", CWD, login), { file: "tmux", args: ["new-window", "-c", CWD, ...envTail] });
+  assert.deepEqual(plan(all, "linux", CWD, login), { file: "tmux", args: ["new-window", "-c", CWD, posixScript(CWD, login)] });
   const { TMUX: _t, ...g } = all;
   assert.deepEqual(plan(g, "linux", CWD, login), { file: "gnome-terminal", args: ["--tab", `--working-directory=${CWD}`, "--", ...envTail] });
   const { GNOME_TERMINAL_SCREEN: _g, ...k } = g;

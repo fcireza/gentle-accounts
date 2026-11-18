@@ -77,7 +77,7 @@ export function planNewTab(env: Env, platform: NodeJS.Platform, cwd: string, com
     const encoded = Buffer.from(powershellScript(cwd, command), "utf16le").toString("base64");
     return { file: "wt", args: ["-w", "0", "nt", "powershell", "-NoExit", "-EncodedCommand", encoded], terminal: "Windows Terminal" };
   }
-  if (env.TMUX) return { file: "tmux", args: ["new-window", "-c", cwd, ...envArgv(command)], terminal: "tmux" };
+  if (env.TMUX) return { file: "tmux", args: ["new-window", "-c", cwd, posixScript(cwd, command)], terminal: "tmux" };
   if (platform === "darwin") {
     if (env.TERM_PROGRAM === "Apple_Terminal") return osascript(TERMINAL_APP, posixScript(cwd, command), "Terminal.app");
     if (env.TERM_PROGRAM === "iTerm.app") return osascript(ITERM, posixScript(cwd, command), "iTerm2");
