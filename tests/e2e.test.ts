@@ -48,6 +48,7 @@ function sandbox() {
         'echo "GS args=$* dir=$CLAUDE_CONFIG_DIR launch=$GENTLE_ACCOUNTS_LAUNCH_PROFILE noauto=$GENTLE_SHELL_NO_AUTO_SETUP"',
         'if [ -n "$FAKE_SLEEP" ]; then',
         '  trap \'printf "%s" "$FAKE_AUTH" > "$2/auth.json"; exit 143\' TERM',
+        "  trap 'exit 129' HUP",
         '  echo "READY $$"',
         "  while :; do sleep 0.1; done",
         "fi",
@@ -176,11 +177,47 @@ test("launcher e2e (S30): a SIGTERM that lands while the launcher records the ch
   let err = "";
   child.stderr.on("data", (d) => (err += d));
   try {
-    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited")]);
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), new Promise<string>((res) => setTimeout(() => res("timeout"), 30000))]);
     assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
     child.kill("SIGTERM"); // the fake is READY, the launcher is still writing the marker (400 ms)
     const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
     assert.deepEqual(result, { code: 143, signal: null }, "the launcher forwards SIGTERM and exits with the child's status");
+  } finally {
+    child.stdout.destroy();
+    child.stderr.destroy();
+    try {
+      process.kill(fakePid, "SIGKILL");
+    } catch {}
+    child.kill("SIGKILL");
+  }
+});
+
+test("launcher e2e (T22): SIGHUP to the launcher is forwarded and the launcher exits with the child's status", { skip: isWin }, async () => {
+  const { env, homes } = sandbox();
+  spawnSync(process.execPath, [BIN, "create", "work"], { env });
+  const child = spawn(process.execPath, [BIN, "work"], { env: { ...env, FAKE_SLEEP: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+  let out = "";
+  let err = "";
+  let fakePid = 0;
+  child.stderr.on("data", (d) => (err += d));
+  const ready = new Promise<void>((resolve) =>
+    child.stdout.on("data", (d) => {
+      out += d;
+      const m = /READY (\d+)/.exec(out);
+      if (m) {
+        fakePid = Number(m[1]);
+        resolve();
+      }
+    }),
+  );
+  const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+  try {
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), new Promise<string>((res) => setTimeout(() => res("timeout"), 30000))]);
+    assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
+    child.kill("SIGHUP");
+    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    assert.deepEqual(result, { code: 129, signal: null }, err);
+    assert.deepEqual(homes(), []);
   } finally {
     child.stdout.destroy();
     child.stderr.destroy();
@@ -317,7 +354,8 @@ test("launcher e2e (S30): after kill -9 of the launcher the orphaned gentle-shel
   });
   // The fake prints READY before the launcher records childPid in the marker; a kill in that gap
   // would leave a marker the sweeper treats as dead, so wait until the pid is recorded.
-  for (let i = 0; i < 100 && !homes().some((h) => /"childPid":\d+/.test(markerOf(h))); i++) await new Promise((res) => setTimeout(res, 50));
+  for (let i = 0; i < 100 && !homes().some((h) => /"childPid":\s*\d+/.test(markerOf(h))); i++) await new Promise((res) => setTimeout(res, 50));
+  assert.ok(homes().some((h) => /"childPid":\s*\d+/.test(markerOf(h))), "the launcher recorded the child pid in the marker");
   const launcherGone = new Promise((r) => launcher.on("exit", r)); // "close" waits for the orphan holding stdout
   launcher.kill("SIGKILL");
   await launcherGone;
