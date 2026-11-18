@@ -24,7 +24,7 @@ Claude Code keeps one login per machine, and pi keeps your Codex and Anthropic c
 | Codex (`openai-codex`) | its own credentials in pi's `auth.json` | pi's `/login` |
 | Anthropic (pi's native provider) | its own credentials in pi's `auth.json` | pi's `/login` |
 
-Any other provider configured in pi is left untouched.
+Providers that use an API key stay global; every account (oauth) provider belongs to the profile.
 
 ## Quick start
 

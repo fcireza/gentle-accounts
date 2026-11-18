@@ -101,7 +101,6 @@ Email mask: keep the first `min(4, max(1, len-3))` characters of the part before
 | Email | Shown as |
 | --- | --- |
 | `maria.lopez@company.com` | `mari****@company.com` |
-| `maria.lopez@company.com` | `mari****@company.com` |
 | `ab@x.com` | `a****@x.com` |
 | `abcde@x.com` | `ab****@x.com` |
 | `no-at-sign` | `****` |

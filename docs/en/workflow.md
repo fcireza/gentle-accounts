@@ -102,7 +102,7 @@ Codex (`openai-codex`) and Anthropic (pi's native `anthropic` provider) use pi's
 /login
 ```
 
-pi writes the credentials into its live `auth.json`. They are saved into the active profile's `auth.json` the next time you switch away from that profile (with `/gentle:accounts <name>` or the launcher). Until then they only live in pi's `auth.json`. Credentials of other providers are never touched.
+pi writes the credentials into its live `auth.json`. They are saved into the active profile's `auth.json` the next time you switch away from that profile (with `/gentle:accounts <name>` or the launcher). Until then they only live in pi's `auth.json`. Api-key providers stay global and are never touched; every other account (oauth) provider belongs to the profile.
 
 ## 4. Switching back and forth
 
@@ -165,7 +165,7 @@ Restart Gentle Shell or pi. If another profile was active, the session switches 
 Startup profile cleared. New sessions start on the last used profile.
 ```
 
-The startup profile is shared by every session of the same agent dir; see the known limit in [How it works](how-it-works.md).
+The startup profile is shared by every session of the same agent dir; to give each session its own account see [A different account per session](how-it-works.md).
 
 ## 7. Show the full email in the status bar
 

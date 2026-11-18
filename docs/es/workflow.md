@@ -102,7 +102,7 @@ Codex (`openai-codex`) y Anthropic (el proveedor nativo `anthropic` de pi) usan 
 /login
 ```
 
-pi escribe las credenciales en su `auth.json` activo. Se guardan en el `auth.json` del perfil activo la próxima vez que cambie a otro perfil (con `/gentle:accounts <name>` o con el launcher). Hasta entonces solo están en el `auth.json` de pi. Las credenciales de otros proveedores nunca se tocan.
+pi escribe las credenciales en su `auth.json` activo. Se guardan en el `auth.json` del perfil activo la próxima vez que cambie a otro perfil (con `/gentle:accounts <name>` o con el launcher). Hasta entonces solo están en el `auth.json` de pi. Los proveedores con clave de API siguen siendo globales y nunca se tocan; todo otro proveedor de cuenta (oauth) pertenece al perfil.
 
 ## 4. Cambiar de un perfil a otro
 
@@ -165,7 +165,7 @@ Reinicie Gentle Shell o pi. Si había otro perfil activo, la sesión cambia a `w
 Startup profile cleared. New sessions start on the last used profile.
 ```
 
-El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; consulte el límite conocido en [Cómo funciona](how-it-works.md).
+El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; para dar a cada sesión su propia cuenta consulte [Una cuenta distinta en cada sesión](how-it-works.md).
 
 ## 7. Mostrar el correo completo en la barra de estado
 

@@ -26,7 +26,7 @@ Claude Code guarda una sola sesión por equipo, y pi guarda las credenciales de 
 | Codex (`openai-codex`) | sus propias credenciales en el `auth.json` de pi | el `/login` de pi |
 | Anthropic (proveedor nativo de pi) | sus propias credenciales en el `auth.json` de pi | el `/login` de pi |
 
-Cualquier otro proveedor configurado en pi queda intacto.
+Los proveedores con clave de API siguen siendo globales; todo proveedor de cuenta (oauth) pertenece al perfil.
 
 ## Inicio rápido
 
