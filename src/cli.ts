@@ -50,14 +50,16 @@ const CMD_META = /[&|<>^"%\r\n]/;
 
 /**
  * win32 only: with `shell: true` Node joins the args with spaces for cmd.exe. Quote args with spaces or
- * tabs; refuse cmd metacharacters (an embedded `"` cannot be escaped safely for cmd). Throws a prefixed error.
+ * tabs (doubling a trailing backslash) and an empty one; refuse cmd metacharacters (an embedded `"` cannot be escaped safely for cmd). Throws a prefixed error.
  */
 export function windowsShellArgs(args: string[]): string[] {
   return args.map((arg) => {
     if (CMD_META.test(arg)) {
       throw new Error(`gentle-accounts: argument "${arg}" contains characters that cmd.exe would interpret (& | < > ^ " %); pass it another way.`);
     }
-    return /[ \t]/.test(arg) ? `"${arg}"` : arg;
+    if (arg === "") return '""'; // an empty argument would vanish from the command line
+    // Trailing backslashes must be doubled inside quotes, or the child reads `\"` as a literal quote.
+    return /[ \t]/.test(arg) ? `"${arg.replace(/\\+$/, (run) => run + run)}"` : arg;
   });
 }
 

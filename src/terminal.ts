@@ -114,7 +114,7 @@ export type OpenTabResult = { ok: true; terminal: string } | { ok: false; reason
 
 const spawnError = (error: unknown): OpenTabResult => {
   const e = error as { code?: unknown; message?: unknown } | null;
-  return { ok: false, reason: `spawn-error: ${typeof e?.code === "string" ? e.code : String(e?.message ?? error)}` };
+  return { ok: false, reason: `spawn-error: ${typeof e?.code === "string" ? e.code : "unknown"}` }; // never the message: it may hold paths or env values
 };
 
 /** Runs the plan (never through a shell); ok only when the opener exits with 0. */

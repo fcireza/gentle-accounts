@@ -8,6 +8,9 @@ import { after } from "node:test";
 import { buildSessionHome } from "../src/session-home.ts";
 import { fileURLToPath } from "node:url";
 
+/** A timer that never keeps the test process alive after the race is decided. */
+const deadline = <T>(ms: number, value: T): Promise<T> => new Promise((res) => setTimeout(() => res(value), ms).unref());
+
 const BIN = fileURLToPath(new URL("../bin/gentle-accounts.mjs", import.meta.url));
 const isWin = process.platform === "win32";
 
@@ -177,10 +180,10 @@ test("launcher e2e (S30): a SIGTERM that lands while the launcher records the ch
   let err = "";
   child.stderr.on("data", (d) => (err += d));
   try {
-    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), new Promise<string>((res) => setTimeout(() => res("timeout"), 30000))]);
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), deadline(30000, "timeout")]);
     assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
     child.kill("SIGTERM"); // the fake is READY, the launcher is still writing the marker (400 ms)
-    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    const result = await Promise.race([exited, deadline(15000, null)]);
     assert.deepEqual(result, { code: 143, signal: null }, "the launcher forwards SIGTERM and exits with the child's status");
   } finally {
     child.stdout.destroy();
@@ -212,10 +215,10 @@ test("launcher e2e (T22): SIGHUP to the launcher is forwarded and the launcher e
   );
   const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
   try {
-    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), new Promise<string>((res) => setTimeout(() => res("timeout"), 30000))]);
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), deadline(30000, "timeout")]);
     assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
     child.kill("SIGHUP");
-    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    const result = await Promise.race([exited, deadline(15000, null)]);
     assert.deepEqual(result, { code: 129, signal: null }, err);
     assert.deepEqual(homes(), []);
   } finally {
