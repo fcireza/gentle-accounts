@@ -282,6 +282,7 @@ test("T22: an existing profile with a reserved name keeps working", () => {
   assert.deepEqual(store.list(), ["menu"]);
   store.setCurrent("menu");
   assert.equal(store.current(), "menu");
+});
 
 test("renameWithRetry retries a transient Windows lock error and then succeeds", () => {
   let calls = 0;
