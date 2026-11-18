@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -154,6 +154,21 @@ test("S31 run: startup toggles set and clear; email toggles and refreshes the st
   assert.equal(JSON.parse(readFileSync(settingsPath(agentDir), "utf8")).showEmail, false);
   assert.match(feedbackOf(c.frames[4]), /Email display set to hidden/);
   assert.deepEqual(log, ["work", "work"]);
+});
+
+test("S31 run: a failing write shows feedback in the panel instead of aborting the loop", { skip: process.platform === "win32" }, async () => {
+  const { agentDir, store } = setup();
+  const profilesDir = join(agentDir, "profiles");
+  chmodSync(profilesDir, 0o500); // the startup file cannot be written
+  try {
+    const c = fakeCtx([{ type: "startup", profile: "personal", row: 0 }, { type: "close" }]);
+    await runAccountsMenu(c.ctx, deps(agentDir));
+    assert.equal(c.frames.length, 2, "the menu reopened with the error instead of closing");
+    assert.match(feedbackOf(c.frames[1]), /EACCES|permission denied/i);
+    assert.equal(store.startup(), null);
+  } finally {
+    chmodSync(profilesDir, 0o700);
+  }
 });
 
 test("S31 run: login stubs (Claude hint, /login prefill for the active profile only) and open", async () => {
