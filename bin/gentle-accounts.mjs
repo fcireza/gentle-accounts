@@ -37,14 +37,18 @@ const code = await runCli(process.argv.slice(2), {
         for (const [signal, handler] of handlers) process.off(signal, handler);
         resolve(value);
       };
-      const child = spawn(command, args, { stdio: "inherit", env, shell });
-      if (child.pid !== undefined) onSpawn?.(child.pid);
+      // The handlers go in BEFORE the spawn and the (synchronous) marker write in onSpawn: a signal that
+      // arrives in that window is queued by Node and forwarded once the child exists, instead of killing
+      // the launcher by default and orphaning gentle-shell.
+      let child;
       const handlers = [
         ["SIGINT", () => {}],
-        ["SIGTERM", () => child.kill("SIGTERM")],
-        ["SIGHUP", () => child.kill("SIGHUP")],
+        ["SIGTERM", () => child?.kill("SIGTERM")],
+        ["SIGHUP", () => child?.kill("SIGHUP")],
       ];
       for (const [signal, handler] of handlers) process.on(signal, handler);
+      child = spawn(command, args, { stdio: "inherit", env, shell });
+      if (child.pid !== undefined) onSpawn?.(child.pid);
       child.on("error", (error) => {
         console.error(`Cannot run ${command}: ${error.message}`);
         settle(1);

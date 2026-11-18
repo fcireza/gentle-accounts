@@ -152,6 +152,45 @@ test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its
   assert.deepEqual(homes(), []);
 });
 
+test("launcher e2e (S30): a SIGTERM that lands while the launcher records the child pid is still forwarded", { skip: isWin }, async () => {
+  const { env, run } = sandbox();
+  run("create", "work");
+  const slow = fileURLToPath(new URL("./helpers/slow-marker.mjs", import.meta.url));
+  const child = spawn(process.execPath, [BIN, "work"], {
+    env: { ...env, FAKE_SLEEP: "1", NODE_OPTIONS: `--import ${slow}` },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let out = "";
+  let fakePid = 0;
+  const ready = new Promise<void>((resolve) =>
+    child.stdout.on("data", (d) => {
+      out += d;
+      const m = /READY (\d+)/.exec(out);
+      if (m) {
+        fakePid = Number(m[1]);
+        resolve();
+      }
+    }),
+  );
+  const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+  let err = "";
+  child.stderr.on("data", (d) => (err += d));
+  try {
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited")]);
+    assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
+    child.kill("SIGTERM"); // the fake is READY, the launcher is still writing the marker (400 ms)
+    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    assert.deepEqual(result, { code: 143, signal: null }, "the launcher forwards SIGTERM and exits with the child's status");
+  } finally {
+    child.stdout.destroy();
+    child.stderr.destroy();
+    try {
+      process.kill(fakePid, "SIGKILL");
+    } catch {}
+    child.kill("SIGKILL");
+  }
+});
+
 test("launcher e2e: a corrupt auth.json exits 1 and changes nothing", () => {
   const { agentDir, run, live } = sandbox();
   run("create", "work");
