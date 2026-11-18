@@ -109,7 +109,7 @@ export interface OpenTabDeps {
   spawn: TabSpawn;
 }
 
-/** `reason` (never the command or paths): "not-available", "spawn-error: <code or message>" or "exit <code>". */
+/** `reason` (never the command or paths): "not-available", "spawn-error: <code or unknown>" or "exit <code>". */
 export type OpenTabResult = { ok: true; terminal: string } | { ok: false; reason?: string };
 
 const spawnError = (error: unknown): OpenTabResult => {

@@ -142,18 +142,38 @@ test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its
   const child = spawn(process.execPath, [BIN, "work"], { env: { ...env, FAKE_SLEEP: "1", FAKE_AUTH: JSON.stringify(rotated) }, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   let err = "";
+  let fakePid = 0;
   child.stderr.on("data", (d) => (err += d));
-  const ready = new Promise<void>((resolve) => child.stdout.on("data", (d) => ((out += d), out.includes("READY") && resolve())));
+  const ready = new Promise<void>((resolve) =>
+    child.stdout.on("data", (d) => {
+      out += d;
+      const m = /READY (\d+)/.exec(out);
+      if (m) {
+        fakePid = Number(m[1]);
+        resolve();
+      }
+    }),
+  );
   const closed = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
-  await ready;
-  const during = homes().length;
-  child.kill("SIGTERM"); // before any assertion, so a failure never leaves the launcher running
-  const code = await closed;
-  assert.equal(during, 1);
-  assert.equal(code, 143, err);
-  assert.equal(err, "");
-  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
-  assert.deepEqual(homes(), []);
+  try {
+    assert.equal(await Promise.race([ready.then(() => "ready"), deadline(30000, "timeout")]), "ready", "the fake gentle-shell never became ready");
+    const during = homes().length;
+    child.kill("SIGTERM"); // before any assertion, so a failure never leaves the launcher running
+    const code = await Promise.race([closed, deadline(15000, "timeout" as const)]);
+    assert.equal(during, 1);
+    assert.equal(code, 143, err);
+    assert.equal(err, "");
+    assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
+    assert.deepEqual(homes(), []);
+  } finally {
+    // An orphaned fake holds the pipes open, and Node would not exit while they are: always clean up.
+    child.stdout.destroy();
+    child.stderr.destroy();
+    try {
+      process.kill(fakePid, "SIGKILL");
+    } catch {}
+    child.kill("SIGKILL");
+  }
 });
 
 test("launcher e2e (S30): a SIGTERM that lands while the launcher records the child pid is still forwarded", { skip: isWin }, async () => {
