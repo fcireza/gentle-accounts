@@ -79,10 +79,10 @@ test("switch SVG messages come from src/index.ts", () => {
   for (const f of SWITCH_SOURCE_FRAGMENTS) assert.ok(src.includes(f), `src/index.ts lacks ${JSON.stringify(f)}`);
 });
 
-test("the social preview is 1280x640, carries the wordmark and the masked status, and never the full email", () => {
+test("the social preview is 1280x640, shows only the mark and carries no text or email", () => {
   const svg = renderAssets()["social-preview.svg"];
   assert.match(svg, /width="1280" height="640" viewBox="0 0 1280 640"/);
-  assert.ok(svg.includes("gentle-") && svg.includes("accounts"));
-  assert.ok(svg.includes(statusText("work", { email: "maria.lopez@company.com" }).split(" · ")[1]));
-  assert.ok(!svg.includes("maria.lopez@company.com"));
+  assert.ok(!svg.includes("<text"), "no text: the picture is the mark alone");
+  assert.ok(!svg.includes("@"), "no email address");
+  assert.ok(svg.includes(renderAssets()["logo-mark.svg"].match(/<path[^>]*>/)![0]), "uses the same mark paths as logo-mark.svg");
 });

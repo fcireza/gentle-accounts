@@ -247,16 +247,13 @@ function howItWorks(): string {
   return svg(1200, 640, "How gentle-accounts swaps credentials", `pi auth.json entries are saved to the outgoing profile and loaded from the incoming one; claude-bridge gets CLAUDE_CONFIG_DIR. ${NOT_SCREENSHOT}`, body);
 }
 
-/** 1280x640 card for GitHub's social preview (Settings > Social preview): the README mark, the wordmark and the real status text. */
+/** 1280x640 card for GitHub's social preview (Settings > Social preview): only the README mark, centered. */
 function socialPreview(): string {
   const [w, h] = [1280, 640];
-  return svg(w, h, "gentle-accounts", `Social preview: the gentle-accounts mark, wordmark and tagline over a Gentle Shell status bar. ${NOT_SCREENSHOT}`, [
-    `<g transform="translate(90 90) scale(1.5)">`, ...markBody(), `</g>`,
-    `<text x="520" y="248" font-family="${SANS}" font-size="86" font-weight="700"><tspan fill="${C.muted}">gentle-</tspan><tspan fill="${C.accent}">accounts</tspan></text>`,
-    `<text x="526" y="324" font-family="${SANS}" font-size="38" fill="${C.text}">Varias cuentas de Claude, Codex y Anthropic</text>`,
-    `<text x="526" y="372" font-family="${SANS}" font-size="38" fill="${C.text}">en Gentle Shell y pi</text>`,
-    `<text x="526" y="428" font-family="${SANS}" font-size="26" fill="${C.muted}">Cambia con un solo comando. Una cuenta por proyecto.</text>`,
-    statusBar(90, 520, 1100, 26),
+  const scale = 2.2; // the mark is 256x256
+  const size = 256 * scale;
+  return svg(w, h, "gentle-accounts", `Social preview: the gentle-accounts mark (two overlapping account avatars with a switch arrow) on the Gentle Shell palette. ${NOT_SCREENSHOT}`, [
+    `<g transform="translate(${(w - size) / 2} ${(h - size) / 2}) scale(${scale})">`, ...markBody(), `</g>`,
   ]);
 }
 
