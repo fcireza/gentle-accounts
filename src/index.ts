@@ -1,14 +1,17 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { homedir } from "node:os";
-import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner } from "./account.ts";
+import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeAccount, type ClaudeStatusRunner } from "./account.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
+import { menuAvailable, runAccountsMenu, type MenuFlows, type Report } from "./menu/run.ts";
+import type { Feedback } from "./menu/view.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
 import { getShowEmail, runEmailCommand, settingsPath } from "./settings.ts";
 import { resolveContext } from "./session-home.ts";
 
 const USAGE = [
-  "/gentle:accounts                 pick a profile and switch to it",
+  "/gentle:accounts                 open the accounts menu (picker without the TUI)",
+  "/gentle:accounts menu            open the accounts menu",
   "/gentle:accounts <name>          switch to <name>",
   "/gentle:accounts list            list profiles (* marks the active one)",
   "/gentle:accounts current         show the active profile",
@@ -19,15 +22,15 @@ const USAGE = [
   "/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email",
 ].join("\n");
 
-const SUBCOMMANDS = ["list", "current", "create", "delete", "login", "startup", "email"];
+const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "login", "startup", "email"];
 
 function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "warning" | "error" = "info"): void {
   ctx.ui.notify(message, type);
 }
 
 const STATUS_KEY = PLUGIN_LABEL;
-const REFRESH_MS = 60_000;
 const UNSET_DIR = "(unset: Claude Code default)";
+const REFRESH_MS = 60_000;
 
 type StatusCtx = { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void } };
 type TimerHandle = { unref?: () => unknown };
@@ -43,6 +46,72 @@ function displayDir(store: ProfileStore, name: string): string {
   return store.claudeConfigEnv(name) ?? UNSET_DIR;
 }
 
+export interface SwitchFlowOptions {
+  ctx: ExtensionCommandContext;
+  store: ProfileStore;
+  liveAuthPath: string;
+  target: string;
+  report: Report;
+  refreshStatus: () => Promise<void>;
+}
+
+/**
+ * The one safe switch of `/gentle:accounts <name>` and the menu: name and existence checks, the idle rule,
+ * an atomic readability check, the default-profile guard, the switch, the model registry and status refresh.
+ */
+export async function switchFlow({ ctx, store: s, liveAuthPath, target, report, refreshStatus }: SwitchFlowOptions): Promise<void> {
+  const invalid = validateProfileName(target);
+  if (invalid) return report(invalid, "error");
+  if (!s.exists(target)) return report(MISSING_PROFILE_MESSAGE(target), "error");
+  if (!ctx.isIdle()) return report("Wait for the current turn to finish before switching profiles.", "warning");
+  try {
+    assertProfileReadable(s, target); // atomic: nothing is created if the target is corrupt
+    // Never drop a live login that no profile holds yet (same rule as the launcher).
+    ensureDefaultProfile({ store: s, liveAuthPath, env: process.env });
+    const result = switchProfile({ store: s, liveAuthPath, env: process.env, to: target });
+    if (result.status === "noop") return report(`Already on profile "${target}".`);
+    await ctx.modelRegistry.refresh();
+    report(`Switched to profile "${target}". Claude Code dir: ${displayDir(s, target)}`);
+    await refreshStatus();
+  } catch (error) {
+    report((error as Error).message, "error");
+  }
+}
+
+/** `create <name>`: the same messages for the command and the menu. */
+export function createFlow(s: ProfileStore, name: string): Feedback {
+  try {
+    s.create(name);
+    return {
+      message: `Created profile "${name}". Switch with /gentle:accounts ${name}, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`,
+      type: "info",
+    };
+  } catch (error) {
+    return { message: (error as Error).message, type: "error" };
+  }
+}
+
+/** `delete <name>`: refusals, confirmation and removal, shared by the command and the menu. */
+export async function deleteFlow(ctx: ExtensionCommandContext, s: ProfileStore, name: string): Promise<Feedback> {
+  if (!s.exists(name)) return { message: MISSING_PROFILE_MESSAGE(name), type: "error" };
+  if (s.current() === name) return { message: `Cannot delete the active profile "${name}". Switch to another profile first.`, type: "error" };
+  if (s.startup() === name) return { message: STARTUP_DELETE_MESSAGE(name), type: "error" };
+  if (!ctx.hasUI) return { message: "Deleting needs a confirmation dialog; run it from the TUI.", type: "error" };
+  const ok = await ctx.ui.confirm("Delete profile", `Delete profile "${name}" and its Claude login and credentials? This cannot be undone.`);
+  if (!ok) return { message: "Delete cancelled.", type: "info" };
+  try {
+    s.delete(name);
+    return { message: `Deleted profile "${name}".`, type: "info" };
+  } catch (error) {
+    return { message: (error as Error).message, type: "error" };
+  }
+}
+
+export const COMMAND_FLOWS = {
+  create: createFlow,
+  remove: deleteFlow,
+} as const;
+
 export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {}): void {
   // S30: in a launcher session home the profiles stay shared while auth.json and the current profile are private.
   const context = () => resolveContext(getAgentDir());
@@ -56,6 +125,8 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   let inFlight: string | null = null;
   let timer: TimerHandle | undefined;
   let lastCtx: StatusCtx | undefined;
+  // Last `claude auth status` answer of the status bar, reused by the menu (no extra process per open).
+  let lastAccount: { store: string; profile: string; account: ClaudeAccount | null } | undefined;
 
   /**
    * Shows `gentle-accounts: <profile> · <masked email>`; never throws. A refresh for the profile
@@ -77,6 +148,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       try {
         const account = await queryClaudeAccount({ claudeConfigDir: s.claudeConfigEnv(current), homeDir: homedir(), run: deps.runClaudeStatus });
         if (gen !== generation || s.current() !== current) return;
+        lastAccount = { store: s.currentPath, profile: current, account };
         ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: showEmail() }));
       } finally {
         if (gen === generation) inFlight = null;
@@ -157,31 +229,13 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       }
       if (sub === "create") {
         if (!arg) return notify(ctx, USAGE, "warning");
-        try {
-          s.create(arg);
-          notify(ctx, `Created profile "${arg}". Switch with /gentle:accounts ${arg}, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`);
-        } catch (error) {
-          notify(ctx, (error as Error).message, "error");
-        }
-        return;
+        const result = createFlow(s, arg);
+        return notify(ctx, result.message, result.type);
       }
       if (sub === "delete") {
         if (!arg) return notify(ctx, USAGE, "warning");
-        if (!s.exists(arg)) return notify(ctx, MISSING_PROFILE_MESSAGE(arg), "error");
-        if (s.current() === arg) {
-          return notify(ctx, `Cannot delete the active profile "${arg}". Switch to another profile first.`, "error");
-        }
-        if (s.startup() === arg) return notify(ctx, STARTUP_DELETE_MESSAGE(arg), "error");
-        if (!ctx.hasUI) return notify(ctx, "Deleting needs a confirmation dialog; run it from the TUI.", "error");
-        const ok = await ctx.ui.confirm("Delete profile", `Delete profile "${arg}" and its Claude login and credentials? This cannot be undone.`);
-        if (!ok) return notify(ctx, "Delete cancelled.");
-        try {
-          s.delete(arg);
-          notify(ctx, `Deleted profile "${arg}".`);
-        } catch (error) {
-          notify(ctx, (error as Error).message, "error");
-        }
-        return;
+        const result = await deleteFlow(ctx, s, arg);
+        return notify(ctx, result.message, result.type);
       }
       if (sub === "login") {
         if (arg !== "claude") return notify(ctx, USAGE, "warning");
@@ -203,8 +257,25 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       }
       if (sub === "help" || sub === "--help") return notify(ctx, USAGE);
 
+      if (sub === "menu" || !sub) {
+        if (menuAvailable(ctx)) {
+          return runAccountsMenu(ctx, {
+            context,
+            flows: {
+              ...COMMAND_FLOWS,
+              switchTo: (c, st, live, target, report) => switchFlow({ ctx: c, store: st, liveAuthPath: live, target, report, refreshStatus: () => updateStatus(c, st) }),
+            } satisfies MenuFlows,
+            refreshStatus: (c, st) => updateStatus(c, st),
+            activeClaude: (st) => {
+              const current = st.current();
+              return lastAccount && current && lastAccount.store === st.currentPath && lastAccount.profile === current ? lastAccount.account : undefined;
+            },
+          });
+        }
+      }
+
       let target = sub;
-      if (!target) {
+      if (!target || target === "menu") {
         const names = s.list();
         if (!names.length) return notify(ctx, "No profiles. Create one with /gentle:accounts create <name>", "warning");
         if (!ctx.hasUI) return notify(ctx, USAGE, "warning");
@@ -213,22 +284,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (!picked) return;
         target = picked.replace(/ \(active\)$/, "");
       }
-      const invalid = validateProfileName(target);
-      if (invalid) return notify(ctx, invalid, "error");
-      if (!s.exists(target)) return notify(ctx, MISSING_PROFILE_MESSAGE(target), "error");
-      if (!ctx.isIdle()) return notify(ctx, "Wait for the current turn to finish before switching profiles.", "warning");
-      try {
-        assertProfileReadable(s, target); // atomic: nothing is created if the target is corrupt
-        // Never drop a live login that no profile holds yet (same rule as the launcher).
-        ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
-        const result = switchProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env, to: target });
-        if (result.status === "noop") return notify(ctx, `Already on profile "${target}".`);
-        await ctx.modelRegistry.refresh();
-        notify(ctx, `Switched to profile "${target}". Claude Code dir: ${displayDir(s, target)}`);
-        await updateStatus(ctx, s);
-      } catch (error) {
-        notify(ctx, (error as Error).message, "error");
-      }
+      await switchFlow({ ctx, store: s, liveAuthPath: liveAuthPath(), target, report: (m, t) => notify(ctx, m, t), refreshStatus: () => updateStatus(ctx, s) });
     },
   });
 }
