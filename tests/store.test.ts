@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE } from "../src/store.ts";
+import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, writeFileAtomic } from "../src/store.ts";
 
 function tempStore(): { store: ProfileStore; agentDir: string } {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-"));
@@ -201,4 +201,63 @@ test("S27: startupRaw returns the trimmed stored name even when the profile is m
   assert.equal(store.startup(), null);
   writeFileSync(store.startupPath, "\n");
   assert.equal(store.startupRaw(), null);
+});
+
+test("S30: currentPath option keeps the current profile outside profiles/ while the rest stays shared", () => {
+  const { agentDir } = tempStore();
+  const sessionCurrent = join(agentDir, "session-current");
+  const global = new ProfileStore(agentDir);
+  global.create("work");
+  global.create("personal");
+  global.setCurrent("work");
+  const session = new ProfileStore(agentDir, { currentPath: sessionCurrent });
+  assert.equal(session.currentPath, sessionCurrent);
+  assert.equal(session.current(), null);
+  session.setCurrent("personal");
+  assert.equal(readFileSync(sessionCurrent, "utf8"), "personal\n");
+  assert.equal(global.current(), "work");
+  assert.equal(session.authPath("work"), global.authPath("work"));
+  assert.equal(session.claudeDir("work"), global.claudeDir("work"));
+  assert.equal(session.startupPath, global.startupPath);
+});
+
+test("S30: current and startup writes use a unique temp name (a stale <path>.tmp never collides)", () => {
+  const { store } = tempStore();
+  store.create("work");
+  mkdirSync(`${store.currentPath}.tmp`);
+  mkdirSync(`${store.startupPath}.tmp`);
+  store.setCurrent("work");
+  store.setStartup("work");
+  assert.equal(readFileSync(store.currentPath, "utf8"), "work\n");
+  assert.equal(readFileSync(store.startupPath, "utf8"), "work\n");
+  assert.deepEqual(readdirSync(store.profilesDir).filter((n) => n.endsWith(".tmp") && !statSync(join(store.profilesDir, n)).isDirectory()), []);
+});
+
+test("S30: writeFileAtomic writes with mode 0600 through <path>.<pid>.<random>.tmp and leaves no temp", () => {
+  const { agentDir } = tempStore();
+  const p = join(agentDir, "f");
+  writeFileAtomic(p, "a\n");
+  writeFileAtomic(p, "b\n");
+  assert.equal(readFileSync(p, "utf8"), "b\n");
+  if (process.platform !== "win32") assert.equal(statSync(p).mode & 0o777, 0o600);
+  assert.deepEqual(readdirSync(agentDir), ["f"]);
+});
+
+test("S30: create reports an existing profile created by another session in between", () => {
+  const { agentDir } = tempStore();
+  const other = new ProfileStore(agentDir);
+  // This session checked exists() before the other one finished creating the profile.
+  let first = true;
+  const racing = new ProfileStore(agentDir);
+  racing.exists = (name: string) => {
+    if (first) {
+      first = false;
+      other.create(name);
+      writeFileSync(other.authPath(name), '{"anthropic":{"type":"api_key","key":"theirs"}}\n');
+      return false;
+    }
+    return ProfileStore.prototype.exists.call(racing, name);
+  };
+  assert.throws(() => racing.create("default"), /Profile "default" already exists\./);
+  assert.equal(readFileSync(other.authPath("default"), "utf8"), '{"anthropic":{"type":"api_key","key":"theirs"}}\n');
 });

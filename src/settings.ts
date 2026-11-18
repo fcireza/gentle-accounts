@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { writeFileAtomic } from "./store.ts";
 
 export type Settings = Record<string, unknown>;
 
@@ -27,14 +28,7 @@ export function getShowEmail(path: string): boolean {
 export function setShowEmail(path: string, value: boolean): void {
   const next: Settings = { ...readSettings(path), showEmail: value };
   mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-  try {
-    renameSync(tmp, path);
-  } catch (error) {
-    rmSync(tmp, { force: true });
-    throw error;
-  }
+  writeFileAtomic(path, `${JSON.stringify(next, null, 2)}\n`);
 }
 
 export interface EmailCommandResult {

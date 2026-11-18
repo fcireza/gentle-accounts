@@ -1,11 +1,11 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { join } from "node:path";
 import { homedir } from "node:os";
 import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeStatusRunner } from "./account.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
 import { getShowEmail, runEmailCommand, settingsPath } from "./settings.ts";
+import { resolveContext } from "./session-home.ts";
 
 const USAGE = [
   "/gentle:accounts                 pick a profile and switch to it",
@@ -44,8 +44,11 @@ function displayDir(store: ProfileStore, name: string): string {
 }
 
 export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {}): void {
-  const store = () => new ProfileStore(getAgentDir());
-  const liveAuthPath = () => join(getAgentDir(), "auth.json");
+  // S30: in a launcher session home the profiles stay shared while auth.json and the current profile are private.
+  const context = () => resolveContext(getAgentDir());
+  const store = () => context().store;
+  const liveAuthPath = () => context().liveAuthPath;
+  const showEmail = () => getShowEmail(settingsPath(context().sharedDir));
   const startTimer = deps.setInterval ?? ((fn: () => void, ms: number) => setInterval(fn, ms));
   const stopTimer = deps.clearInterval ?? ((handle: TimerHandle) => clearInterval(handle as ReturnType<typeof setInterval>));
 
@@ -74,7 +77,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       try {
         const account = await queryClaudeAccount({ claudeConfigDir: s.claudeConfigEnv(current), homeDir: homedir(), run: deps.runClaudeStatus });
         if (gen !== generation || s.current() !== current) return;
-        ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: getShowEmail(settingsPath(getAgentDir())) }));
+        ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: showEmail() }));
       } finally {
         if (gen === generation) inFlight = null;
       }
@@ -84,7 +87,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   }
 
   pi.on("session_start", async (event, ctx) => {
-    const s = store();
+    const { store: s, session } = context();
     try {
       if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
         applyCurrentProfileEnv(s, process.env);
@@ -98,7 +101,8 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       // An explicit `gentle-accounts <name>` launch already switched: it wins over the startup profile.
       // Only the process start applies it: /new, /resume, /fork and /reload keep a profile the user switched to by hand.
       const reason = (event as { reason?: string } | undefined)?.reason;
-      if (!process.env[LAUNCH_PROFILE_ENV] && (reason === undefined || reason === "startup")) {
+      // A session home (S30) never applies it: the launcher already chose the profile of that session.
+      if (!session && !process.env[LAUNCH_PROFILE_ENV] && (reason === undefined || reason === "startup")) {
         // The env of the last used profile is already applied; a switch replaces it (set or delete).
         const started = applyStartupProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
         if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (startup profile).`, "info");
@@ -192,7 +196,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       }
       if (sub === "email") {
         // Never echoes the email: only the fixed S29 messages.
-        const result = runEmailCommand(arg, settingsPath(getAgentDir()), "/gentle:accounts");
+        const result = runEmailCommand(arg, settingsPath(context().sharedDir), "/gentle:accounts");
         notify(ctx, result.message, result.type);
         if (result.changed) await updateStatus(ctx, s);
         return;

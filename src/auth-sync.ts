@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, renameSync, writeFileSync, rmSync } from "node:fs";
-import { ProfileStore } from "./store.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { ProfileStore, isAlreadyExistsError, writeFileAtomic } from "./store.ts";
 
 /** pi auth.json providers whose credentials belong to a profile. */
 export const COVERED_PROVIDERS = ["openai-codex", "anthropic"] as const;
@@ -21,18 +21,11 @@ export function readAuthFile(path: string): AuthData {
 
 /** Write then rename, so a reader never sees a partial file; pi reloads auth.json by file revision. */
 export function writeAuthFile(path: string, data: AuthData): void {
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-  try {
-    renameSync(tmp, path);
-  } catch (error) {
-    rmSync(tmp, { force: true });
-    throw error;
-  }
+  writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 /** Copies the covered provider entries of `source` into `target`, removing entries absent in `source`. */
-function transferCovered(source: AuthData, target: AuthData): AuthData {
+export function transferCovered(source: AuthData, target: AuthData): AuthData {
   const next: AuthData = { ...target };
   for (const provider of COVERED_PROVIDERS) {
     if (provider in source) next[provider] = source[provider];
@@ -45,6 +38,38 @@ function transferCovered(source: AuthData, target: AuthData): AuthData {
 export function assertProfileReadable(store: ProfileStore, name: string): void {
   store.assertExists(name);
   readAuthFile(store.authPath(name));
+}
+
+function oauthExpires(entry: unknown): number | null {
+  const e = entry as { type?: unknown; expires?: unknown } | null | undefined;
+  return e && typeof e === "object" && e.type === "oauth" && typeof e.expires === "number" && Number.isFinite(e.expires) ? e.expires : null;
+}
+
+/**
+ * The fresher of two credential entries of one provider, whole (fields are never mixed): the oauth
+ * entry with the larger numeric `expires`; otherwise (ties, api keys, no expiry) `preferred`.
+ * A missing side yields the other one.
+ */
+export function pickFreshest<T>(preferred: T | undefined, other: T | undefined): T | undefined {
+  if (preferred === undefined) return other;
+  if (other === undefined) return preferred;
+  const a = oauthExpires(preferred);
+  const b = oauthExpires(other);
+  return a !== null && b !== null && b > a ? other : preferred;
+}
+
+/**
+ * Outgoing snapshot after a switch: each covered provider of `live` replaces the snapshot entry
+ * unless the snapshot holds a fresher oauth token (another session may have rotated it); a covered
+ * provider absent from `live` is removed.
+ */
+function snapshotOutgoing(live: AuthData, outgoing: AuthData): AuthData {
+  const next: AuthData = { ...outgoing };
+  for (const provider of COVERED_PROVIDERS) {
+    if (provider in live) next[provider] = pickFreshest(live[provider], outgoing[provider]);
+    else delete next[provider];
+  }
+  return next;
 }
 
 export interface SwitchOptions {
@@ -70,7 +95,7 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
   const incoming = readAuthFile(store.authPath(to));
   const outgoing = from ? readAuthFile(store.authPath(from)) : null;
   if (from && outgoing) {
-    writeAuthFile(store.authPath(from), transferCovered(live, outgoing));
+    writeAuthFile(store.authPath(from), snapshotOutgoing(live, outgoing));
   }
   writeAuthFile(liveAuthPath, transferCovered(incoming, live));
   applyClaudeConfigEnv(env, store.claudeConfigEnv(to));
@@ -107,8 +132,15 @@ export function ensureDefaultProfile({ store, liveAuthPath, env }: Omit<SwitchOp
   if (!store.exists("default")) {
     const live = readAuthFile(liveAuthPath); // before create: a corrupt file leaves no stray profile
     const userDir = env.CLAUDE_CONFIG_DIR;
-    store.create("default", userDir ? { claudeDir: userDir } : { claudeDefault: true });
-    writeAuthFile(store.authPath("default"), transferCovered(live, {}));
+    let created = true;
+    try {
+      store.create("default", userDir ? { claudeDir: userDir } : { claudeDefault: true });
+    } catch (error) {
+      // Another session created it first (S30): theirs wins, nothing is overwritten.
+      if (!isAlreadyExistsError(error)) throw error;
+      created = false;
+    }
+    if (created) writeAuthFile(store.authPath("default"), transferCovered(live, {}));
   }
   store.setCurrent("default");
   applyClaudeConfigEnv(env, store.claudeConfigEnv("default"));

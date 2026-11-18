@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { tmpdir, platform } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
@@ -13,6 +13,7 @@ import {
   ensureDefaultProfile,
   applyClaudeConfigEnv,
   applyStartupProfile,
+  pickFreshest,
 } from "../src/auth-sync.ts";
 
 const codexWork = { type: "oauth", access: "a-work", refresh: "r-work", expires: 1, accountId: "acc-w" };
@@ -326,4 +327,61 @@ test("S27: applyStartupProfile reports a missing startup profile and changes not
   assert.deepEqual(applyStartupProfile({ store, liveAuthPath, env }), { status: "missing", from: "personal", to: "ghost" });
   assert.deepEqual(files.map((f) => readFileSync(f, "utf8")), before);
   assert.deepEqual(env, {});
+});
+
+test("S30: writeAuthFile uses a unique temp name, so a stale <path>.tmp never collides", () => {
+  const { agentDir } = setup();
+  const p = join(agentDir, "auth.json");
+  mkdirSync(`${p}.tmp`);
+  writeAuthFile(p, { anthropic: anthropicWork });
+  assert.deepEqual(readAuthFile(p), { anthropic: anthropicWork });
+  assert.deepEqual(readdirSync(agentDir).sort(), ["auth.json", "auth.json.tmp"]);
+});
+
+test("S30: ensureDefaultProfile treats a default created by another session in between as success", () => {
+  const { agentDir, store, liveAuthPath } = setup();
+  writeAuthFile(liveAuthPath, { anthropic: anthropicWork });
+  const theirs = '{\n  "anthropic": {\n    "type": "api_key",\n    "key": "theirs"\n  }\n}\n';
+  const other = new ProfileStore(agentDir);
+  let raced = false;
+  store.exists = (name: string) => {
+    if (name === "default" && !raced) {
+      raced = true;
+      other.create("default", { claudeDefault: true });
+      writeFileSync(other.authPath("default"), theirs);
+      return false;
+    }
+    return ProfileStore.prototype.exists.call(store, name);
+  };
+  const env: Record<string, string | undefined> = {};
+  assert.equal(ensureDefaultProfile({ store, liveAuthPath, env }), "default");
+  assert.equal(raced, true);
+  assert.equal(store.current(), "default");
+  assert.equal(readFileSync(store.authPath("default"), "utf8"), theirs, "the winner's snapshot is kept");
+  assert.equal("CLAUDE_CONFIG_DIR" in env, false);
+});
+
+const tok = (access: string, expires: number) => ({ type: "oauth", access, refresh: access, expires });
+
+test("S30: a global switch never replaces a fresher snapshot token with an older live one", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("work"), { anthropic: tok("new", 900), "openai-codex": tok("snap-codex", 5) });
+  writeAuthFile(liveAuthPath, { anthropic: tok("old", 100), "openai-codex": tok("live-codex", 50), other });
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: tok("new", 900), "openai-codex": tok("live-codex", 50) });
+});
+
+test("S30: a switch removes a covered provider absent from live and keeps the live api key on ties", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("work"), { anthropic: { type: "api_key", key: "snap" }, "openai-codex": tok("gone", 9) });
+  writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "live" } });
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: { type: "api_key", key: "live" } });
+  assert.equal(pickFreshest(tok("a", 1), tok("b", 2))?.access, "b");
 });

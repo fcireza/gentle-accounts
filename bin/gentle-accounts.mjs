@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Launcher: `gentle-accounts <name> [gentle-shell args...]`.
 // Runs the TypeScript sources through Node's built-in type stripping (Node >= 22.18).
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -17,20 +17,42 @@ const { runCli } = await import("../src/cli.ts");
 // Same resolution as gentle-shell: GENTLE_SHELL_HOME, else ~/.gentle-shell/agent.
 const agentDir = process.env.PI_CODING_AGENT_DIR || process.env.GENTLE_SHELL_HOME || join(homedir(), ".gentle-shell", "agent");
 
-const code = runCli(process.argv.slice(2), {
+const code = await runCli(process.argv.slice(2), {
   store: new ProfileStore(agentDir),
   liveAuthPath: join(agentDir, "auth.json"),
   env: process.env,
   platform: process.platform,
   stdout: (line) => console.log(line),
   stderr: (line) => console.error(line),
-  spawn: ({ command, args, env, shell }) => {
-    const result = spawnSync(command, args, { stdio: "inherit", env, shell });
-    if (result.error) {
-      console.error(`Cannot run ${command}: ${result.error.message}`);
-      return 1;
-    }
-    return result.status ?? 1;
-  },
+  // Best effort if the launcher dies abruptly; the normal path finishes the session home itself.
+  onExit: (cleanup) => process.on("exit", cleanup),
+  // Asynchronous spawn (spawnSync blocks signal handlers): while the child runs, SIGINT is left to the
+  // child (same terminal group) and SIGTERM/SIGHUP are forwarded; the result arrives on "close".
+  spawn: ({ command, args, env, shell, onSpawn }) =>
+    new Promise((resolve) => {
+      let settled = false;
+      const settle = (value) => {
+        if (settled) return;
+        settled = true;
+        for (const [signal, handler] of handlers) process.off(signal, handler);
+        resolve(value);
+      };
+      const child = spawn(command, args, { stdio: "inherit", env, shell });
+      if (child.pid !== undefined) onSpawn?.(child.pid);
+      const handlers = [
+        ["SIGINT", () => {}],
+        ["SIGTERM", () => child.kill("SIGTERM")],
+        ["SIGHUP", () => child.kill("SIGHUP")],
+      ];
+      for (const [signal, handler] of handlers) process.on(signal, handler);
+      child.on("error", (error) => {
+        console.error(`Cannot run ${command}: ${error.message}`);
+        settle(1);
+      });
+      child.on("close", (status, signal) => {
+        const signals = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 };
+        settle(status ?? (signal ? 128 + (signals[signal] ?? 0) : 1));
+      });
+    }),
 });
 process.exit(code);

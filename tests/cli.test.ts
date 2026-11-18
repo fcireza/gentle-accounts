@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type CliDeps, type SpawnCall } from "../src/cli.ts";
+import { SESSION_CURRENT, SESSION_MARKER, buildSessionHome, readSessionMarker } from "../src/session-home.ts";
 
 function setup(platform: NodeJS.Platform = "linux") {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-cli-"));
@@ -14,7 +15,10 @@ function setup(platform: NodeJS.Platform = "linux") {
   const out: string[] = [];
   const err: string[] = [];
   const spawns: SpawnCall[] = [];
-  const env: Record<string, string | undefined> = { PATH: "/usr/bin" };
+  /** What gentle-shell saw in its home while it ran (the home is removed afterwards). */
+  const homes: { home: string; auth: unknown; current: string; marker: unknown }[] = [];
+  const env: Record<string, string | undefined> = { PATH: "/usr/bin", PI_CODING_AGENT_DIR: agentDir };
+  const sessionBaseDir = join(agentDir, "session-homes");
   const deps: CliDeps = {
     store,
     liveAuthPath,
@@ -22,67 +26,159 @@ function setup(platform: NodeJS.Platform = "linux") {
     platform,
     stdout: (line) => out.push(line),
     stderr: (line) => err.push(line),
+    sessionBaseDir,
     spawn: (call) => {
       spawns.push(call);
+      if (call.command === "gentle-shell") {
+        const home = call.args[1];
+        homes.push({ home, auth: readAuthFile(join(home, "auth.json")), current: readFileSync(join(home, SESSION_CURRENT), "utf8"), marker: readSessionMarker(home) });
+      }
       return 0;
     },
   };
-  return { store, liveAuthPath, env, out, err, spawns, deps };
+  const canonical = new ProfileStore(realpathSync(agentDir));
+  return { agentDir, store, canonical, liveAuthPath, env, out, err, spawns, homes, deps, sessionBaseDir };
 }
 
-test("gentle-accounts <name> syncs credentials, sets CLAUDE_CONFIG_DIR and execs gentle-shell with the rest", () => {
-  const { store, liveAuthPath, out, err, spawns, deps } = setup();
+test("S30: gentle-accounts <name> runs gentle-shell --home <private home> without switching the global profile", async () => {
+  const { agentDir, store, canonical, liveAuthPath, out, err, spawns, homes, deps, sessionBaseDir } = setup();
   store.create("work");
   store.create("personal");
   store.setCurrent("work");
   writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "w" }, other: 1 });
   writeAuthFile(store.authPath("personal"), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 } });
+  const liveBefore = readFileSync(liveAuthPath, "utf8");
+  const workBefore = readFileSync(store.authPath("work"), "utf8");
 
-  const code = runCli(["personal", "--isolated"], deps);
+  const code = await runCli(["personal", "--flag", "x"], deps);
 
   assert.equal(code, 0);
   assert.deepEqual(err, []);
   assert.deepEqual(out, []);
   assert.equal(spawns.length, 1);
   assert.equal(spawns[0].command, "gentle-shell");
-  assert.deepEqual(spawns[0].args, ["--isolated"]);
-  assert.equal(spawns[0].env.CLAUDE_CONFIG_DIR, store.claudeDir("personal"));
+  assert.equal(spawns[0].args[0], "--home");
+  assert.equal(spawns[0].args[1].startsWith(sessionBaseDir), true);
+  assert.deepEqual(spawns[0].args.slice(2), ["--flag", "x"]);
+  assert.equal(spawns[0].env.CLAUDE_CONFIG_DIR, canonical.claudeDir("personal"));
+  assert.equal(spawns[0].env.GENTLE_SHELL_NO_AUTO_SETUP, "1");
+  assert.equal(spawns[0].env[LAUNCH_PROFILE_ENV], "personal");
+  assert.equal("PI_CODING_AGENT_DIR" in spawns[0].env, false);
   assert.equal(spawns[0].env.PATH, "/usr/bin");
   assert.equal(spawns[0].shell, false);
-  assert.equal(store.current(), "personal");
-  assert.deepEqual(readAuthFile(liveAuthPath), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: 1 });
-  assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: { type: "api_key", key: "w" } });
+  assert.deepEqual(homes[0].auth, { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: 1 });
+  assert.equal(homes[0].current, "personal\n");
+  assert.equal((homes[0].marker as { profile: string; sharedAgentDir: string; pid: number }).profile, "personal");
+  assert.equal((homes[0].marker as { sharedAgentDir: string }).sharedAgentDir, realpathSync(agentDir));
+  assert.equal((homes[0].marker as { pid: number }).pid, process.pid);
+  // Global state untouched; the home is removed after gentle-shell exits.
+  assert.equal(store.current(), "work");
+  assert.equal(readFileSync(liveAuthPath, "utf8"), liveBefore);
+  assert.equal(readFileSync(store.authPath("work"), "utf8"), workBefore);
+  assert.equal(existsSync(spawns[0].args[1]), false);
+  assert.deepEqual(readdirSync(sessionBaseDir), []);
 });
 
-test("first launch with no active profile keeps the live login in a default profile", () => {
-  const { store, liveAuthPath, spawns, deps } = setup();
+test("S30: first launch with no active profile keeps the live login in a default profile and leaves it global current", async () => {
+  const { store, liveAuthPath, spawns, homes, deps } = setup();
   store.create("work");
   writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "live" } });
-  assert.equal(runCli(["work"], deps), 0);
+  assert.equal(await runCli(["work"], deps), 0);
   assert.equal(spawns.length, 1);
   assert.deepEqual(store.list(), ["default", "work"]);
-  assert.equal(store.current(), "work");
+  assert.equal(store.current(), "default");
   assert.deepEqual(readAuthFile(store.authPath("default")), { anthropic: { type: "api_key", key: "live" } });
-  assert.deepEqual(readAuthFile(liveAuthPath), {});
+  assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "live" } });
+  assert.deepEqual(homes[0].auth, {});
 });
 
-test("launching the active profile still execs gentle-shell and returns its exit code", () => {
-  const { store, spawns, deps } = setup();
+test("S30: --home, --link and --isolated are rejected before anything is built", async () => {
+  for (const flag of ["--home", "--link", "--isolated", "--home=/x"]) {
+    const { store, err, spawns, deps, sessionBaseDir } = setup();
+    store.create("work");
+    assert.equal(await runCli(["work", "--x", flag], deps), 1, flag);
+    assert.deepEqual(err, ["gentle-accounts manages the agent home; do not pass --home, --link or --isolated."]);
+    assert.deepEqual(spawns, []);
+    assert.equal(existsSync(sessionBaseDir), false);
+    assert.equal(store.current(), null);
+    assert.deepEqual(store.list(), ["work"]);
+  }
+});
+
+test("S30: credentials written by gentle-shell are copied back to the profile snapshot after it exits", async () => {
+  const { store, liveAuthPath, deps, sessionBaseDir } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "w" } });
+  const rotated = { "openai-codex": { type: "oauth", access: "rot", refresh: "rot", expires: 5 } };
+  deps.spawn = (call) => {
+    writeAuthFile(join(call.args[1], "auth.json"), rotated);
+    return 7;
+  };
+  assert.equal(await runCli(["personal"], deps), 7);
+  assert.deepEqual(readAuthFile(store.authPath("personal")), rotated);
+  assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "w" } });
+  assert.deepEqual(readdirSync(sessionBaseDir), []);
+});
+
+test("S30: a spawn error still finishes the home; an async spawn result is awaited", async () => {
+  const { store, deps, sessionBaseDir } = setup();
+  store.create("work");
+  deps.spawn = () => {
+    throw new Error("spawn gentle-shell ENOENT");
+  };
+  const err: string[] = [];
+  deps.stderr = (l) => err.push(l);
+  assert.equal(await runCli(["work"], deps), 1);
+  assert.deepEqual(err, ["Cannot run gentle-shell: spawn gentle-shell ENOENT"]);
+  assert.deepEqual(readdirSync(sessionBaseDir), []);
+  deps.spawn = async () => 4;
+  assert.equal(await runCli(["work"], deps), 4);
+  assert.deepEqual(readdirSync(sessionBaseDir), []);
+});
+
+test("S30: the launcher sweeps dead-pid homes before building and registers an exit cleanup", async () => {
+  const { agentDir, store, deps, sessionBaseDir } = setup();
+  store.create("work");
+  store.create("personal");
+  const dead = buildSessionHome({ sharedAgentDir: agentDir, profile: "personal", baseDir: sessionBaseDir, pid: 999_999_1 });
+  const alive = buildSessionHome({ sharedAgentDir: agentDir, profile: "personal", baseDir: sessionBaseDir, pid: process.pid });
+  const late = { "openai-codex": { type: "oauth", access: "late", refresh: "late", expires: 6 } };
+  writeAuthFile(join(dead.home, "auth.json"), late);
+  const exitHooks: (() => void)[] = [];
+  deps.onExit = (fn) => exitHooks.push(fn);
+  let during: string[] = [];
+  deps.spawn = (call) => {
+    during = readdirSync(sessionBaseDir).sort();
+    exitHooks[0](); // a signal-driven exit while gentle-shell runs still finishes the home once
+    return existsSync(call.args[1]) ? 9 : 0;
+  };
+  assert.equal(await runCli(["work"], deps), 0);
+  assert.equal(during.includes(dead.home.split(/[\\/]/).pop()!), false);
+  assert.equal(existsSync(alive.home), true);
+  assert.deepEqual(readAuthFile(store.authPath("personal")), late);
+  assert.deepEqual(readdirSync(sessionBaseDir), [alive.home.split(/[\\/]/).pop()]);
+  assert.equal(existsSync(join(alive.home, SESSION_MARKER)), true);
+});
+
+test("launching the active profile still execs gentle-shell and returns its exit code", async () => {
+  const { store, canonical, spawns, deps } = setup();
   store.create("work");
   store.setCurrent("work");
   deps.spawn = (call) => {
     spawns.push(call);
     return 3;
   };
-  assert.equal(runCli(["work"], deps), 3);
+  assert.equal(await runCli(["work"], deps), 3);
   assert.equal(spawns.length, 1);
-  assert.equal(spawns[0].env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
+  assert.equal(spawns[0].env.CLAUDE_CONFIG_DIR, canonical.claudeDir("work"));
 });
 
-test("on Windows gentle-shell is spawned through the shell so .cmd shims resolve", () => {
+test("on Windows gentle-shell is spawned through the shell so .cmd shims resolve", async () => {
   const { store, spawns, deps } = setup("win32");
   store.create("work");
-  assert.equal(runCli(["work"], deps), 0);
+  assert.equal(await runCli(["work"], deps), 0);
   assert.equal(spawns[0].shell, true);
 });
 
@@ -137,12 +233,12 @@ test("no args or --help prints usage; --help exits 0, no args exits 1", () => {
   assert.match(err.join("\n"), /gentle-accounts <name>/);
 });
 
-test("a corrupt target with no active profile fails without creating default or setting current", () => {
+test("a corrupt target with no active profile fails without creating default or setting current", async () => {
   const { store, liveAuthPath, err, spawns, deps } = setup();
   store.create("work");
   writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "live" } });
   writeFileSync(store.authPath("work"), "{bad");
-  assert.equal(runCli(["work"], deps), 1);
+  assert.equal(await runCli(["work"], deps), 1);
   assert.match(err.join("\n"), /Cannot parse .*auth\.json/);
   assert.deepEqual(spawns, []);
   assert.deepEqual(store.list(), ["work"]);
@@ -150,13 +246,13 @@ test("a corrupt target with no active profile fails without creating default or 
   assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "live" } });
 });
 
-test("S16: launching the system-default profile builds a child env without CLAUDE_CONFIG_DIR", () => {
+test("S16: launching the system-default profile builds a child env without CLAUDE_CONFIG_DIR", async () => {
   const { store, spawns, deps, env } = setup();
   store.create("default", { claudeDefault: true });
   store.create("work");
   store.setCurrent("work");
   env.CLAUDE_CONFIG_DIR = "/from/user";
-  assert.equal(runCli(["default"], deps), 0);
+  assert.equal(await runCli(["default"], deps), 0);
   assert.equal(spawns.length, 1);
   assert.equal("CLAUDE_CONFIG_DIR" in spawns[0].env, false);
   assert.equal(spawns[0].env.PATH, "/usr/bin");
@@ -211,7 +307,7 @@ test("S27: usage lists the startup command", () => {
   assert.match(out.join("\n"), /gentle-accounts startup \[<name>\|last\] +/);
 });
 
-test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list and startup do not", () => {
+test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list and startup do not", async () => {
   const { store, spawns, deps } = setup();
   assert.equal(LAUNCH_PROFILE_ENV, "GENTLE_ACCOUNTS_LAUNCH_PROFILE");
   store.create("work");
@@ -222,7 +318,7 @@ test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list
   assert.equal(spawns.length, 0);
   assert.equal(runCli(["login", "personal"], deps), 0);
   assert.equal(LAUNCH_PROFILE_ENV in spawns[0].env, false);
-  assert.equal(runCli(["personal", "--x"], deps), 0);
+  assert.equal(await runCli(["personal", "--x"], deps), 0);
   assert.equal(spawns[1].command, "gentle-shell");
   assert.equal(spawns[1].env[LAUNCH_PROFILE_ENV], "personal");
   assert.equal(LAUNCH_PROFILE_ENV in deps.env, false);
@@ -248,4 +344,17 @@ test("S29: gentle-accounts email shows, sets and rejects with exit codes", () =>
   const help: string[] = [];
   runCli(["--help"], { ...deps, stdout: (l) => help.push(l) });
   assert.match(help[0], /^  gentle-accounts email \[show\|hide\] +show or set whether the status bar shows the full email/m);
+});
+
+test("S30: the launcher records the spawned gentle-shell pid in the session marker", async () => {
+  const { store, deps } = setup();
+  store.create("work");
+  let seen: unknown;
+  deps.spawn = (call) => {
+    call.onSpawn?.(31337);
+    seen = readSessionMarker(call.args[1])?.childPid;
+    return 0;
+  };
+  assert.equal(await runCli(["work"], deps), 0);
+  assert.equal(seen, 31337);
 });

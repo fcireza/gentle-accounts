@@ -1,13 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import gentleProfiles from "../src/index.ts";
 import { ProfileStore } from "../src/store.ts";
-import { readAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
+import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type SpawnCall } from "../src/cli.ts";
+import { SESSION_CURRENT, buildSessionHome } from "../src/session-home.ts";
+import { realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { claudeLoginCommand } from "../src/login.ts";
 
 type Handler = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
@@ -583,25 +586,32 @@ test("S27: an empty launch variable does not skip the startup switch", async () 
   }
 });
 
-test("S27: real launcher env reaches session_start: runCli spawn env drives the extension", async () => {
+test("S27+S30: real launcher env reaches session_start: the launched session runs on its profile without the startup switch", async () => {
   const { store, events, liveAuthPath, agentDir } = startupScenario();
+  store.setCurrent("work"); // global current and startup are both "work"; the launch asks for "personal"
   const spawns: SpawnCall[] = [];
-  const code = runCli(["personal"], {
+  const seen: { notes: unknown[]; current: string | null; globalCurrent: string | null }[] = [];
+  const code = await runCli(["personal"], {
     store, liveAuthPath, env: { PATH: "/usr/bin" }, platform: "linux", stdout: () => {}, stderr: () => {},
-    spawn: (call) => (spawns.push(call), 0),
+    sessionBaseDir: join(agentDir, "session-homes"),
+    spawn: async (call) => {
+      spawns.push(call);
+      const saved = { ...process.env };
+      Object.assign(process.env, call.env, { PI_CODING_AGENT_DIR: call.args[1], HOME: agentDir, USERPROFILE: agentDir });
+      try {
+        const c = fakeCtx();
+        await events.get("session_start")!({}, c.ctx);
+        seen.push({ notes: c.notes, current: readFileSync(join(call.args[1], SESSION_CURRENT), "utf8").trim(), globalCurrent: store.current() });
+      } finally {
+        for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+        Object.assign(process.env, saved);
+      }
+      return 0;
+    },
   });
   assert.equal(code, 0);
-  const saved = { ...process.env };
-  Object.assign(process.env, spawns[0].env, { PI_CODING_AGENT_DIR: agentDir, HOME: agentDir, USERPROFILE: agentDir });
-  try {
-    const c = fakeCtx();
-    await events.get("session_start")!({}, c.ctx);
-    assert.deepEqual(c.notes, []);
-    assert.equal(store.current(), "personal");
-  } finally {
-    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
-    Object.assign(process.env, saved);
-  }
+  assert.deepEqual(seen, [{ notes: [], current: "personal", globalCurrent: "work" }]);
+  assert.equal(store.current(), "work");
 });
 
 test("S27: a startup file naming a deleted profile warns at session_start and changes nothing", async () => {
@@ -678,4 +688,109 @@ test("S29: refreshes pick up the setting changed on disk; notifications never ca
 test("S29: argument completions include email", () => {
   const { profile } = setup();
   assert.deepEqual(profile.getArgumentCompletions!("em"), [{ value: "email", label: "email" }]);
+});
+
+// ---- S30: session mode (the agent dir is a private home built by the launcher) ----
+
+const sha = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
+
+function sessionSetup(profile = "work") {
+  const env = setup();
+  const shared = realpathSync(env.agentDir);
+  const store = new ProfileStore(shared);
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("personal");
+  writeAuthFile(store.authPath("work"), ({ anthropic: { type: "api_key", key: "w" } }));
+  writeAuthFile(store.authPath("personal"), ({ "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 } }));
+  writeFileSync(join(shared, "auth.json"), JSON.stringify({ "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: { type: "api_key", key: "o" } }));
+  const { home } = buildSessionHome({ sharedAgentDir: shared, profile, baseDir: join(shared, "homes") });
+  process.env.PI_CODING_AGENT_DIR = home;
+  const globalFiles = [join(shared, "auth.json"), store.currentPath, store.authPath("work"), store.authPath("personal")];
+  const before = Object.fromEntries(globalFiles.map((p) => [p, sha(p)]));
+  const unchanged = () => assert.deepEqual(Object.fromEntries(globalFiles.map((p) => [p, sha(p)])), before);
+  return { ...env, shared, store, home, unchanged };
+}
+
+test("S30: session_start in a session home uses its own profile, skips the startup profile and never writes global files", async () => {
+  const { store, events, home, shared, unchanged } = sessionSetup("work");
+  store.setStartup("personal");
+  const c = fakeCtx();
+  await events.get("session_start")!({ reason: "startup" }, c.ctx);
+  assert.deepEqual(c.notes, []);
+  assert.equal(readFileSync(join(home, SESSION_CURRENT), "utf8"), "work\n");
+  assert.equal(store.current(), "personal");
+  assert.equal(process.env.CLAUDE_CONFIG_DIR, join(shared, "profiles", "work", "claude"));
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: work · not logged in" }]);
+  unchanged();
+});
+
+test("S30: a switch inside a session rewrites only H/auth.json and the session current", async () => {
+  const { store, profile, events, home, shared, unchanged } = sessionSetup("work");
+  await events.get("session_start")!({}, fakeCtx().ctx);
+  const c = fakeCtx();
+  await profile.handler("personal", c.ctx);
+  assert.deepEqual(c.notes, [{ message: `Switched to profile "personal". Claude Code dir: ${join(shared, "profiles", "personal", "claude")}`, type: "info" }]);
+  assert.equal(c.refreshed(), 1);
+  assert.equal(readFileSync(join(home, SESSION_CURRENT), "utf8"), "personal\n");
+  assert.deepEqual(readAuthFile(join(home, "auth.json")), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: { type: "api_key", key: "o" } });
+  assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
+  unchanged();
+  assert.equal(store.current(), "personal");
+  const cur = fakeCtx();
+  await profile.handler("current", cur.ctx);
+  assert.deepEqual(cur.notes, [{ message: `Active profile: personal (CLAUDE_CONFIG_DIR=${join(shared, "profiles", "personal", "claude")})`, type: "info" }]);
+  const list = fakeCtx();
+  await profile.handler("list", list.ctx);
+  assert.deepEqual(list.notes, [{ message: "* personal\n  work", type: "info" }]);
+});
+
+test("S30: list, current and delete use the session's current profile", async () => {
+  const { store, profile, unchanged } = sessionSetup("work");
+  const list = fakeCtx();
+  await profile.handler("list", list.ctx);
+  assert.deepEqual(list.notes, [{ message: "  personal\n* work", type: "info" }]);
+  const del = fakeCtx({ confirm: true });
+  await profile.handler("delete work", del.ctx);
+  assert.deepEqual(del.notes, [{ message: 'Cannot delete the active profile "work". Switch to another profile first.', type: "error" }]);
+  assert.deepEqual(store.list(), ["personal", "work"]);
+  unchanged();
+});
+
+test("S30: startup and email in a session write the shared profiles folder", async () => {
+  const { store, profile, shared, home } = sessionSetup("work");
+  const s = fakeCtx();
+  await profile.handler("startup work", s.ctx);
+  assert.deepEqual(s.notes, [{ message: 'Startup profile set to "work". New sessions start on it.', type: "info" }]);
+  assert.equal(readFileSync(join(shared, "profiles", "startup"), "utf8"), "work\n");
+  const e = fakeCtx();
+  await profile.handler("email show", e.ctx);
+  assert.equal(e.notes[0].message, "Email display set to shown. The status bar shows the full email.");
+  assert.deepEqual(JSON.parse(readFileSync(join(shared, "profiles", "settings.json"), "utf8")), { showEmail: true });
+  assert.equal(store.startup(), "work");
+  assert.equal(existsSync(join(home, "profiles", "settings.json")), true, "reached through the shared profiles link");
+  assert.deepEqual(readdirSync(home).filter((n) => n.startsWith("startup") || n === "settings.json.tmp"), []);
+});
+
+test("S30: a session whose profile was deleted creates default race-safely in the shared store and keeps it per session", async () => {
+  const { store, events, home, shared } = sessionSetup("work");
+  rmSync(join(home, SESSION_CURRENT));
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.deepEqual(c.notes, []);
+  assert.equal(readFileSync(join(home, SESSION_CURRENT), "utf8"), "default\n");
+  assert.equal(store.current(), "personal");
+  assert.deepEqual(store.list(), ["default", "personal", "work"]);
+  assert.equal(existsSync(join(shared, "profiles", "default", "claude-default")), true);
+});
+
+test("S30: without a marker the agent dir keeps the global behavior", async () => {
+  const { store, events, profile, agentDir } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  await events.get("session_start")!({}, fakeCtx().ctx);
+  await profile.handler("personal", fakeCtx().ctx);
+  assert.equal(store.current(), "personal");
+  assert.equal(existsSync(join(agentDir, SESSION_CURRENT)), false);
 });
