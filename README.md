@@ -93,6 +93,8 @@ alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-
 
 ### Windows (PowerShell)
 
+> **Windows no se ha probado en un equipo real**, solo con pruebas automatizadas. Se recomienda usar WSL.
+
 ```powershell
 gentle-shell -- install git:github.com/fcireza/gentle-accounts
 pi install git:github.com/fcireza/gentle-accounts
