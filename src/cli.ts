@@ -1,7 +1,7 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, type Env } from "./auth-sync.ts";
 import { runEmailCommand } from "./settings.ts";
-import { assertSharedSettingsReadable, buildSessionHome, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
+import { assertSharedSettingsReadable, buildSessionHome, ensureBaseDir, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
@@ -45,6 +45,23 @@ export interface CliDeps {
   /** Registers a best-effort synchronous cleanup for an abrupt process exit (the real launcher uses process "exit"). */
   onExit?: (cleanup: () => void) => void;
 }
+
+const CMD_META = /[&|<>^"%\r\n]/;
+
+/**
+ * win32 only: with `shell: true` Node joins the args with spaces for cmd.exe. Quote args with spaces or
+ * tabs; refuse cmd metacharacters (an embedded `"` cannot be escaped safely for cmd). Throws a prefixed error.
+ */
+export function windowsShellArgs(args: string[]): string[] {
+  return args.map((arg) => {
+    if (CMD_META.test(arg)) {
+      throw new Error(`gentle-accounts: argument "${arg}" contains characters that cmd.exe would interpret (& | < > ^ " %); pass it another way.`);
+    }
+    return /[ \t]/.test(arg) ? `"${arg}"` : arg;
+  });
+}
+
+const prefixed = (message: string) => (message.startsWith("gentle-accounts:") ? message : `gentle-accounts: ${message}`);
 
 /** Only the `<name>` launch is asynchronous; every other command returns synchronously. */
 export function runCli(argv: string[], deps: CliDeps): number | Promise<number> {
@@ -118,25 +135,27 @@ export function runCli(argv: string[], deps: CliDeps): number | Promise<number> 
     stderr(missingMessage(first));
     return 1;
   }
+  const baseDir = deps.sessionBaseDir ?? sessionBaseDir();
   try {
+    if (deps.platform === "win32") windowsShellArgs(userArgs); // refuse before anything is created
     assertProfileReadable(store, first); // atomic: nothing is created if the target is corrupt
     assertSharedSettingsReadable(store.agentDir); // S30: a home without valid settings would load no packages
+    ensureBaseDir(baseDir); // a refused base dir leaves no side effect (no default profile)
     // Same first-run rule as the extension: never drop a live login that no profile holds yet.
     ensureDefaultProfile({ store, liveAuthPath: deps.liveAuthPath, env: { ...deps.env } });
   } catch (error) {
-    stderr((error as Error).message);
+    stderr(prefixed((error as Error).message));
     return 1;
   }
-  return launchSession(first, userArgs, deps);
+  return launchSession(first, userArgs, baseDir, deps);
 }
 
 /**
  * S30: the launch never switches the global profile. It runs gentle-shell on a private home built
  * for `name`, then copies the session credentials back and removes the home, whatever the exit.
  */
-async function launchSession(name: string, userArgs: string[], deps: CliDeps): Promise<number> {
+async function launchSession(name: string, userArgs: string[], baseDir: string, deps: CliDeps): Promise<number> {
   const { store, stderr } = deps;
-  const baseDir = deps.sessionBaseDir ?? sessionBaseDir();
   let home: string;
   let sharedAgentDir: string;
   try {
@@ -165,7 +184,7 @@ async function launchSession(name: string, userArgs: string[], deps: CliDeps): P
   env[LAUNCH_PROFILE_ENV] = name; // the extension then skips the startup profile for this session
   let code: number;
   try {
-    code = await deps.spawn({ command: "gentle-shell", args: ["--home", home, ...userArgs], env, shell: deps.platform === "win32", onSpawn: (pid) => recordSessionChildPid(home, pid) });
+    code = await deps.spawn({ command: "gentle-shell", args: deps.platform === "win32" ? windowsShellArgs(["--home", home, ...userArgs]) : ["--home", home, ...userArgs], env, shell: deps.platform === "win32", onSpawn: (pid) => recordSessionChildPid(home, pid) });
   } catch (error) {
     stderr(`Cannot run gentle-shell: ${(error as Error).message}`);
     code = 1;

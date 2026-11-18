@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
-import { runCli, type CliDeps, type SpawnCall } from "../src/cli.ts";
+import { runCli, windowsShellArgs, type CliDeps, type SpawnCall } from "../src/cli.ts";
 import { SESSION_CURRENT, SESSION_MARKER, buildSessionHome, readSessionMarker } from "../src/session-home.ts";
+import { chmodSync, mkdirSync } from "node:fs";
 
 function setup(platform: NodeJS.Platform = "linux") {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-cli-"));
@@ -377,4 +378,60 @@ test("T22: gentle-accounts email with extra words prints the usage and changes n
   assert.equal(existsSync(path), false);
   assert.equal(runCli(["email", "show"], deps), 0);
   assert.deepEqual(out, ["Email display set to shown. The status bar shows the full email."]);
+});
+
+test("T22 win32: windowsShellArgs quotes arguments with spaces or tabs and keeps the others", () => {
+  assert.deepEqual(windowsShellArgs(["--home", "C:\\Users\\a b\\h", "x", "tab\there", ""]), ["--home", '"C:\\Users\\a b\\h"', "x", '"tab\there"', ""]);
+  for (const bad of ["a&b", "a|b", "a<b", "a>b", "a^b", 'a"b', "%PATH%", "a\nb", "a\rb"]) {
+    assert.throws(() => windowsShellArgs([bad]), { message: `gentle-accounts: argument "${bad}" contains characters that cmd.exe would interpret (& | < > ^ " %); pass it another way.` }, bad);
+  }
+});
+
+test("T22 win32: the launch passes quoted args to the shell spawn", async () => {
+  const { store, spawns, deps } = setup("win32");
+  store.create("work");
+  assert.equal(await runCli(["work", "--prompt", "hello world"], deps), 0);
+  assert.equal(spawns[0].shell, true);
+  assert.deepEqual(spawns[0].args.slice(2), ["--prompt", '"hello world"']);
+  assert.equal(spawns[0].args[0], "--home");
+});
+
+test("T22 win32: a cmd metacharacter is rejected before any home or default profile is built", async () => {
+  const { store, err, spawns, deps, sessionBaseDir } = setup("win32");
+  store.create("work");
+  assert.equal(await runCli(["work", "a&calc"], deps), 1);
+  assert.deepEqual(err, ['gentle-accounts: argument "a&calc" contains characters that cmd.exe would interpret (& | < > ^ " %); pass it another way.']);
+  assert.deepEqual(spawns, []);
+  assert.equal(existsSync(sessionBaseDir), false);
+  assert.deepEqual(store.list(), ["work"]);
+});
+
+test("T22 posix: user args with spaces and metacharacters reach the spawn unchanged (no shell)", async () => {
+  const { store, spawns, deps } = setup("linux");
+  store.create("work");
+  assert.equal(await runCli(["work", "hello world", "a&b", 'q"'], deps), 0);
+  assert.equal(spawns[0].shell, false);
+  assert.deepEqual(spawns[0].args.slice(2), ["hello world", "a&b", 'q"']);
+});
+
+test("T22: a refused base dir is reported once and creates no default profile", { skip: process.platform === "win32" }, async () => {
+  const { store, liveAuthPath, err, spawns, deps, sessionBaseDir } = setup();
+  store.create("work");
+  writeAuthFile(liveAuthPath, { anthropic: { type: "api_key", key: "live" } });
+  mkdirSync(sessionBaseDir, { mode: 0o700 });
+  chmodSync(sessionBaseDir, 0o777);
+  assert.equal(await runCli(["work"], deps), 1);
+  assert.deepEqual(err, [`gentle-accounts: refusing to use ${sessionBaseDir}: it is group or world writable`]);
+  assert.deepEqual(spawns, []);
+  assert.deepEqual(store.list(), ["work"]);
+  assert.equal(store.current(), null);
+});
+
+test("T22: a corrupt profile auth.json at launch is reported with the gentle-accounts: prefix", async () => {
+  const { store, err, deps } = setup();
+  store.create("work");
+  writeFileSync(store.authPath("work"), "{bad");
+  assert.equal(await runCli(["work"], deps), 1);
+  assert.equal(err.length, 1);
+  assert.match(err[0], /^gentle-accounts: Cannot parse .*auth\.json/);
 });

@@ -99,11 +99,30 @@ test("S32 openInNewTab runs the plan with the injected spawn and reports ok", as
 
 test("S32 openInNewTab reports not available: no plan, spawn error, throw, non-zero exit", async () => {
   const none = fakeSpawn({});
-  assert.deepEqual(await openInNewTab({ env: {}, platform: "linux", cwd: CWD, command: login, spawn: none.spawn }), { ok: false });
+  assert.equal((await openInNewTab({ env: {}, platform: "linux", cwd: CWD, command: login, spawn: none.spawn })).ok, false);
   assert.equal(none.calls.length, 0);
   for (const outcome of [{ error: new Error("spawn ENOENT") }, { throws: new Error("boom") }, { code: 1 }]) {
     const f = fakeSpawn(outcome);
     const r = await openInNewTab({ env: { KITTY_WINDOW_ID: "1" }, platform: "linux", cwd: CWD, command: login, spawn: f.spawn });
     assert.equal(r.ok, false, JSON.stringify(outcome));
+  }
+});
+
+test("T22 powershellScript doubles the typographic single quotes as well", () => {
+  const cwd = "C:\\a\u2018b\u2019c\u201Ad\u201Be'f";
+  const plan = planNewTab({}, "win32", cwd, { argv: ["gentle-accounts", "work"], env: {} });
+  const decoded = Buffer.from(plan!.args[6], "base64").toString("utf16le");
+  assert.equal(decoded, "Set-Location -LiteralPath 'C:\\a\u2018\u2018b\u2019\u2019c\u201A\u201Ad\u201B\u201Be''f'\n& 'gentle-accounts' 'work'");
+});
+
+test("T22 openInNewTab failure reasons: not-available, spawn-error, exit code; never the command", async () => {
+  const none = fakeSpawn({});
+  assert.deepEqual(await openInNewTab({ env: {}, platform: "linux", cwd: CWD, command: login, spawn: none.spawn }), { ok: false, reason: "not-available" });
+  const enoent = Object.assign(new Error("spawn kitty ENOENT /x"), { code: "ENOENT" });
+  const cases: [object, string][] = [[{ error: enoent }, "spawn-error: ENOENT"], [{ throws: new Error("boom") }, "spawn-error: boom"], [{ code: 3 }, "exit 3"]];
+  for (const [outcome, reason] of cases) {
+    const f = fakeSpawn(outcome as never);
+    const r = await openInNewTab({ env: { KITTY_WINDOW_ID: "1" }, platform: "linux", cwd: CWD, command: login, spawn: f.spawn });
+    assert.deepEqual(r, { ok: false, reason });
   }
 });
