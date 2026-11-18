@@ -169,9 +169,11 @@ test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its
     // An orphaned fake holds the pipes open, and Node would not exit while they are: always clean up.
     child.stdout.destroy();
     child.stderr.destroy();
-    try {
-      process.kill(fakePid, "SIGKILL");
-    } catch {}
+    if (fakePid) { // kill(0, ...) would signal the whole process group
+      try {
+        process.kill(fakePid, "SIGKILL");
+      } catch {}
+    }
     child.kill("SIGKILL");
   }
 });
@@ -208,9 +210,11 @@ test("launcher e2e (S30): a SIGTERM that lands while the launcher records the ch
   } finally {
     child.stdout.destroy();
     child.stderr.destroy();
-    try {
-      process.kill(fakePid, "SIGKILL");
-    } catch {}
+    if (fakePid) { // kill(0, ...) would signal the whole process group
+      try {
+        process.kill(fakePid, "SIGKILL");
+      } catch {}
+    }
     child.kill("SIGKILL");
   }
 });
@@ -244,9 +248,11 @@ test("launcher e2e (T22): SIGHUP to the launcher is forwarded and the launcher e
   } finally {
     child.stdout.destroy();
     child.stderr.destroy();
-    try {
-      process.kill(fakePid, "SIGKILL");
-    } catch {}
+    if (fakePid) { // kill(0, ...) would signal the whole process group
+      try {
+        process.kill(fakePid, "SIGKILL");
+      } catch {}
+    }
     child.kill("SIGKILL");
   }
 });
