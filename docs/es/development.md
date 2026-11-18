@@ -95,6 +95,16 @@ El campo `version` de `package.json` no se reescribe en `main` (los push directo
 gh pr merge --squash --admin
 ```
 
+## Imagen de vista previa social
+
+`assets/social-preview.png` (1280x640) es la imagen que GitHub muestra cuando se comparte el repositorio. Se genera a partir de `assets/social-preview.svg`, que produce `pnpm run assets`. Genere el PNG con Chrome sin interfaz y un `--user-data-dir` nuevo y vacío:
+
+```sh
+chrome --headless=new --user-data-dir="$(mktemp -d)" --window-size=1280,640 --default-background-color=1a1218ff --screenshot=assets/social-preview.png "file://$PWD/assets/social-preview.svg"
+```
+
+`chrome` representa su binario de Chrome o Chromium. GitHub no tiene una API para esta imagen, así que se sube a mano: Settings del repositorio > General > Social preview > Edit > Upload an image (PNG, JPG o GIF, de menos de 1 MB).
+
 ## La carpeta `odd/`
 
 `odd/` guarda el documento de la funcionalidad con el que se construyó este paquete: specs numeradas (`S#`), la lista de tareas (`T#`) y un registro de decisiones del usuario y evidencia (`L#`). Explica por qué las cosas son como son; léalo antes de cambiar un comportamiento.

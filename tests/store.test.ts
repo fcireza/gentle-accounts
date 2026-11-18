@@ -262,6 +262,28 @@ test("S30: create reports an existing profile created by another session in betw
   assert.equal(readFileSync(other.authPath("default"), "utf8"), '{"anthropic":{"type":"api_key","key":"theirs"}}\n');
 });
 
+test("T22: create refuses subcommand names with the reserved-word message and creates nothing", () => {
+  const store = new ProfileStore(mkdtempSync(join(tmpdir(), "gentle-accounts-store-")));
+  for (const name of ["menu", "list", "current", "create", "delete", "login", "startup", "email", "help"]) {
+    assert.throws(() => store.create(name), { message: `"${name}" is a reserved word (it is a subcommand). Pick another profile name.` });
+    assert.equal(existsSync(store.profileDir(name)), false);
+  }
+  assert.deepEqual(store.list(), []);
+  assert.throws(() => store.create("Bad Name"), { message: INVALID_NAME_MESSAGE("Bad Name") });
+  store.create("work");
+  assert.deepEqual(store.list(), ["work"]);
+});
+
+test("T22: an existing profile with a reserved name keeps working", () => {
+  const store = new ProfileStore(mkdtempSync(join(tmpdir(), "gentle-accounts-store-")));
+  mkdirSync(store.profileDir("menu"), { recursive: true });
+  writeFileSync(store.authPath("menu"), "{}\n");
+  assert.equal(store.exists("menu"), true);
+  assert.deepEqual(store.list(), ["menu"]);
+  store.setCurrent("menu");
+  assert.equal(store.current(), "menu");
+});
+
 test("renameWithRetry retries a transient Windows lock error and then succeeds", () => {
   let calls = 0;
   const flaky = () => {

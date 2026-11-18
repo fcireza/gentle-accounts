@@ -247,10 +247,21 @@ function howItWorks(): string {
   return svg(1200, 640, "How gentle-accounts swaps credentials", `pi auth.json entries are saved to the outgoing profile and loaded from the incoming one; claude-bridge gets CLAUDE_CONFIG_DIR. ${NOT_SCREENSHOT}`, body);
 }
 
+/** 1280x640 card for GitHub's social preview (Settings > Social preview): only the README mark, centered. */
+function socialPreview(): string {
+  const [w, h] = [1280, 640];
+  const scale = 2.2; // the mark is 256x256
+  const size = 256 * scale;
+  return svg(w, h, "gentle-accounts", `Social preview: the gentle-accounts mark (two overlapping account avatars with a switch arrow) on the Gentle Shell palette. ${NOT_SCREENSHOT}`, [
+    `<g transform="translate(${(w - size) / 2} ${(h - size) / 2}) scale(${scale})">`, ...markBody(), `</g>`,
+  ]);
+}
+
 export function renderAssets(): Record<string, string> {
   return {
     "logo.svg": logo(),
     "logo-mark.svg": logoMark(),
+    "social-preview.svg": socialPreview(),
     "hero-status-bar.svg": hero(),
     "workflow-switch.svg": workflowSwitch(),
     "workflow-login.svg": workflowLogin(),

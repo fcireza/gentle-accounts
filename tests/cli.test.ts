@@ -358,3 +358,23 @@ test("S30: the launcher records the spawned gentle-shell pid in the session mark
   assert.equal(await runCli(["work"], deps), 0);
   assert.equal(seen, 31337);
 });
+
+test("T22: gentle-accounts create refuses a reserved name; create work still works", () => {
+  const { store, out, err, deps } = setup();
+  assert.equal(runCli(["create", "startup"], deps), 1);
+  assert.deepEqual(err, ['"startup" is a reserved word (it is a subcommand). Pick another profile name.']);
+  assert.deepEqual(store.list(), []);
+  assert.equal(runCli(["create", "work"], deps), 0);
+  assert.deepEqual(out, ['Created profile "work".']);
+});
+
+test("T22: gentle-accounts email with extra words prints the usage and changes nothing", () => {
+  const { store, out, err, deps } = setup();
+  const path = join(store.profilesDir, "settings.json");
+  assert.equal(runCli(["email", "show", "now"], deps), 1);
+  assert.deepEqual(err, ["Usage: gentle-accounts email [show|hide]"]);
+  assert.deepEqual(out, []);
+  assert.equal(existsSync(path), false);
+  assert.equal(runCli(["email", "show"], deps), 0);
+  assert.deepEqual(out, ["Email display set to shown. The status bar shows the full email."]);
+});

@@ -82,7 +82,8 @@ test("S19: /gentle:accounts help uses the new command name only", async () => {
   const { profile } = setup();
   const c = fakeCtx();
   await profile.handler("help", c.ctx);
-  assert.match(c.notes[0].message, /^\/gentle:accounts +pick a profile and switch to it$/m);
+  assert.match(c.notes[0].message, /^\/gentle:accounts +open the accounts menu \(picker without the TUI\)$/m);
+  assert.match(c.notes[0].message, /^\/gentle:accounts menu +open the accounts menu$/m);
   assert.match(c.notes[0].message, /^\/gentle:accounts login claude +show the command/m);
   assert.doesNotMatch(c.notes[0].message, /\/profile/);
   const d = fakeCtx();
@@ -793,4 +794,83 @@ test("S30: without a marker the agent dir keeps the global behavior", async () =
   await profile.handler("personal", fakeCtx().ctx);
   assert.equal(store.current(), "personal");
   assert.equal(existsSync(join(agentDir, SESSION_CURRENT)), false);
+});
+
+// ---- S31: accounts menu ----
+
+function menuCtx(mode: string | undefined, hasUI = true, select?: string) {
+  const c = fakeCtx({ hasUI, select });
+  let opened = 0;
+  let selects = 0;
+  const ui = (c.ctx as unknown as { ui: Record<string, unknown> }).ui;
+  ui.custom = async () => {
+    opened++;
+    return { type: "close" };
+  };
+  const origSelect = ui.select as () => Promise<unknown>;
+  ui.select = async () => {
+    selects++;
+    return origSelect();
+  };
+  (c.ctx as unknown as { mode?: string }).mode = mode;
+  return { ...c, opened: () => opened, selects: () => selects };
+}
+
+test("S31: /gentle:accounts menu and the bare command open the panel in the TUI", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  for (const args of ["menu", "", "  "]) {
+    const c = menuCtx("tui");
+    await profile.handler(args, c.ctx);
+    assert.equal(c.opened(), 1, JSON.stringify(args));
+    assert.equal(c.selects(), 0);
+    assert.deepEqual(c.notes, []);
+  }
+});
+
+test("S31: without the TUI the menu falls back to the select picker (or usage without UI)", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  for (const mode of ["rpc", undefined]) {
+    const c = menuCtx(mode, true, "personal");
+    await profile.handler("menu", c.ctx);
+    assert.equal(c.opened(), 0);
+    assert.equal(c.selects(), 1);
+    assert.equal(store.current(), "personal");
+    store.setCurrent("work");
+  }
+  const noUi = menuCtx("tui", false);
+  await profile.handler("", noUi.ctx);
+  assert.equal(noUi.opened(), 0);
+  assert.equal(noUi.notes[0].type, "warning");
+  assert.match(noUi.notes[0].message, /\/gentle:accounts menu +open the accounts menu/);
+});
+
+test("S31: completions include menu; other commands unchanged in the TUI", async () => {
+  const { store, profile } = setup();
+  assert.deepEqual(profile.getArgumentCompletions!("me"), [{ value: "menu", label: "menu" }]);
+  store.create("work");
+  const c = menuCtx("tui");
+  await profile.handler("work", c.ctx);
+  await profile.handler("list", c.ctx);
+  assert.equal(c.opened(), 0);
+  assert.match(c.notes[0].message, /^Switched to profile "work"/);
+  assert.match(c.notes[1].message, /^\* work$/m);
+});
+
+test("T22: /gentle:accounts create refuses a reserved name and email rejects extra words", async () => {
+  const { store, profile } = setup();
+  const c = fakeCtx();
+  await profile.handler("create menu", c.ctx);
+  assert.deepEqual(c.notes, [{ message: '"menu" is a reserved word (it is a subcommand). Pick another profile name.', type: "error" }]);
+  assert.deepEqual(store.list(), []);
+  const e = fakeCtx();
+  await profile.handler("email show extra words", e.ctx);
+  assert.deepEqual(e.notes, [{ message: "Usage: /gentle:accounts email [show|hide]", type: "warning" }]);
+  const f = fakeCtx();
+  await profile.handler("email hide", f.ctx);
+  assert.deepEqual(f.notes, [{ message: "Email display set to hidden. The status bar shows a masked email.", type: "info" }]);
 });

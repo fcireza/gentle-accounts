@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { ProfileStore, writeFileAtomic } from "./store.ts";
-import { COVERED_PROVIDERS, pickFreshest, readAuthFile, transferCovered, writeAuthFile, type AuthData } from "./auth-sync.ts";
+import { coveredProviders, pickFreshest, readAuthFile, transferCovered, writeAuthFile, type AuthData } from "./auth-sync.ts";
 
 export { pickFreshest };
 
@@ -97,8 +97,8 @@ function sessionSettings(raw: string, sharedAgentDir: string, path: string): str
 }
 
 /**
- * Private auth.json: the shared live auth.json (keeps providers no profile covers, such as
- * github-copilot) with the covered providers of the profile. The global current profile takes
+ * Private auth.json: the shared live auth.json (keeps providers no profile covers: api keys
+ * such as google) with the covered providers of the profile. The global current profile takes
  * them from the shared live file (its freshest copy), any other profile from its snapshot.
  */
 function sessionAuth(shared: ProfileStore, liveAuthPath: string, profile: string): AuthData {
@@ -107,7 +107,7 @@ function sessionAuth(shared: ProfileStore, liveAuthPath: string, profile: string
   if (shared.current() !== profile) return transferCovered(snapshot, live);
   // A closed session copies rotated tokens into the snapshot only, so the shared live copy may be older.
   const source: AuthData = {};
-  for (const provider of COVERED_PROVIDERS) {
+  for (const provider of coveredProviders(live, snapshot)) {
     const entry = pickFreshest(live[provider], snapshot[provider]);
     if (entry !== undefined) source[provider] = entry;
   }
@@ -246,7 +246,7 @@ export function finishSessionHome(
     const snapshot = readAuthFile(store.authPath(profile));
     // Same freshness rule as the build: another session on this profile may have saved a newer token.
     const merged: AuthData = { ...snapshot };
-    for (const provider of COVERED_PROVIDERS) {
+    for (const provider of coveredProviders(live, snapshot)) {
       if (provider in live) merged[provider] = pickFreshest(live[provider], snapshot[provider]);
       else delete merged[provider]; // the user logged this provider out inside the session
     }

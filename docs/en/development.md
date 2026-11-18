@@ -95,6 +95,16 @@ The `version` field in `package.json` is not rewritten on `main` (direct pushes 
 gh pr merge --squash --admin
 ```
 
+## Social preview image
+
+`assets/social-preview.png` (1280x640) is the image GitHub shows when the repository is shared. It is rendered from `assets/social-preview.svg`, which `pnpm run assets` generates. Render the PNG with headless Chrome and a fresh, empty `--user-data-dir`:
+
+```sh
+chrome --headless=new --user-data-dir="$(mktemp -d)" --window-size=1280,640 --default-background-color=1a1218ff --screenshot=assets/social-preview.png "file://$PWD/assets/social-preview.svg"
+```
+
+`chrome` stands for your Chrome or Chromium binary. GitHub has no API for this image, so upload it by hand: repository Settings > General > Social preview > Edit > Upload an image (PNG, JPG or GIF, under 1 MB).
+
 ## The `odd/` folder
 
 `odd/` keeps the feature document used to build this package: numbered specs (`S#`), the task list (`T#`) and a log of user decisions and evidence (`L#`). It explains why things are the way they are; read it before changing a behavior.

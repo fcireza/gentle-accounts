@@ -152,6 +152,45 @@ test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its
   assert.deepEqual(homes(), []);
 });
 
+test("launcher e2e (S30): a SIGTERM that lands while the launcher records the child pid is still forwarded", { skip: isWin }, async () => {
+  const { env, run } = sandbox();
+  run("create", "work");
+  const slow = fileURLToPath(new URL("./helpers/slow-marker.mjs", import.meta.url));
+  const child = spawn(process.execPath, [BIN, "work"], {
+    env: { ...env, FAKE_SLEEP: "1", NODE_OPTIONS: `--import ${slow}` },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let out = "";
+  let fakePid = 0;
+  const ready = new Promise<void>((resolve) =>
+    child.stdout.on("data", (d) => {
+      out += d;
+      const m = /READY (\d+)/.exec(out);
+      if (m) {
+        fakePid = Number(m[1]);
+        resolve();
+      }
+    }),
+  );
+  const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+  let err = "";
+  child.stderr.on("data", (d) => (err += d));
+  try {
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited")]);
+    assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
+    child.kill("SIGTERM"); // the fake is READY, the launcher is still writing the marker (400 ms)
+    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    assert.deepEqual(result, { code: 143, signal: null }, "the launcher forwards SIGTERM and exits with the child's status");
+  } finally {
+    child.stdout.destroy();
+    child.stderr.destroy();
+    try {
+      process.kill(fakePid, "SIGKILL");
+    } catch {}
+    child.kill("SIGKILL");
+  }
+});
+
 test("launcher e2e: a corrupt auth.json exits 1 and changes nothing", () => {
   const { agentDir, run, live } = sandbox();
   run("create", "work");
@@ -255,19 +294,30 @@ test("launcher e2e (S30): the marker holds the gentle-shell pid while it runs", 
 });
 
 test("launcher e2e (S30): after kill -9 of the launcher the orphaned gentle-shell keeps its home until it dies", { skip: isWin }, async () => {
-  const { agentDir, env, run, homes } = sandbox();
+  const { agentDir, env, run, homes, homesDir } = sandbox();
+  const markerOf = (h: string): string => {
+    try {
+      return readFileSync(join(homesDir, h, ".gentle-accounts-session.json"), "utf8");
+    } catch {
+      return "";
+    }
+  };
   run("create", "work");
   run("create", "personal");
   const rotated = { anthropic: { type: "oauth", access: "orphan", refresh: "orphan", expires: 8 } };
   const launcher = spawn(process.execPath, [BIN, "work"], { env: { ...env, FAKE_SLEEP: "1", FAKE_AUTH: JSON.stringify(rotated) }, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
-  const childPid = await new Promise<number>((resolve) =>
+  const childPid = await new Promise<number>((resolve, reject) => {
+    launcher.once("exit", (code) => reject(new Error(`the launcher exited (${code}) before the fake gentle-shell was ready`)));
     launcher.stdout.on("data", (d) => {
       out += d;
       const m = /READY (\d+)/.exec(out);
       if (m) resolve(Number(m[1]));
-    }),
-  );
+    });
+  });
+  // The fake prints READY before the launcher records childPid in the marker; a kill in that gap
+  // would leave a marker the sweeper treats as dead, so wait until the pid is recorded.
+  for (let i = 0; i < 100 && !homes().some((h) => /"childPid":\d+/.test(markerOf(h))); i++) await new Promise((res) => setTimeout(res, 50));
   const launcherGone = new Promise((r) => launcher.on("exit", r)); // "close" waits for the orphan holding stdout
   launcher.kill("SIGKILL");
   await launcherGone;

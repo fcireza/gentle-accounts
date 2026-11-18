@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { applyClaudeConfigEnv, type Env } from "./auth-sync.ts";
+import { applyClaudeConfigEnv, coveredProviders, type AuthData, type Env } from "./auth-sync.ts";
 
 /** Plugin label shown in front of every status text. */
 export const PLUGIN_LABEL = "gentle-accounts";
@@ -59,6 +59,40 @@ export function statusText(profile: string, account: { email: string } | null, o
   const icon = account ? "👤" : "🔒";
   const shown = account ? (options.showEmail === true ? account.email : maskEmail(account.email)) : "not logged in";
   return `${icon} ${PLUGIN_LABEL}: ${profile} · ${shown}`;
+}
+
+/** Menu labels of the providers a profile covers (S31); unknown covered providers show their id. */
+export const PROVIDER_LABELS: Record<string, string> = {
+  claude: "Claude (claude-bridge)",
+  "openai-codex": "Codex",
+  anthropic: "Anthropic",
+};
+
+export interface ProviderState {
+  /** `claude` or a covered pi provider id. */
+  provider: string;
+  label: string;
+  loggedIn: boolean;
+  /** Masked email, or the full one only when the S29 setting shows it; absent when not logged in or unknown. */
+  email?: string;
+}
+
+/**
+ * Provider rows of one profile for the accounts menu: Claude from an already known account (never spawns),
+ * then every covered pi provider, logged in when its entry is present in `auth` (the live file for the active
+ * profile, the snapshot for the others). Never returns tokens.
+ */
+export function providerStates(claude: ClaudeAccount | null, auth: AuthData, options: StatusTextOptions = {}): ProviderState[] {
+  const rows: ProviderState[] = [
+    claude
+      ? { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: true, email: options.showEmail === true ? claude.email : maskEmail(claude.email) }
+      : { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: false },
+  ];
+  for (const provider of coveredProviders(auth)) {
+    const entry = auth[provider];
+    rows.push({ provider, label: PROVIDER_LABELS[provider] ?? provider, loggedIn: Boolean(entry && typeof entry === "object") });
+  }
+  return rows;
 }
 
 /** Runs `claude auth status` with the given env and resolves its stdout; rejects when no output is usable. */

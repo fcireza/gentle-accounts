@@ -90,7 +90,7 @@ export function runCli(argv: string[], deps: CliDeps): number | Promise<number> 
     return result.ok ? 0 : 1;
   }
   if (first === "email") {
-    const result = runEmailCommand(second ?? "", join(store.profilesDir, "settings.json"), "gentle-accounts");
+    const result = runEmailCommand([second ?? "", ...rest].join(" ").trim(), join(store.profilesDir, "settings.json"), "gentle-accounts");
     (result.type === "info" ? stdout : stderr)(result.message);
     return result.type === "info" ? 0 : 1;
   }

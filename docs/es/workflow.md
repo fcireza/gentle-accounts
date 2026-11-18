@@ -10,7 +10,7 @@ Qué encontrará aquí: escenarios completos desde el primer inicio hasta borrar
 
 Después de instalar, reinicie Gentle Shell o pi. Al iniciar la sesión, si todavía no hay un perfil activo, la extensión agrupa sus inicios de sesión actuales en un perfil llamado `default`:
 
-- Las credenciales actuales de Codex y Anthropic del `auth.json` de pi se copian a `profiles/default/auth.json`.
+- Las credenciales de cuenta actuales (Codex, Anthropic y cualquier otro login oauth) del `auth.json` de pi se copian a `profiles/default/auth.json`.
 - El inicio de sesión de Claude Code no se mueve ni se copia. `default` sigue usando la carpeta predeterminada de Claude Code, y `CLAUDE_CONFIG_DIR` queda **sin definir** mientras está activo. Consulte [Cómo funciona](how-it-works.md) para saber por qué.
 - Si había definido `CLAUDE_CONFIG_DIR` por su cuenta, esa carpeta se registra (no se copia) y se conserva.
 
@@ -90,9 +90,9 @@ Cuando termine el flujo del navegador, compruebe la cuenta:
 
 La barra de estado muestra entonces `👤 gentle-accounts: work · mari****@company.com`.
 
-### Por qué el inicio de sesión no se ejecuta dentro de la TUI
+### Otras formas de iniciar sesión
 
-`claude auth login` es interactivo: abre un navegador y espera. La TUI de pi controla la terminal, así que un proceso hijo competiría con ella por la pantalla y el teclado. Por eso `/gentle:accounts login claude` solo imprime el comando, y `gentle-accounts login <profile>` del launcher es la forma soportada de ejecutarlo directamente.
+`claude auth login` es interactivo: abre un navegador y espera. `/gentle:accounts login claude` solo imprime el comando. El menú de cuentas (sección 9) también puede ejecutarlo: `Enter` en la fila de Claude ofrece `In a new terminal tab`, `In this terminal` (la TUI se pausa mientras `claude auth login` usa la terminal y vuelve al terminar) o `Show the command`. Desde una terminal, `gentle-accounts login <profile>` lo ejecuta directamente.
 
 ## 3. Credenciales de Codex o Anthropic
 
@@ -102,7 +102,7 @@ Codex (`openai-codex`) y Anthropic (el proveedor nativo `anthropic` de pi) usan 
 /login
 ```
 
-pi escribe las credenciales en su `auth.json` activo. Se guardan en el `auth.json` del perfil activo la próxima vez que cambie a otro perfil (con `/gentle:accounts <name>` o con el launcher). Hasta entonces solo están en el `auth.json` de pi. Las credenciales de otros proveedores nunca se tocan.
+pi escribe las credenciales en su `auth.json` activo. Se guardan en el `auth.json` del perfil activo la próxima vez que cambie a otro perfil (con `/gentle:accounts <name>` o con el launcher). Hasta entonces solo están en el `auth.json` de pi. Los proveedores con clave de API siguen siendo globales y nunca se tocan; todo otro proveedor de cuenta (oauth) pertenece al perfil.
 
 ## 4. Cambiar de un perfil a otro
 
@@ -141,7 +141,7 @@ Con el alias del launcher, inicie Gentle Shell directamente en un perfil. Los ar
 gentle-accounts work
 ```
 
-El launcher hace el mismo cambio que `/gentle:accounts work` (primero crea `default` si no hay un perfil activo) y luego inicia `gentle-shell` con `CLAUDE_CONFIG_DIR` definido para ese perfil, o eliminado para `default`.
+El launcher no cambia el perfil global. Le da a la sesión una carpeta del agente privada con las credenciales del perfil, inicia `gentle-shell` en ella con `CLAUDE_CONFIG_DIR` definido para ese perfil (eliminado para `default`) y, cuando gentle-shell termina, copia las credenciales de la sesión de vuelta al perfil. Consulte la sección 10.
 
 ## 6. Elegir el perfil con el que empiezan las sesiones nuevas
 
@@ -165,7 +165,7 @@ Reinicie Gentle Shell o pi. Si había otro perfil activo, la sesión cambia a `w
 Startup profile cleared. New sessions start on the last used profile.
 ```
 
-El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; consulte el límite conocido en [Cómo funciona](how-it-works.md).
+El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; para dar a cada sesión su propia cuenta consulte [Una cuenta distinta en cada sesión](how-it-works.md).
 
 ## 7. Mostrar el correo completo en la barra de estado
 
@@ -201,3 +201,31 @@ No se puede borrar el perfil activo ni el perfil de inicio, así que primero cam
 ```
 
 Un diálogo de confirmación pregunta `Delete profile "work" and its Claude login and credentials? This cannot be undone.`. Al confirmar aparece `Deleted profile "work".`; al cancelar, `Delete cancelled.`. Se borra toda la carpeta del perfil, incluida su carpeta de inicio de sesión de Claude. El launcher no tiene comando para borrar.
+
+## 9. El menú de cuentas
+
+Abra el menú (o ejecute `/gentle:accounts` sin argumentos):
+
+```
+/gentle:accounts menu
+```
+
+Hay una pestaña por perfil: `◉` marca el perfil activo en esta sesión y `★` el perfil de inicio. Cada pestaña muestra una fila por proveedor con `●` si hay sesión iniciada u `○` si no, y el correo enmascarado. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en la fila del perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `d` para borrar, `s` para el perfil de inicio, `e` para la visualización del correo, `o` para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
+
+Iniciar sesión desde una fila de proveedor:
+
+- Claude: elija `In a new terminal tab`, `In this terminal` o `Show the command`.
+- Codex y Anthropic: el menú se cierra y escribe `/login` en el editor; presione Enter y elija el proveedor. Solo funciona para el perfil activo, así que primero cambie a él.
+
+## 10. Una cuenta distinta en cada proyecto
+
+Inicie cada proyecto con el launcher y su propio perfil, cada uno en su propia terminal:
+
+```sh
+gentle-accounts work
+gentle-accounts personal
+```
+
+Cada sesión recibe una carpeta del agente privada, así que un cambio de perfil o un inicio de sesión en una no cambia la otra. Las sesiones iniciadas sin el launcher siguen usando el perfil global. Desde el menú, `o` abre el proyecto actual con el perfil seleccionado en una pestaña nueva; si no puede abrir una pestaña, muestra el comando que hay que ejecutar, por ejemplo `Open this project with "personal" in a new terminal: gentle-accounts personal`.
+
+Es preferible usar una cuenta distinta en cada sesión: los refresh tokens de OAuth rotan, así que la MISMA cuenta en dos sesiones abiertas puede invalidar el token que tiene una de ellas, y esa sesión tendrá que iniciar sesión de nuevo. Detalles en [Cómo funciona](how-it-works.md).

@@ -47,6 +47,17 @@ export const MISSING_PROFILE_MESSAGE = (name: string): string => `Profile "${nam
 export const STARTUP_DELETE_MESSAGE = (name: string): string =>
   `Cannot delete the startup profile "${name}". Set another one or clear it with "startup last" first.`;
 
+/** Subcommands of `/gentle:accounts` and the CLI: a profile with one of these names could never be switched to by name. */
+export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "startup", "email", "help"];
+
+export const RESERVED_NAME_MESSAGE = (name: string): string =>
+  `"${name}" is a reserved word (it is a subcommand). Pick another profile name.`;
+
+/** Name rules for a new profile: the S7 rules plus the reserved subcommand words. Existing profiles are not affected. */
+export function validateNewProfileName(name: string): string | null {
+  return validateProfileName(name) ?? (RESERVED_NAMES.includes(name) ? RESERVED_NAME_MESSAGE(name) : null);
+}
+
 /** Returns null when the name is valid, otherwise the exact user-facing error message. */
 export function validateProfileName(name: string): string | null {
   return NAME_RE.test(name) ? null : INVALID_NAME_MESSAGE(name);
@@ -159,7 +170,7 @@ export class ProfileStore {
   }
 
   create(name: string, options: { claudeDir?: string; claudeDefault?: boolean } = {}): void {
-    const invalid = validateProfileName(name);
+    const invalid = validateNewProfileName(name);
     if (invalid) throw new Error(invalid);
     if (this.exists(name)) throw alreadyExists(name);
     mkdirSync(this.profileDir(name), { recursive: true, mode: 0o700 });

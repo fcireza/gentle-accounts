@@ -9,7 +9,7 @@ import { statusText } from "../src/account.ts";
 import { claudeLoginCommand } from "../src/login.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const NAMES = ["hero-status-bar.svg", "how-it-works.svg", "logo-mark.svg", "logo.svg", "workflow-login.svg", "workflow-switch.svg"];
+const NAMES = ["hero-status-bar.svg", "how-it-works.svg", "logo-mark.svg", "logo.svg", "social-preview.svg", "workflow-login.svg", "workflow-switch.svg"];
 const SVG_NS = "http://www.w3.org/2000/svg";
 const KNOWN = new Set(["svg", "title", "desc", "rect", "circle", "path", "text", "tspan", "g", "line", "defs", "marker", "polygon", "ellipse"]);
 
@@ -29,7 +29,7 @@ function checkTags(svg: string): void {
   assert.ok(!/[<>]/.test(stripped), "stray angle bracket outside tags");
 }
 
-test("renderAssets returns exactly the six files", () => {
+test("renderAssets returns exactly the seven files", () => {
   assert.deepEqual(Object.keys(renderAssets()).sort(), NAMES);
 });
 
@@ -77,4 +77,12 @@ test("switch SVG messages come from src/index.ts", () => {
   const src = readFileSync(join(root, "src", "index.ts"), "utf8");
   assert.ok(SWITCH_SOURCE_FRAGMENTS.length > 0);
   for (const f of SWITCH_SOURCE_FRAGMENTS) assert.ok(src.includes(f), `src/index.ts lacks ${JSON.stringify(f)}`);
+});
+
+test("the social preview is 1280x640, shows only the mark and carries no text or email", () => {
+  const svg = renderAssets()["social-preview.svg"];
+  assert.match(svg, /width="1280" height="640" viewBox="0 0 1280 640"/);
+  assert.ok(!svg.includes("<text"), "no text: the picture is the mark alone");
+  assert.ok(!svg.includes("@"), "no email address");
+  assert.ok(svg.includes(renderAssets()["logo-mark.svg"].match(/<path[^>]*>/)![0]), "uses the same mark paths as logo-mark.svg");
 });

@@ -78,3 +78,22 @@ test("S30: setShowEmail uses a unique temp name, so a stale settings.json.tmp ne
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { showEmail: true });
   assert.deepEqual(readdirSync(join(agentDir, "profiles")).sort(), ["settings.json", "settings.json.tmp"]);
 });
+
+test("T22: runEmailCommand rejects extra words after a valid mode with the usage and writes nothing", () => {
+  const path = join(mkdtempSync(join(tmpdir(), "gentle-accounts-settings-")), "settings.json");
+  assert.deepEqual(runEmailCommand("show extra words", path, "/gentle:accounts"), { message: "Usage: /gentle:accounts email [show|hide]", type: "warning", changed: false });
+  assert.deepEqual(runEmailCommand("hide x", path, "gentle-accounts"), { message: "Usage: gentle-accounts email [show|hide]", type: "warning", changed: false });
+  assert.equal(existsSync(path), false);
+  assert.deepEqual(runEmailCommand("show", path, "/gentle:accounts"), { message: "Email display set to shown. The status bar shows the full email.", type: "info", changed: true });
+});
+
+test("T22: an unwritable settings location returns an error message instead of throwing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gentle-accounts-settings-"));
+  writeFileSync(join(dir, "blocker"), "");
+  const path = join(dir, "blocker", "settings.json");
+  const result = runEmailCommand("show", path, "/gentle:accounts");
+  // The code depends on the platform (EEXIST on macOS, ENOTDIR on Linux).
+  assert.match(result.message, /^Could not save the email display setting \(E[A-Z]+\)\.$/);
+  assert.deepEqual({ type: result.type, changed: result.changed }, { type: "error", changed: false });
+  assert.doesNotMatch(result.message, /\n|at /);
+});

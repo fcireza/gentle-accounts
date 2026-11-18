@@ -10,7 +10,7 @@ What you will find here: worked scenarios from the first start to deleting a pro
 
 After installing, restart Gentle Shell or pi. On session start, when no profile is active yet, the extension wraps your current logins into a profile called `default`:
 
-- Your current Codex and Anthropic credentials in pi's `auth.json` are copied into `profiles/default/auth.json`.
+- Your current account credentials (Codex, Anthropic and any other oauth login) in pi's `auth.json` are copied into `profiles/default/auth.json`.
 - Your Claude Code login is not moved or copied. `default` keeps using Claude Code's own default folder, and `CLAUDE_CONFIG_DIR` is left **unset** while it is active. See [How it works](how-it-works.md) for why.
 - If you had set `CLAUDE_CONFIG_DIR` yourself, that folder is recorded (not copied) and kept.
 
@@ -90,9 +90,9 @@ When the browser flow ends, check the account:
 
 The status bar then reads `👤 gentle-accounts: work · mari****@company.com`.
 
-### Why the login is not run from inside the TUI
+### Other ways to log in
 
-`claude auth login` is interactive: it opens a browser and waits for you. The pi TUI owns the terminal, so a child process would fight it for the screen and the keyboard. That is why `/gentle:accounts login claude` only prints the command, and the launcher's `gentle-accounts login <profile>` is the supported way to run it directly.
+`claude auth login` is interactive: it opens a browser and waits for you. `/gentle:accounts login claude` only prints the command. The accounts menu (section 9) can also run it: `Enter` on the Claude row offers `In a new terminal tab`, `In this terminal` (the TUI pauses while `claude auth login` owns the terminal and comes back when it ends) or `Show the command`. From a terminal, `gentle-accounts login <profile>` runs it directly.
 
 ## 3. Codex or Anthropic credentials
 
@@ -102,7 +102,7 @@ Codex (`openai-codex`) and Anthropic (pi's native `anthropic` provider) use pi's
 /login
 ```
 
-pi writes the credentials into its live `auth.json`. They are saved into the active profile's `auth.json` the next time you switch away from that profile (with `/gentle:accounts <name>` or the launcher). Until then they only live in pi's `auth.json`. Credentials of other providers are never touched.
+pi writes the credentials into its live `auth.json`. They are saved into the active profile's `auth.json` the next time you switch away from that profile (with `/gentle:accounts <name>` or the launcher). Until then they only live in pi's `auth.json`. Api-key providers stay global and are never touched; every other account (oauth) provider belongs to the profile.
 
 ## 4. Switching back and forth
 
@@ -141,7 +141,7 @@ With the launcher alias, start Gentle Shell already on a profile. Extra argument
 gentle-accounts work
 ```
 
-The launcher does the same switch as `/gentle:accounts work` (creating `default` first when no profile is active), then starts `gentle-shell` with `CLAUDE_CONFIG_DIR` set for that profile, or removed for `default`.
+The launcher does not change the global profile. It gives the session a private agent home with the profile's credentials, starts `gentle-shell` on it with `CLAUDE_CONFIG_DIR` set for that profile (removed for `default`), and when gentle-shell exits copies the session's credentials back into the profile. See section 10.
 
 ## 6. Choose the profile new sessions start on
 
@@ -165,7 +165,7 @@ Restart Gentle Shell or pi. If another profile was active, the session switches 
 Startup profile cleared. New sessions start on the last used profile.
 ```
 
-The startup profile is shared by every session of the same agent dir; see the known limit in [How it works](how-it-works.md).
+The startup profile is shared by every session of the same agent dir; to give each session its own account see [A different account per session](how-it-works.md).
 
 ## 7. Show the full email in the status bar
 
@@ -201,3 +201,31 @@ You cannot delete the active profile or the startup profile, so switch away (or 
 ```
 
 A confirmation dialog asks `Delete profile "work" and its Claude login and credentials? This cannot be undone.`. Confirm to get `Deleted profile "work".`, or cancel to get `Delete cancelled.`. The whole profile folder is removed, including its Claude login folder. The launcher has no delete command.
+
+## 9. The accounts menu
+
+Open the menu (or run `/gentle:accounts` with no argument):
+
+```
+/gentle:accounts menu
+```
+
+There is one tab per profile: `◉` marks the profile active in this session and `★` the startup profile. Each tab shows a row per provider with `●` logged in or `○` not logged in, and the masked email. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on the profile row to switch or on a provider row to log in, `n` to create, `d` to delete, `s` for the startup profile, `e` for the email display, `o` to open this project with the selected profile in a new terminal tab, and `Esc` to close. Every key and message is in [Commands](commands.md).
+
+Logging in from a provider row:
+
+- Claude: choose `In a new terminal tab`, `In this terminal` or `Show the command`.
+- Codex and Anthropic: the menu closes and writes `/login` in the editor; press Enter and choose the provider. It only works for the active profile, so switch to it first.
+
+## 10. A different account in each project
+
+Start each project with the launcher and its own profile, each in its own terminal:
+
+```sh
+gentle-accounts work
+gentle-accounts personal
+```
+
+Each session gets a private agent home, so a switch or a login in one does not change the other. Sessions started without the launcher still use the global profile. From the menu, `o` opens the current project with the selected profile in a new tab; when it cannot open a tab it shows the command to run, for example `Open this project with "personal" in a new terminal: gentle-accounts personal`.
+
+Prefer a different account per session: OAuth refresh tokens rotate, so the SAME account in two live sessions can invalidate the token one of them holds, and that session has to log in again. Details in [How it works](how-it-works.md).
