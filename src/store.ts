@@ -3,6 +3,20 @@ import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
+const LOCK_ERRORS = new Set(["EPERM", "EACCES", "EBUSY"]);
+
+/** Windows refuses to replace a file that another process has open for a moment: retry briefly, then rethrow. */
+export function renameWithRetry(rename: (from: string, to: string) => void, from: string, to: string, attempts = 10): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return rename(from, to);
+    } catch (error) {
+      if (attempt >= attempts || !LOCK_ERRORS.has((error as { code?: string } | null)?.code ?? "")) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 * (attempt + 1));
+    }
+  }
+}
+
 /**
  * Writes through a unique temp file (`<path>.<pid>.<random>.tmp`) then renames, so a reader never
  * sees a partial file and two processes writing at once never share a temp name.
@@ -11,7 +25,7 @@ export function writeFileAtomic(path: string, data: string, mode = 0o600): void 
   const tmp = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
   writeFileSync(tmp, data, { mode });
   try {
-    renameSync(tmp, path);
+    renameWithRetry(renameSync, tmp, path);
   } catch (error) {
     rmSync(tmp, { force: true });
     throw error;
