@@ -122,6 +122,9 @@ test("S31 run: create valid, invalid, duplicate and cancelled", async () => {
   const dup = fakeCtx([{ type: "create", row: 0 }, { type: "close" }], { input: "work" });
   await runAccountsMenu(dup.ctx, deps(agentDir));
   assert.match(feedbackOf(dup.frames[1]), /Profile "work" already exists\./);
+  const reserved = fakeCtx([{ type: "create", row: 0 }, { type: "close" }], { input: "email" });
+  await runAccountsMenu(reserved.ctx, deps(agentDir));
+  assert.match(feedbackOf(reserved.frames[1]), /"email" is a reserved word \(it is a subcommand\)\. Pick another profile name\./);
   const none = fakeCtx([{ type: "create", row: 0 }, { type: "close" }], { input: undefined });
   await runAccountsMenu(none.ctx, deps(agentDir));
   assert.deepEqual(store.list(), ["personal", "side", "work"]);

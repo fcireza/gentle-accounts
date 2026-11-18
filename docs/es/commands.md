@@ -91,6 +91,7 @@ Crea un perfil vacío: una carpeta `claude/` y un `auth.json` sin credenciales. 
 - Éxito: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Ya existe: `Profile "<name>" already exists.` (error).
 - Nombre inválido: el mensaje de nombre inválido (error).
+- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector.
 - Sin nombre: el texto de uso (advertencia).
 
 ### `/gentle:accounts delete <name>`
@@ -142,7 +143,8 @@ Muestra o define si la barra de estado muestra el correo completo del perfil act
 - `/gentle:accounts email`: muestra `Email display: hidden (masked in the status bar)` o `Email display: shown (full email in the status bar)`.
 - `/gentle:accounts email show`: lo define y muestra `Email display set to shown. The status bar shows the full email.`
 - `/gentle:accounts email hide`: lo define y muestra `Email display set to hidden. The status bar shows a masked email.`
-- Cualquier otro argumento: `Usage: /gentle:accounts email [show|hide]` (advertencia). Nada cambia.
+- Cualquier otro argumento, o palabras extra después de `show` o `hide`: `Usage: /gentle:accounts email [show|hide]` (advertencia). Nada cambia.
+- No se puede escribir el archivo de configuración: `Could not save the email display setting (<code>).` (error), donde `<code>` es el código de error del sistema (por ejemplo `EACCES`). Nada cambia.
 
 Después de `show` o `hide` la barra de estado se actualiza de inmediato. La opción es global para la carpeta del agente (`profiles/settings.json`, consulte [Cómo funciona](how-it-works.md)) y se lee en cada actualización del estado, así que un cambio hecho desde la CLI aparece en una sesión abierta en su siguiente actualización. Estos mensajes nunca contienen el correo.
 
@@ -213,7 +215,7 @@ Imprime el nombre del perfil activo, o `No active profile.`
 
 ### `gentle-accounts create <name>`
 
-Crea un perfil vacío e imprime `Created profile "<name>".`. Con un nombre inválido o existente imprime el error (`Invalid profile name ...` o `Profile "<name>" already exists.`) en stderr y termina con 1. Sin nombre imprime el uso en stderr y termina con 1.
+Crea un perfil vacío e imprime `Created profile "<name>".`. Con un nombre inválido o existente imprime el error (`Invalid profile name ...`, el mensaje de nombre reservado o `Profile "<name>" already exists.`) en stderr y termina con 1. Sin nombre imprime el uso en stderr y termina con 1.
 
 ### `gentle-accounts login <name>`
 
@@ -231,7 +233,7 @@ gentle-accounts startup last   # back to the last used profile
 
 ### `gentle-accounts email [show|hide]`
 
-Igual que `/gentle:accounts email`, con los mismos mensajes, en stdout con código 0. Cualquier otro argumento imprime `Usage: gentle-accounts email [show|hide]` en stderr y termina con código 1. Una sesión abierta toma el cambio en su siguiente actualización del estado (después de un turno del agente, cada 60 segundos o con `/gentle:accounts current`).
+Igual que `/gentle:accounts email`, con los mismos mensajes, en stdout con código 0. Cualquier otro argumento, o palabras extra después del modo, imprime `Usage: gentle-accounts email [show|hide]` en stderr y termina con código 1; si el archivo de configuración no se puede escribir imprime `Could not save the email display setting (<code>).` en stderr y termina con código 1. Una sesión abierta toma el cambio en su siguiente actualización del estado (después de un turno del agente, cada 60 segundos o con `/gentle:accounts current`).
 
 ```sh
 gentle-accounts email show   # full email in the status bar

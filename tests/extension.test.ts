@@ -860,3 +860,17 @@ test("S31: completions include menu; other commands unchanged in the TUI", async
   assert.match(c.notes[0].message, /^Switched to profile "work"/);
   assert.match(c.notes[1].message, /^\* work$/m);
 });
+
+test("T22: /gentle:accounts create refuses a reserved name and email rejects extra words", async () => {
+  const { store, profile } = setup();
+  const c = fakeCtx();
+  await profile.handler("create menu", c.ctx);
+  assert.deepEqual(c.notes, [{ message: '"menu" is a reserved word (it is a subcommand). Pick another profile name.', type: "error" }]);
+  assert.deepEqual(store.list(), []);
+  const e = fakeCtx();
+  await profile.handler("email show extra words", e.ctx);
+  assert.deepEqual(e.notes, [{ message: "Usage: /gentle:accounts email [show|hide]", type: "warning" }]);
+  const f = fakeCtx();
+  await profile.handler("email hide", f.ctx);
+  assert.deepEqual(f.notes, [{ message: "Email display set to hidden. The status bar shows a masked email.", type: "info" }]);
+});

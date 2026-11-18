@@ -250,7 +250,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       }
       if (sub === "email") {
         // Never echoes the email: only the fixed S29 messages.
-        const result = runEmailCommand(arg, settingsPath(context().sharedDir), "/gentle:accounts");
+        const result = runEmailCommand(args.trim().split(/\s+/).slice(1).join(" "), settingsPath(context().sharedDir), "/gentle:accounts");
         notify(ctx, result.message, result.type);
         if (result.changed) await updateStatus(ctx, s);
         return;

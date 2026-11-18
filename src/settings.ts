@@ -33,11 +33,14 @@ export function setShowEmail(path: string, value: boolean): void {
 
 export interface EmailCommandResult {
   message: string;
-  type: "info" | "warning";
+  type: "info" | "warning" | "error";
   changed: boolean;
 }
 
-/** Shared by `/gentle:accounts email` and `gentle-accounts email`; `usagePrefix` names the command. */
+/**
+ * Shared by `/gentle:accounts email` and `gentle-accounts email`; `usagePrefix` names the command.
+ * `arg` is everything after `email`, so extra words after a mode fall through to the usage.
+ */
 export function runEmailCommand(arg: string, path: string, usagePrefix: string): EmailCommandResult {
   if (!arg) {
     return {
@@ -46,13 +49,16 @@ export function runEmailCommand(arg: string, path: string, usagePrefix: string):
       changed: false,
     };
   }
-  if (arg === "show") {
-    setShowEmail(path, true);
-    return { message: "Email display set to shown. The status bar shows the full email.", type: "info", changed: true };
-  }
-  if (arg === "hide") {
-    setShowEmail(path, false);
-    return { message: "Email display set to hidden. The status bar shows a masked email.", type: "info", changed: true };
+  if (arg === "show" || arg === "hide") {
+    try {
+      setShowEmail(path, arg === "show");
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code ?? "unknown error";
+      return { message: `Could not save the email display setting (${code}).`, type: "error", changed: false };
+    }
+    return arg === "show"
+      ? { message: "Email display set to shown. The status bar shows the full email.", type: "info", changed: true }
+      : { message: "Email display set to hidden. The status bar shows a masked email.", type: "info", changed: true };
   }
   return { message: `Usage: ${usagePrefix} email [show|hide]`, type: "warning", changed: false };
 }
