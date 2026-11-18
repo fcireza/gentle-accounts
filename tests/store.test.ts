@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, writeFileAtomic } from "../src/store.ts";
+import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, writeFileAtomic, renameWithRetry } from "../src/store.ts";
 
 function tempStore(): { store: ProfileStore; agentDir: string } {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-"));
@@ -282,4 +282,21 @@ test("T22: an existing profile with a reserved name keeps working", () => {
   assert.deepEqual(store.list(), ["menu"]);
   store.setCurrent("menu");
   assert.equal(store.current(), "menu");
+
+test("renameWithRetry retries a transient Windows lock error and then succeeds", () => {
+  let calls = 0;
+  const flaky = () => {
+    if (++calls < 3) throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+  };
+  renameWithRetry(flaky, "a", "b");
+  assert.equal(calls, 3);
+});
+
+test("renameWithRetry rethrows other errors at once and a lock error after the attempts", () => {
+  let calls = 0;
+  assert.throws(() => renameWithRetry(() => { calls++; throw Object.assign(new Error("gone"), { code: "ENOENT" }); }, "a", "b"), /gone/);
+  assert.equal(calls, 1);
+  calls = 0;
+  assert.throws(() => renameWithRetry(() => { calls++; throw Object.assign(new Error("busy"), { code: "EBUSY" }); }, "a", "b", 2), /busy/);
+  assert.equal(calls, 3);
 });

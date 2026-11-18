@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img">
+<title>gentle-accounts</title>
+<desc>Social preview: the gentle-accounts mark, wordmark and tagline over a Gentle Shell status bar. Illustration generated from the project's real messages, not a screenshot.</desc>
+<rect width="1280" height="640" rx="16" fill="#1a1218"/>
+<g transform="translate(90 90) scale(1.5)">
+<circle cx="96" cy="54" r="26" fill="none" stroke="#ffb1dd" stroke-width="8" stroke-linejoin="round"/>
+<path d="M 50 148 V 114 A 22 22 0 0 1 72 92 H 120 A 22 22 0 0 1 142 114 V 148 Z" fill="none" stroke="#ffb1dd" stroke-width="8" stroke-linejoin="round"/>
+<circle cx="160" cy="96" r="26" fill="#1a1218" stroke="#1a1218" stroke-width="12" stroke-linejoin="round"/>
+<path d="M 114 190 V 156 A 22 22 0 0 1 136 134 H 184 A 22 22 0 0 1 206 156 V 190 Z" fill="#1a1218" stroke="#1a1218" stroke-width="12" stroke-linejoin="round"/>
+<circle cx="160" cy="96" r="26" fill="#ff76c3"/>
+<path d="M 114 190 V 156 A 22 22 0 0 1 136 134 H 184 A 22 22 0 0 1 206 156 V 190 Z" fill="#ff76c3"/>
+<path d="M 72 214 Q 128 238 184 214" fill="none" stroke="#ffb1dd" stroke-width="6" stroke-linecap="round"/>
+<polygon points="195.0,209.3 185.3,222.1 179.0,207.4" fill="#ffb1dd"/>
+<polygon points="61.0,209.3 77.0,207.4 70.7,222.1" fill="#ffb1dd"/>
+</g>
+<text x="520" y="248" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="86" font-weight="700"><tspan fill="#a78e9b">gentle-</tspan><tspan fill="#ff76c3">accounts</tspan></text>
+<text x="526" y="324" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="38" fill="#f6eff3">Varias cuentas de Claude, Codex y Anthropic</text>
+<text x="526" y="372" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="38" fill="#f6eff3">en Gentle Shell y pi</text>
+<text x="526" y="428" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="26" fill="#a78e9b">Cambia con un solo comando. Una cuenta por proyecto.</text>
+<rect x="90" y="520" width="1100" height="62.4" fill="#1a1218" stroke="#342230" stroke-width="2"/>
+<text x="106" y="561.6" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="26"><tspan fill="#a78e9b">👤 gentle-accounts: </tspan><tspan fill="#ff76c3" font-weight="700">work</tspan><tspan fill="#f6eff3"> · mari****@company.com</tspan></text>
+</svg>
