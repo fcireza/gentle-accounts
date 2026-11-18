@@ -1,5 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { spawn as nodeSpawn } from "node:child_process";
 import { homedir } from "node:os";
+import { runClaudeLoginHere, type InheritResult, type InheritSpawn } from "../login-runner.ts";
+import { openInNewTab, type OpenTabResult, type TabCommand, type TabSpawn } from "../terminal.ts";
 import { PROVIDER_LABELS, type ClaudeAccount } from "../account.ts";
 import { claudeLoginCommand, loginHint } from "../login.ts";
 import { getShowEmail, runEmailCommand, settingsPath } from "../settings.ts";
@@ -30,6 +33,23 @@ export interface MenuDeps {
   flows: MenuFlows;
   homeDir?: string;
   platform?: NodeJS.Platform;
+  /** Working directory for the new tabs (default: the session cwd). */
+  cwd?: string;
+  /** S32 runners, injectable for tests (defaults spawn real processes). */
+  openTab?: (cwd: string, command: TabCommand) => Promise<OpenTabResult>;
+  loginHere?: (ctx: ExtensionCommandContext, claudeDir: string | undefined) => Promise<InheritResult>;
+}
+
+export const CLAUDE_LOGIN_CHOICES = ["In a new terminal tab", "In this terminal", "Show the command"] as const;
+
+const defaultOpenTab = (platform: NodeJS.Platform) => (cwd: string, command: TabCommand) =>
+  openInNewTab({ env: process.env, platform, cwd, command, spawn: nodeSpawn as unknown as TabSpawn });
+
+const defaultLoginHere = (platform: NodeJS.Platform) => (ctx: ExtensionCommandContext, claudeDir: string | undefined) =>
+  runClaudeLoginHere(ctx as never, claudeDir, { spawn: nodeSpawn as unknown as InheritSpawn, signals: process, env: process.env, platform });
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export const OVERLAY_OPTIONS = { anchor: "center", width: "100%", maxHeight: "100%", margin: 0 } as const;
@@ -42,6 +62,10 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
   let selectedName: string | null | undefined;
   let row = 0;
   let feedback: Feedback | undefined;
+  const platform = deps.platform ?? process.platform;
+  const openTab = deps.openTab ?? defaultOpenTab(platform);
+  const loginHere = deps.loginHere ?? defaultLoginHere(platform);
+  const cwd = deps.cwd ?? (ctx as { cwd?: string }).cwd ?? process.cwd();
   for (;;) {
     const { store: s, liveAuthPath, session, sharedDir } = deps.context();
     const path = settingsPath(sharedDir);
@@ -99,9 +123,29 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
           break;
         }
         case "login": {
-          // T21 replaces these stubs with real runners (S32).
           if (action.provider === "claude") {
-            set(loginHint(action.profile, claudeLoginCommand(s.claudeConfigEnv(action.profile), deps.platform), deps.platform));
+            const dir = s.claudeConfigEnv(action.profile);
+            const hint = loginHint(action.profile, claudeLoginCommand(dir, platform), platform);
+            // The printed command is truncated in the panel: notify shows it in full.
+            const print = (prefix = "") => {
+              set(prefix + hint);
+              ctx.ui.notify(hint, "info");
+            };
+            const choice = await ctx.ui.select(`Log profile "${action.profile}" into Claude Code`, [...CLAUDE_LOGIN_CHOICES]);
+            if (choice === CLAUDE_LOGIN_CHOICES[0]) {
+              const opened = await openTab(cwd, { argv: ["claude", "auth", "login"], env: { CLAUDE_CONFIG_DIR: dir ?? null } });
+              if (opened.ok) {
+                set(`Opened a new terminal tab (${opened.terminal}) to log profile "${action.profile}" into Claude Code. When it finishes, run /gentle:accounts current to see the account.`);
+              } else print("Could not open a new terminal tab.\n");
+            } else if (choice === CLAUDE_LOGIN_CHOICES[1]) {
+              const result = await loginHere(ctx, dir);
+              if ("error" in result) set(`Could not run claude auth login: ${errorText(result.error)}`, "error");
+              else if (result.code === 0) set(`Claude Code login finished for profile "${action.profile}".`);
+              else if (result.code === null) set(`claude auth login was stopped by ${result.signal ?? "a signal"}.`, "error");
+              else set(`claude auth login exited with code ${result.code}.`, "error");
+              await ctx.modelRegistry.refresh();
+              await deps.refreshStatus(ctx, s);
+            } else if (choice === CLAUDE_LOGIN_CHOICES[2]) print();
             break;
           }
           const label = PROVIDER_LABELS[action.provider] ?? action.provider;
@@ -114,9 +158,17 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
           ctx.ui.notify(`Press Enter to run /login and choose ${label} for profile "${action.profile}".`, "info");
           return;
         }
-        case "open":
-          set(`Open this project with "${action.profile}" in a new terminal: gentle-accounts ${action.profile}`);
+        case "open": {
+          const opened = await openTab(cwd, { argv: ["gentle-accounts", action.profile], env: {} });
+          if (opened.ok) {
+            set(`Opened "${action.profile}" in a new terminal tab (${opened.terminal}): gentle-accounts ${action.profile}`);
+            break;
+          }
+          const message = `Open this project with "${action.profile}" in a new terminal: gentle-accounts ${action.profile}`;
+          set(message);
+          ctx.ui.notify(message, "info");
           break;
+        }
       }
     } catch (error) {
       // A failing write (read-only folder, full disk...) is feedback inside the panel, never an aborted menu.

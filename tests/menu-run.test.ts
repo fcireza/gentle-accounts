@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -12,6 +12,7 @@ import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
 import { OVERLAY_OPTIONS, menuAvailable, runAccountsMenu } from "../src/menu/run.ts";
 import type { AccountsMenuPanel, MenuAction } from "../src/menu/panel.ts";
 import { identityTheme } from "../src/menu/view.ts";
+import type { OpenTabResult, TabCommand } from "../src/terminal.ts";
 
 function setup() {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-menu-run-"));
@@ -26,12 +27,13 @@ function setup() {
 }
 
 /** Fake `ctx.ui.custom`: renders each opened panel and returns the next scripted action (or undefined). */
-function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string } = {}) {
+function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string } = {}) {
   const frames: string[] = [];
   const notes: { message: string; type?: string }[] = [];
   const options: unknown[] = [];
   let editor: string | undefined;
   let refreshed = 0;
+  const selects: { title: string; options: string[] }[] = [];
   const ctx = {
     hasUI: o.hasUI ?? true,
     mode: o.mode ?? "tui",
@@ -41,6 +43,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
       notify: (message: string, type?: string) => notes.push({ message, type }),
       confirm: async () => o.confirm ?? false,
       input: async () => o.input,
+      select: async (title: string, options: string[]) => (selects.push({ title, options }), o.select),
       setEditorText: (t: string) => void (editor = t),
       custom: async (factory: (tui: unknown, theme: unknown, kb: unknown, done: (a: MenuAction) => void) => AccountsMenuPanel, opts: unknown) => {
         options.push(opts);
@@ -51,7 +54,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
       },
     },
   } as unknown as ExtensionCommandContext;
-  return { ctx, frames, notes, options, editor: () => editor, refreshed: () => refreshed };
+  return { ctx, frames, notes, options, editor: () => editor, refreshed: () => refreshed, selects: () => selects };
 }
 
 function deps(agentDir: string, statusLog: string[] = []) {
@@ -171,17 +174,110 @@ test("S31 run: a failing write shows feedback in the panel instead of aborting t
   }
 });
 
-test("S31 run: login stubs (Claude hint, /login prefill for the active profile only) and open", async () => {
-  const { agentDir, store } = setup();
-  const c = fakeCtx([{ type: "login", profile: "personal", provider: "claude", row: 1 }, { type: "login", profile: "personal", provider: "anthropic", row: 3 }, { type: "open", profile: "personal", row: 0 }, { type: "login", profile: "work", provider: "openai-codex", row: 2 }]);
+test("S31 run: /login prefill for the pi providers on the active profile only", async () => {
+  const { agentDir } = setup();
+  const c = fakeCtx([{ type: "login", profile: "personal", provider: "anthropic", row: 3 }, { type: "login", profile: "work", provider: "openai-codex", row: 2 }]);
   await runAccountsMenu(c.ctx, deps(agentDir));
-  const hint = loginHint("personal", claudeLoginCommand(store.claudeConfigEnv("personal"), "linux"), "linux");
-  for (const line of hint.split("\n").filter(Boolean)) assert.ok(feedbackOf(c.frames[1]).includes(line.trimEnd().slice(0, 100)), line);
-  assert.match(feedbackOf(c.frames[2]), /Switch to "personal" first/);
-  assert.match(feedbackOf(c.frames[3]), /gentle-accounts personal/);
-  assert.equal(c.frames.length, 4, "the /login prefill closes the panel");
+  assert.match(feedbackOf(c.frames[1]), /Switch to "personal" first/);
+  assert.equal(c.frames.length, 2, "the /login prefill closes the panel");
   assert.equal(c.editor(), "/login");
   assert.deepEqual(c.notes, [{ message: 'Press Enter to run /login and choose Codex for profile "work".', type: "info" }]);
+});
+
+function runners(o: { tab?: OpenTabResult; here?: unknown } = {}) {
+  const tabs: { cwd: string; command: TabCommand }[] = [];
+  const heres: (string | undefined)[] = [];
+  return {
+    tabs,
+    heres,
+    openTab: async (cwd: string, command: TabCommand) => (tabs.push({ cwd, command }), o.tab ?? { ok: false }),
+    loginHere: async (_ctx: unknown, dir: string | undefined) => (heres.push(dir), (o.here ?? { code: 0, signal: null }) as never),
+  };
+}
+
+const CLAUDE = { type: "login", profile: "personal", provider: "claude", row: 1 } as const;
+
+test("S32 run: Enter on Claude asks where; Show the command prints the S22 hint in the panel and in full through notify", async () => {
+  const { agentDir, store } = setup();
+  const r = runners();
+  const c = fakeCtx([CLAUDE, { type: "close" }], { select: "Show the command" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), ...r, cwd: "/proj" });
+  assert.deepEqual(c.selects(), [{ title: 'Log profile "personal" into Claude Code', options: ["In a new terminal tab", "In this terminal", "Show the command"] }]);
+  const hint = loginHint("personal", claudeLoginCommand(store.claudeConfigEnv("personal"), "linux"), "linux");
+  for (const line of hint.split("\n").filter(Boolean)) assert.ok(feedbackOf(c.frames[1]).includes(line.trimEnd().slice(0, 100)), line);
+  assert.deepEqual(c.notes, [{ message: hint, type: "info" }]);
+  assert.equal(r.tabs.length + r.heres.length, 0);
+});
+
+test("S32 run: cancelling the choice does nothing", async () => {
+  const { agentDir } = setup();
+  const r = runners();
+  const c = fakeCtx([CLAUDE, { type: "close" }], { select: undefined });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), ...r });
+  assert.equal(c.frames.length, 2);
+  assert.equal(feedbackOf(c.frames[1]).includes("claude auth login"), false);
+  assert.deepEqual(c.notes, []);
+  assert.equal(r.tabs.length + r.heres.length, 0);
+});
+
+test("S32 run: new terminal tab opens claude auth login with the profile dir in the cwd; failure prints the command", async () => {
+  const { agentDir, store } = setup();
+  const ok = runners({ tab: { ok: true, terminal: "tmux" } });
+  const c = fakeCtx([CLAUDE, { type: "close" }], { select: "In a new terminal tab" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), ...ok, cwd: "/my proj" });
+  assert.deepEqual(ok.tabs, [{ cwd: "/my proj", command: { argv: ["claude", "auth", "login"], env: { CLAUDE_CONFIG_DIR: store.claudeConfigEnv("personal") } } }]);
+  assert.match(feedbackOf(c.frames[1]), /Opened a new terminal tab \(tmux\) to log profile "personal" into Claude Code\./);
+  assert.deepEqual(c.notes, []);
+
+  const fail = runners({ tab: { ok: false } });
+  const f = fakeCtx([CLAUDE, { type: "close" }], { select: "In a new terminal tab" });
+  await runAccountsMenu(f.ctx, { ...deps(agentDir), ...fail, cwd: "/p" });
+  const hint = loginHint("personal", claudeLoginCommand(store.claudeConfigEnv("personal"), "linux"), "linux");
+  assert.match(feedbackOf(f.frames[1]), /Could not open a new terminal tab\./);
+  assert.deepEqual(f.notes, [{ message: hint, type: "info" }]);
+});
+
+test("S32 run: the default profile opens the tab with CLAUDE_CONFIG_DIR unset", async () => {
+  const { agentDir, store } = setup();
+  store.create("default");
+  writeFileSync(join(agentDir, "profiles", "default", "claude-default"), "");
+  const r = runners({ tab: { ok: true, terminal: "kitty" } });
+  const c = fakeCtx([{ type: "login", profile: "default", provider: "claude", row: 1 }, { type: "close" }], { select: "In a new terminal tab" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), ...r, cwd: "/p" });
+  assert.deepEqual(r.tabs[0].command.env, { CLAUDE_CONFIG_DIR: null });
+});
+
+test("S32 run: In this terminal hands over, then refreshes the registry and the status; failures are feedback", async () => {
+  const { agentDir, store } = setup();
+  const log: string[] = [];
+  const r = runners({ here: { code: 0, signal: null } });
+  const c = fakeCtx([CLAUDE, { type: "close" }], { select: "In this terminal" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir, log), ...r });
+  assert.deepEqual(r.heres, [store.claudeConfigEnv("personal")]);
+  assert.match(feedbackOf(c.frames[1]), /Claude Code login finished for profile "personal"\./);
+  assert.equal(c.refreshed(), 1);
+  assert.deepEqual(log, ["work"]);
+  for (const [here, re] of [[{ code: 1, signal: null }, /claude auth login exited with code 1\./], [{ code: null, signal: "SIGTERM" }, /claude auth login was stopped by SIGTERM\./], [{ error: new Error("spawn claude ENOENT") }, /Could not run claude auth login: spawn claude ENOENT/]] as const) {
+    const rr = runners({ here });
+    const cc = fakeCtx([CLAUDE, { type: "close" }], { select: "In this terminal" });
+    await runAccountsMenu(cc.ctx, { ...deps(agentDir), ...rr });
+    assert.match(feedbackOf(cc.frames[1]), re);
+    assert.equal(cc.refreshed(), 1);
+  }
+});
+
+test("S32 run: o opens gentle-accounts <profile> in a new tab in the cwd, falling back to the printed command", async () => {
+  const { agentDir } = setup();
+  const ok = runners({ tab: { ok: true, terminal: "Terminal.app" } });
+  const c = fakeCtx([{ type: "open", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), ...ok, cwd: "/my proj" });
+  assert.deepEqual(ok.tabs, [{ cwd: "/my proj", command: { argv: ["gentle-accounts", "personal"], env: {} } }]);
+  assert.match(feedbackOf(c.frames[1]), /Opened "personal" in a new terminal tab \(Terminal\.app\): gentle-accounts personal/);
+  const fail = runners();
+  const f = fakeCtx([{ type: "open", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(f.ctx, { ...deps(agentDir), ...fail, cwd: "/p" });
+  assert.match(feedbackOf(f.frames[1]), /Open this project with "personal" in a new terminal: gentle-accounts personal/);
+  assert.deepEqual(f.notes, [{ message: 'Open this project with "personal" in a new terminal: gentle-accounts personal', type: "info" }]);
 });
 
 test("S31 run: the menu is available only with UI in tui mode", () => {

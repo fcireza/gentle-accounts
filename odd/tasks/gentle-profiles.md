@@ -63,7 +63,7 @@ Pi/gentle-shell extension package that provides named account profiles (for exam
 - [x] T18 (S29): docs and READMEs for the email display setting. Route: worker (after T17); parity tests pass. Commit: see git log "docs: document the email display setting"
 - [x] T19 (S30): private session homes: builder, launcher integration, copy-back, sweeper, session-mode store, race-safe default and unique temp names, concurrency tests. Route: worker, test-first (RED per area; two real pi RPC processes isolated; found and fixed the realpath bug for symlinked shared dirs); freshest-credential rule added as T19b. Commit: see git log "feat: give every session its own account"
 - [x] T20 (S31): accounts menu panel. Route: worker after T19 (cut by a rate limit and resumed; RED captured afterwards against a copy of the base; real interactive pi driven through a pty at 120 and 40 columns: open, switch, email toggle, new profile, Esc, clean exit). Commit: see git log "feat: add an accounts menu"
-- [ ] T21 (S32): login runners (same terminal, new tab, /login prefill) and "open project with another account". Route: worker after T20. Commit: -
+- [x] T21 (S32): login runners (same terminal, new tab, /login prefill) and "open project with another account". Route: worker after T20, test-first (RED: 5 menu tests failing and the two new test files failing to load; 318/318 after). Commit: -
 - [ ] T22 (S33, S34): README and docs, covered providers generalization, Antigravity plan. Route: worker after T21. Commit: -
 
 ## Log
