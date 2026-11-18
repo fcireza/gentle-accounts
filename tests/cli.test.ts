@@ -381,7 +381,7 @@ test("T22: gentle-accounts email with extra words prints the usage and changes n
 });
 
 test("T22 win32: windowsShellArgs quotes arguments with spaces or tabs and keeps the others", () => {
-  assert.deepEqual(windowsShellArgs(["--home", "C:\\Users\\a b\\h", "x", "tab\there", ""]), ["--home", '"C:\\Users\\a b\\h"', "x", '"tab\there"', ""]);
+  assert.deepEqual(windowsShellArgs(["--home", "C:\\Users\\a b\\h", "x", "tab\there", ""]), ["--home", '"C:\\Users\\a b\\h"', "x", '"tab\there"', '""']);
   for (const bad of ["a&b", "a|b", "a<b", "a>b", "a^b", 'a"b', "%PATH%", "a\nb", "a\rb"]) {
     assert.throws(() => windowsShellArgs([bad]), { message: `gentle-accounts: argument "${bad}" contains characters that cmd.exe would interpret (& | < > ^ " %); pass it another way.` }, bad);
   }
@@ -434,4 +434,8 @@ test("T22: a corrupt profile auth.json at launch is reported with the gentle-acc
   assert.equal(await runCli(["work"], deps), 1);
   assert.equal(err.length, 1);
   assert.match(err[0], /^gentle-accounts: Cannot parse .*auth\.json/);
+});
+
+test("T22 win32: windowsShellArgs doubles a trailing backslash of a quoted argument and quotes an empty one", () => {
+  assert.deepEqual(windowsShellArgs(["C:\\a b\\", "C:\\a b\\\\", "C:\\ab\\", ""]), ['"C:\\a b\\\\"', '"C:\\a b\\\\\\\\"', "C:\\ab\\", '""']);
 });

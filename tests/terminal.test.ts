@@ -119,10 +119,16 @@ test("T22 openInNewTab failure reasons: not-available, spawn-error, exit code; n
   const none = fakeSpawn({});
   assert.deepEqual(await openInNewTab({ env: {}, platform: "linux", cwd: CWD, command: login, spawn: none.spawn }), { ok: false, reason: "not-available" });
   const enoent = Object.assign(new Error("spawn kitty ENOENT /x"), { code: "ENOENT" });
-  const cases: [object, string][] = [[{ error: enoent }, "spawn-error: ENOENT"], [{ throws: new Error("boom") }, "spawn-error: boom"], [{ code: 3 }, "exit 3"]];
+  const cases: [object, string][] = [[{ error: enoent }, "spawn-error: ENOENT"], [{ throws: new Error("boom") }, "spawn-error: unknown"], [{ code: 3 }, "exit 3"]];
   for (const [outcome, reason] of cases) {
     const f = fakeSpawn(outcome as never);
     const r = await openInNewTab({ env: { KITTY_WINDOW_ID: "1" }, platform: "linux", cwd: CWD, command: login, spawn: f.spawn });
     assert.deepEqual(r, { ok: false, reason });
   }
+});
+
+test("T22 openInNewTab never echoes the message of an error that has no code", async () => {
+  const f = fakeSpawn({ throws: new Error("boom /secret/path TOKEN=SECRETENV") } as never);
+  const r = await openInNewTab({ env: { KITTY_WINDOW_ID: "1" }, platform: "linux", cwd: CWD, command: login, spawn: f.spawn });
+  assert.deepEqual(r, { ok: false, reason: "spawn-error: unknown" });
 });

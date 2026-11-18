@@ -8,6 +8,9 @@ import { after } from "node:test";
 import { buildSessionHome } from "../src/session-home.ts";
 import { fileURLToPath } from "node:url";
 
+/** A timer that never keeps the test process alive after the race is decided. */
+const deadline = <T>(ms: number, value: T): Promise<T> => new Promise((res) => setTimeout(() => res(value), ms).unref());
+
 const BIN = fileURLToPath(new URL("../bin/gentle-accounts.mjs", import.meta.url));
 const isWin = process.platform === "win32";
 
@@ -139,18 +142,40 @@ test("launcher e2e (S30): SIGTERM to the launcher stops gentle-shell, copies its
   const child = spawn(process.execPath, [BIN, "work"], { env: { ...env, FAKE_SLEEP: "1", FAKE_AUTH: JSON.stringify(rotated) }, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   let err = "";
+  let fakePid = 0;
   child.stderr.on("data", (d) => (err += d));
-  const ready = new Promise<void>((resolve) => child.stdout.on("data", (d) => ((out += d), out.includes("READY") && resolve())));
+  const ready = new Promise<void>((resolve) =>
+    child.stdout.on("data", (d) => {
+      out += d;
+      const m = /READY (\d+)/.exec(out);
+      if (m) {
+        fakePid = Number(m[1]);
+        resolve();
+      }
+    }),
+  );
   const closed = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
-  await ready;
-  const during = homes().length;
-  child.kill("SIGTERM"); // before any assertion, so a failure never leaves the launcher running
-  const code = await closed;
-  assert.equal(during, 1);
-  assert.equal(code, 143, err);
-  assert.equal(err, "");
-  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
-  assert.deepEqual(homes(), []);
+  try {
+    assert.equal(await Promise.race([ready.then(() => "ready"), deadline(30000, "timeout")]), "ready", "the fake gentle-shell never became ready");
+    const during = homes().length;
+    child.kill("SIGTERM"); // before any assertion, so a failure never leaves the launcher running
+    const code = await Promise.race([closed, deadline(15000, "timeout" as const)]);
+    assert.equal(during, 1);
+    assert.equal(code, 143, err);
+    assert.equal(err, "");
+    assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), rotated);
+    assert.deepEqual(homes(), []);
+  } finally {
+    // An orphaned fake holds the pipes open, and Node would not exit while they are: always clean up.
+    child.stdout.destroy();
+    child.stderr.destroy();
+    if (fakePid) { // kill(0, ...) would signal the whole process group
+      try {
+        process.kill(fakePid, "SIGKILL");
+      } catch {}
+    }
+    child.kill("SIGKILL");
+  }
 });
 
 test("launcher e2e (S30): a SIGTERM that lands while the launcher records the child pid is still forwarded", { skip: isWin }, async () => {
@@ -177,17 +202,19 @@ test("launcher e2e (S30): a SIGTERM that lands while the launcher records the ch
   let err = "";
   child.stderr.on("data", (d) => (err += d));
   try {
-    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), new Promise<string>((res) => setTimeout(() => res("timeout"), 30000))]);
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), deadline(30000, "timeout")]);
     assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
     child.kill("SIGTERM"); // the fake is READY, the launcher is still writing the marker (400 ms)
-    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    const result = await Promise.race([exited, deadline(15000, null)]);
     assert.deepEqual(result, { code: 143, signal: null }, "the launcher forwards SIGTERM and exits with the child's status");
   } finally {
     child.stdout.destroy();
     child.stderr.destroy();
-    try {
-      process.kill(fakePid, "SIGKILL");
-    } catch {}
+    if (fakePid) { // kill(0, ...) would signal the whole process group
+      try {
+        process.kill(fakePid, "SIGKILL");
+      } catch {}
+    }
     child.kill("SIGKILL");
   }
 });
@@ -212,18 +239,20 @@ test("launcher e2e (T22): SIGHUP to the launcher is forwarded and the launcher e
   );
   const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
   try {
-    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), new Promise<string>((res) => setTimeout(() => res("timeout"), 30000))]);
+    const first = await Promise.race([ready.then(() => "ready"), exited.then(() => "exited"), deadline(30000, "timeout")]);
     assert.equal(first, "ready", `the launcher exited before the fake was ready: ${err}`);
     child.kill("SIGHUP");
-    const result = await Promise.race([exited, new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+    const result = await Promise.race([exited, deadline(15000, null)]);
     assert.deepEqual(result, { code: 129, signal: null }, err);
     assert.deepEqual(homes(), []);
   } finally {
     child.stdout.destroy();
     child.stderr.destroy();
-    try {
-      process.kill(fakePid, "SIGKILL");
-    } catch {}
+    if (fakePid) { // kill(0, ...) would signal the whole process group
+      try {
+        process.kill(fakePid, "SIGKILL");
+      } catch {}
+    }
     child.kill("SIGKILL");
   }
 });

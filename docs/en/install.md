@@ -89,6 +89,8 @@ Verify: open Gentle Shell or pi and run `/gentle:accounts list`. In a new termin
 
 ## Windows (PowerShell)
 
+> **Windows has not been tested on a real machine**, only by automated tests. WSL is recommended.
+
 Install with Gentle Shell:
 
 ```powershell
