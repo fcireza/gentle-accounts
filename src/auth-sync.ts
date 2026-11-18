@@ -1,10 +1,29 @@
 import { existsSync, readFileSync } from "node:fs";
 import { ProfileStore, isAlreadyExistsError, writeFileAtomic } from "./store.ts";
 
-/** pi auth.json providers whose credentials belong to a profile. */
+/** Base providers whose credentials always belong to a profile, whatever the entry type. */
 export const COVERED_PROVIDERS = ["openai-codex", "anthropic"] as const;
 
 export type AuthData = Record<string, unknown>;
+
+/** True for an oauth credential entry; malformed entries (null, strings, arrays) are not oauth. */
+export function isOauthEntry(entry: unknown): boolean {
+  return Boolean(entry) && typeof entry === "object" && !Array.isArray(entry) && (entry as { type?: unknown }).type === "oauth";
+}
+
+/**
+ * Providers whose entries belong to a profile (S34): the base set plus every provider stored as oauth in
+ * any of `sources`. Other providers (api keys such as google) stay global.
+ */
+export function coveredProviders(...sources: AuthData[]): string[] {
+  const covered: string[] = [...COVERED_PROVIDERS];
+  for (const source of sources) {
+    for (const [provider, entry] of Object.entries(source)) {
+      if (!covered.includes(provider) && isOauthEntry(entry)) covered.push(provider);
+    }
+  }
+  return covered;
+}
 export type Env = Record<string, string | undefined>;
 
 export function readAuthFile(path: string): AuthData {
@@ -27,7 +46,7 @@ export function writeAuthFile(path: string, data: AuthData): void {
 /** Copies the covered provider entries of `source` into `target`, removing entries absent in `source`. */
 export function transferCovered(source: AuthData, target: AuthData): AuthData {
   const next: AuthData = { ...target };
-  for (const provider of COVERED_PROVIDERS) {
+  for (const provider of coveredProviders(source, target)) {
     if (provider in source) next[provider] = source[provider];
     else delete next[provider];
   }
@@ -65,7 +84,7 @@ export function pickFreshest<T>(preferred: T | undefined, other: T | undefined):
  */
 function snapshotOutgoing(live: AuthData, outgoing: AuthData): AuthData {
   const next: AuthData = { ...outgoing };
-  for (const provider of COVERED_PROVIDERS) {
+  for (const provider of coveredProviders(live, outgoing)) {
     if (provider in live) next[provider] = pickFreshest(live[provider], outgoing[provider]);
     else delete next[provider];
   }

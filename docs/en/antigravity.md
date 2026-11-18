@@ -39,7 +39,7 @@ Keep several Antigravity (Google) accounts in gentle-accounts profiles, like Cla
 
 ## Preparation step
 
-Before any Antigravity code, stop hard-coding two providers: treat every account-based provider stored in `auth.json` as covered, with a configurable exclusion list for pure API-key providers. Then any provider that registers later (option C) works without changes. This is a separate task.
+Done: profiles no longer hard-code two providers. `openai-codex` and `anthropic` are always covered, and so is every other provider whose `auth.json` entry is `"type": "oauth"`; API-key providers (such as `google`) stay global. Any provider that registers later (option C) works without changes. The exclusion is by entry type, not a configurable list.
 
 ## Exit criteria
 
@@ -47,7 +47,7 @@ The plan becomes a task when:
 
 1. Questions 1 to 4 have answers backed by evidence (source code, documentation or a measurement), each one noted in the feature document.
 2. One option is chosen, with the reason.
-3. The preparation step is merged and tested.
+3. The preparation step is merged and tested (done).
 4. For option C, a pi Antigravity provider exists and was tested by hand.
 
 Back to the [documentation index](README.md).

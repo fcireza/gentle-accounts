@@ -24,7 +24,7 @@ import {
 
 const W = { anthropic: { type: "oauth", access: "w-access", refresh: "w-refresh", expires: 1 } };
 const P = { "openai-codex": { type: "oauth", access: "p-access", refresh: "p-refresh", expires: 2 } };
-const COPILOT = { "github-copilot": { type: "oauth", access: "gh", refresh: "gh", expires: 3 } };
+const GLOBAL = { google: { type: "api_key", key: "g-key" } }; // api-key providers stay global (S34)
 
 function sandbox() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "gentle-accounts-sh-")));
@@ -59,7 +59,7 @@ function sandbox() {
 
 test("S30: build creates the recipe: links, private auth.json, absolute settings, current and marker", () => {
   const { shared, base, store } = sandbox();
-  writeAuthFile(join(shared, "auth.json"), { ...COPILOT, anthropic: { type: "api_key", key: "live" } });
+  writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, anthropic: { type: "api_key", key: "live" } });
   const { home, marker } = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, pid: 4242 });
   assert.equal(home.startsWith(base), true);
   if (process.platform !== "win32") assert.equal(statSync(home).mode & 0o777, 0o700); // Windows has no POSIX modes
@@ -72,7 +72,7 @@ test("S30: build creates the recipe: links, private auth.json, absolute settings
   assert.equal(lstatSync(join(home, "auth.json")).isFile(), true);
   if (process.platform !== "win32") assert.equal(statSync(join(home, "auth.json")).mode & 0o777, 0o600);
   // Non covered providers of the shared live auth are kept, covered ones come from the profile snapshot.
-  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...COPILOT, ...P });
+  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, ...P });
   const settings = JSON.parse(readFileSync(join(home, "settings.json"), "utf8"));
   assert.deepEqual(settings, {
     packages: [join(shared, "..", "ext", "local"), join(shared, "sub", "deep", "pkg"), "npm:@scope/pkg", "git:github.com/a/b", "https://x.dev/p.git", "ssh://git@h/p", "/abs/pkg", { source: join(shared, "..", "ext", "obj"), extensions: ["a"] }],
@@ -105,11 +105,11 @@ test("S30: the global current profile takes its covered entries from the shared 
   const { shared, base, store } = sandbox();
   store.setCurrent("work");
   const fresh = { anthropic: { type: "oauth", access: "rotated", refresh: "rotated", expires: 9 } };
-  writeAuthFile(join(shared, "auth.json"), { ...COPILOT, ...fresh });
+  writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, ...fresh });
   const w = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
-  assert.deepEqual(readAuthFile(join(w.home, "auth.json")), { ...COPILOT, ...fresh });
+  assert.deepEqual(readAuthFile(join(w.home, "auth.json")), { ...GLOBAL, ...fresh });
   const p = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
-  assert.deepEqual(readAuthFile(join(p.home, "auth.json")), { ...COPILOT, ...P });
+  assert.deepEqual(readAuthFile(join(p.home, "auth.json")), { ...GLOBAL, ...P });
 });
 
 test("S30: no shared auth.json and an empty snapshot give {}; no shared settings.json writes none", () => {
@@ -176,7 +176,7 @@ test("S30: finish copies the covered providers back into the session's current s
   const { shared, base, store } = sandbox();
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   const rotated = { anthropic: { type: "oauth", access: "w2", refresh: "w2r", expires: 5 } };
-  writeAuthFile(join(home, "auth.json"), { ...COPILOT, ...rotated });
+  writeAuthFile(join(home, "auth.json"), { ...GLOBAL, ...rotated });
   const err: string[] = [];
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: (l) => err.push(l) }), true);
   assert.deepEqual(err, []);
@@ -298,27 +298,27 @@ test("S30: the global current profile starts from the freshest entry per provide
   const snapAnthropic = oauth("snap-rotated", 50);
   const liveCodex = oauth("live-codex", 70);
   writeAuthFile(store.authPath("work"), { anthropic: snapAnthropic, "openai-codex": oauth("snap-codex", 60) });
-  writeAuthFile(join(shared, "auth.json"), { ...COPILOT, anthropic: { ...oauth("live-old", 10), extra: "x" }, "openai-codex": liveCodex });
+  writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, anthropic: { ...oauth("live-old", 10), extra: "x" }, "openai-codex": liveCodex });
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
-  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...COPILOT, anthropic: snapAnthropic, "openai-codex": liveCodex });
+  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, anthropic: snapAnthropic, "openai-codex": liveCodex });
 });
 
 test("S30: a provider only in the snapshot is used; api_key entries keep the live copy for the global current", () => {
   const { shared, base, store } = sandbox();
   store.setCurrent("work");
   writeAuthFile(store.authPath("work"), { anthropic: { type: "api_key", key: "snap" }, "openai-codex": oauth("only-snap", 5) });
-  writeAuthFile(join(shared, "auth.json"), { ...COPILOT, anthropic: { type: "api_key", key: "live" } });
+  writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, anthropic: { type: "api_key", key: "live" } });
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
-  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...COPILOT, anthropic: { type: "api_key", key: "live" }, "openai-codex": oauth("only-snap", 5) });
+  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, anthropic: { type: "api_key", key: "live" }, "openai-codex": oauth("only-snap", 5) });
 });
 
 test("S30: a profile that is not the global current uses only its snapshot, even when the live entry is fresher", () => {
   const { shared, base, store } = sandbox();
   store.setCurrent("work");
   writeAuthFile(store.authPath("personal"), { "openai-codex": oauth("snap", 1) });
-  writeAuthFile(join(shared, "auth.json"), { ...COPILOT, "openai-codex": oauth("live", 99) });
+  writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, "openai-codex": oauth("live", 99) });
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
-  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...COPILOT, "openai-codex": oauth("snap", 1) });
+  assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, "openai-codex": oauth("snap", 1) });
 });
 
 // ---- T19c: copy-back merge by freshness, and the child pid in the marker ----
@@ -327,7 +327,7 @@ test("S30: copy-back keeps the fresher oauth entry of the snapshot over an older
   const { shared, base, store } = sandbox();
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeAuthFile(store.authPath("work"), { anthropic: oauth("rotated-by-other", 50) });
-  writeAuthFile(join(home, "auth.json"), { ...COPILOT, anthropic: oauth("stale", 10) });
+  writeAuthFile(join(home, "auth.json"), { ...GLOBAL, anthropic: oauth("stale", 10) });
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.deepEqual(readAuthFile(store.authPath("work")), { anthropic: oauth("rotated-by-other", 50) });
 });
@@ -336,7 +336,7 @@ test("S30: a covered provider logged out inside the session is removed from the 
   const { shared, base, store } = sandbox();
   writeAuthFile(store.authPath("work"), { anthropic: oauth("a", 10), "openai-codex": oauth("c", 10) });
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
-  writeAuthFile(join(home, "auth.json"), { ...COPILOT, "openai-codex": oauth("c", 10) }); // the user logged anthropic out
+  writeAuthFile(join(home, "auth.json"), { ...GLOBAL, "openai-codex": oauth("c", 10) }); // the user logged anthropic out
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": oauth("c", 10) });
 });
@@ -362,7 +362,7 @@ test("S30: copy-back adds a provider missing in the snapshot, drops one missing 
   const { shared, base, store } = sandbox();
   const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeAuthFile(store.authPath("work"), { anthropic: oauth("snap", 5) });
-  writeAuthFile(join(home, "auth.json"), { ...COPILOT, "openai-codex": oauth("new", 7) });
+  writeAuthFile(join(home, "auth.json"), { ...GLOBAL, "openai-codex": oauth("new", 7) });
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": oauth("new", 7) });
   assert.equal(existsSync(join(shared, "auth.json")), false);
@@ -477,4 +477,24 @@ test("S30: the sweeper checks the base dir and ignores markers of another agent 
   assert.deepEqual(err, [`gentle-accounts: refusing to use ${base}: it is owned by another user`]);
   assert.equal(existsSync(dead.home), true);
   assert.deepEqual(sweepSessionHomes(base, () => false, () => {}, { sharedAgentDir: shared }), [dead.home]);
+});
+
+// ---- S34: extra oauth providers travel with the session ----
+
+test("S34: build and copy-back carry an extra oauth provider; api-key providers stay global", () => {
+  const { shared, base, store } = sandbox();
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("work"), { ...W, ag: oauth("snap-ag", 9) });
+  writeAuthFile(store.authPath("personal"), P);
+  writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, ...W, ag: oauth("live-ag", 1) });
+  const w = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  assert.deepEqual(readAuthFile(join(w.home, "auth.json")), { ...GLOBAL, ...W, ag: oauth("snap-ag", 9) });
+  const p = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
+  assert.deepEqual(readAuthFile(join(p.home, "auth.json")), { ...GLOBAL, ...P }, "ag of the live file is not leaked");
+  writeAuthFile(join(p.home, "auth.json"), { ...GLOBAL, ...P, ag: oauth("p-ag", 4) });
+  assert.equal(finishSessionHome(p.home, { sharedAgentDir: shared, stderr: () => {} }), true);
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { ...P, ag: oauth("p-ag", 4) });
+  writeAuthFile(join(w.home, "auth.json"), { ...GLOBAL, ...W });
+  assert.equal(finishSessionHome(w.home, { sharedAgentDir: shared, stderr: () => {} }), true);
+  assert.deepEqual(readAuthFile(store.authPath("work")), W, "logged out inside the session");
 });

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PLUGIN_LABEL, maskEmail, queryClaudeAccount, readClaudeAccount, statusText } from "../src/account.ts";
+import { PLUGIN_LABEL, maskEmail, providerStates, queryClaudeAccount, readClaudeAccount, statusText } from "../src/account.ts";
 
 function dirs() {
   const home = mkdtempSync(join(tmpdir(), "gentle-accounts-acct-"));
@@ -144,4 +144,32 @@ test("S29: statusText hides by default and prints the full email only when shown
   assert.equal(statusText("work", a, { showEmail: true }), "👤 gentle-accounts: work · fcireza@gmail.com");
   assert.equal(statusText("work", null, { showEmail: true }), "🔒 gentle-accounts: work · not logged in");
   assert.equal(statusText("work", null, { showEmail: false }), "🔒 gentle-accounts: work · not logged in");
+});
+
+// ---- S34: covered providers generalization ----
+
+test("S34: providerStates keeps the base rows and adds every other oauth provider, never api keys or malformed entries", () => {
+  const auth = {
+    "openai-codex": { type: "oauth", access: "secret-a", expires: 1 },
+    "google-antigravity": { type: "oauth", access: "secret-g", expires: 2 },
+    google: { type: "api_key", key: "secret-k" },
+    weird1: null,
+    weird2: "oauth",
+    weird3: ["oauth"],
+  };
+  const rows = providerStates(null, auth);
+  assert.deepEqual(rows, [
+    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: false },
+    { provider: "openai-codex", label: "Codex", loggedIn: true },
+    { provider: "anthropic", label: "Anthropic", loggedIn: false },
+    { provider: "google-antigravity", label: "google-antigravity", loggedIn: true },
+  ]);
+  assert.equal(JSON.stringify(rows).includes("secret"), false);
+});
+
+test("S34: providerStates with base providers only is unchanged (api key anthropic counts as logged in)", () => {
+  assert.deepEqual(providerStates(null, { anthropic: { type: "api_key", key: "k" } }).slice(1), [
+    { provider: "openai-codex", label: "Codex", loggedIn: false },
+    { provider: "anthropic", label: "Anthropic", loggedIn: true },
+  ]);
 });

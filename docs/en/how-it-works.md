@@ -16,7 +16,7 @@ profiles/
   startup             optional: the profile new sessions start on
   work/
     claude/           this profile's Claude Code login
-    auth.json         this profile's Codex / Anthropic credentials
+    auth.json         this profile's account (oauth) credentials
   default/
     claude-default    marker: use Claude Code's default folder, CLAUDE_CONFIG_DIR unset
     auth.json
@@ -25,7 +25,7 @@ profiles/
 - `profiles/current` holds the name of the active profile. A name that does not match an existing profile counts as no active profile.
 - `profiles/startup` holds the startup profile name, written by `startup <name>` and removed by `startup last`. When it is absent, or names a profile that no longer exists, new sessions start on the last used profile.
 - `<name>/claude/` is the profile's `CLAUDE_CONFIG_DIR`, the folder where Claude Code keeps that profile's login. pi-claude-bridge reads `CLAUDE_CONFIG_DIR` from the process environment.
-- `<name>/auth.json` holds the profile's entries for the `openai-codex` and `anthropic` providers, in pi's `auth.json` format. A folder without `auth.json` is not a profile.
+- `<name>/auth.json` holds the profile's covered entries, in pi's `auth.json` format. Covered means `openai-codex`, `anthropic` and every other provider whose entry is `"type": "oauth"`; API-key providers (such as `google`) stay global and are never moved. A folder without `auth.json` is not a profile.
 - `claude-default` is an empty marker: the profile uses Claude Code's built-in default folder and `CLAUDE_CONFIG_DIR` must be unset.
 - `claude-dir` holds an explicit folder instead. It is written when `default` is created while you had `CLAUDE_CONFIG_DIR` set. A legacy `claude-dir` that points at `~/.claude` is treated like the `claude-default` marker.
 
@@ -33,13 +33,13 @@ All paths are built with Node's `path` functions, so the same layout works on Li
 
 ## The startup profile at session start
 
-At session start the extension first creates `default` when no profile is active, or applies the active profile's `CLAUDE_CONFIG_DIR`. Then, if a startup profile is set and is not the active one, it switches to it with the same safe switch as `/gentle:accounts <name>`: every file is read before any is written, the outgoing profile's Codex and Anthropic credentials are saved, and `CLAUDE_CONFIG_DIR` is set or removed (removed for `default`). It then shows `Started on profile "<name>" (startup profile).`. When the startup profile is already active nothing changes. If a file cannot be read, it shows `gentle-accounts: <message>` (error), nothing changes and the session keeps working on the last used profile.
+At session start the extension first creates `default` when no profile is active, or applies the active profile's `CLAUDE_CONFIG_DIR`. Then, if a startup profile is set and is not the active one, it switches to it with the same safe switch as `/gentle:accounts <name>`: every file is read before any is written, the outgoing profile's covered credentials are saved, and `CLAUDE_CONFIG_DIR` is set or removed (removed for `default`). It then shows `Started on profile "<name>" (startup profile).`. When the startup profile is already active nothing changes. If a file cannot be read, it shows `gentle-accounts: <message>` (error), nothing changes and the session keeps working on the last used profile.
 
 The startup switch is skipped when `GENTLE_ACCOUNTS_LAUNCH_PROFILE` is set (not empty): the launcher sets it when it starts gentle-shell with `gentle-accounts <name>`, which already switched to `<name>`. If `profiles/startup` names a profile that no longer exists, session start shows `Startup profile "<name>" does not exist; starting on the last used profile.` (warning) and nothing changes. The startup switch only happens when pi starts. It does not run on `/new`, `/resume`, `/fork` or `/reload`, so a profile you switched to by hand stays active.
 
 ### A different account per session
 
-A session started without the launcher uses the global profile: `profiles/current` and the single `auth.json` that every such session shares. Switching profile in one of them changes the Codex and Anthropic credentials the others read.
+A session started without the launcher uses the global profile: `profiles/current` and the single `auth.json` that every such session shares. Switching profile in one of them changes the covered credentials (Codex, Anthropic and any other OAuth login) the others read.
 
 A session started with `gentle-accounts <name>` gets its own private agent home instead, so several projects can run at the same time with a different account each:
 
@@ -47,7 +47,7 @@ A session started with `gentle-accounts <name>` gets its own private agent home 
 2. Every entry of the shared agent dir is linked into it, except `auth.json`, `settings.json`, `auth.json.*`, `*.lock` and names starting with `.gentle-` (on Windows folders become junctions and files fall back to a hard link, then a copy).
 3. The home gets its own `auth.json` (`0600`) with the profile's credentials, its own `settings.json` (a copy of the shared one with relative package paths made absolute) and a marker `.gentle-accounts-session.json`.
 4. It runs `gentle-shell --home <home>` with `GENTLE_SHELL_NO_AUTO_SETUP=1`, `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` and the profile's `CLAUDE_CONFIG_DIR`.
-5. When gentle-shell exits (any exit code, Ctrl+C or a kill signal), the launcher copies the session's `openai-codex` and `anthropic` entries back into the profile and removes the home without following links. The next launch also cleans up homes whose launcher and gentle-shell processes are gone.
+5. When gentle-shell exits (any exit code, Ctrl+C or a kill signal), the launcher copies the session's covered entries back into the profile and removes the home without following links. The next launch also cleans up homes whose launcher and gentle-shell processes are gone.
 
 Inside such a session the extension reads profiles from the shared agent dir, but the live credentials are the home's `auth.json` and the session's current profile is stored in the home (`.gentle-accounts-current`), never in `profiles/current`. A switch inside the session only changes that session. The startup profile is not applied there; the menu shows the mode `session home`.
 
@@ -63,8 +63,8 @@ Known limit: Codex and Anthropic OAuth logins use rotating refresh tokens. Using
 2. If no profile is active, create `default` from the current logins first (see [Workflow](workflow.md)).
 3. If the target is already active, stop with `Already on profile "<name>".`
 4. Read every file before writing any: pi's live `auth.json`, the target's `auth.json` and the outgoing profile's `auth.json`. A corrupt file stops the switch with `Cannot parse <path>: <reason>` and nothing is written.
-5. Save outgoing: copy the live `openai-codex` and `anthropic` entries into the outgoing profile's `auth.json` (an entry missing from the live file is removed from the snapshot).
-6. Load incoming: copy the target's `openai-codex` and `anthropic` entries into pi's live `auth.json`, removing those that the target does not have. Entries of any other provider are left as they are.
+5. Save outgoing: copy the live covered entries into the outgoing profile's `auth.json` (an entry missing from the live file is removed from the snapshot).
+6. Load incoming: copy the target's covered entries into pi's live `auth.json`, removing those that the target does not have. API-key entries of other providers are left as they are.
 7. Set `CLAUDE_CONFIG_DIR` to the target's Claude folder, or delete the variable for a profile on Claude Code's default folder (it is deleted, never set to the text `undefined`).
 8. Write the target name into `profiles/current`.
 
@@ -133,5 +133,5 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 - Adding entries to Gentle Shell's command menu: it is a fixed list that extensions cannot extend, so the entry points are `/gentle:accounts` (and its menu) and the status bar.
 - Switching during an agent turn.
 - Deleting the active profile, or deleting from the launcher.
-- Swapping providers other than `openai-codex` and `anthropic` (plus Claude through `CLAUDE_CONFIG_DIR`). Antigravity is only a plan for now: see [Antigravity](antigravity.md).
+- Swapping API-key providers other than `openai-codex` and `anthropic` (OAuth providers and Claude through `CLAUDE_CONFIG_DIR` are swapped). Antigravity is only a plan for now: see [Antigravity](antigravity.md).
 - The old `/profile` command: it was renamed to `/gentle:accounts`.

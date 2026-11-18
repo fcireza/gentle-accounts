@@ -39,7 +39,7 @@ Guardar varias cuentas de Antigravity (Google) en perfiles de gentle-accounts, c
 
 ## Paso de preparación
 
-Antes de cualquier código de Antigravity, dejar de fijar dos proveedores en el código: tratar como cubierto todo proveedor basado en cuenta guardado en `auth.json`, con una lista de exclusión configurable para los proveedores que solo usan clave de API. Así cualquier proveedor que se registre después (opción C) funciona sin cambios. Es una tarea aparte.
+Hecho: los perfiles ya no fijan dos proveedores en el código. `openai-codex` y `anthropic` siempre están cubiertos, y también cualquier otro proveedor cuya entrada en `auth.json` sea `"type": "oauth"`; los proveedores con clave de API (como `google`) quedan globales. Cualquier proveedor que se registre después (opción C) funciona sin cambios. La exclusión es por tipo de entrada, no una lista configurable.
 
 ## Criterios de salida
 
@@ -47,7 +47,7 @@ El plan se convierte en tarea cuando:
 
 1. Las preguntas 1 a 4 tienen respuestas respaldadas por evidencia (código fuente, documentación o una medición), cada una anotada en el documento de la funcionalidad.
 2. Se elige una opción, con su motivo.
-3. El paso de preparación está integrado y probado.
+3. El paso de preparación está integrado y probado (hecho).
 4. Para la opción C, existe un proveedor de Antigravity para pi y se probó a mano.
 
 Volver al [índice de la documentación](README.md).

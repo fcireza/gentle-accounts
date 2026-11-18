@@ -13,7 +13,7 @@ import { SESSION_CURRENT, buildSessionHome, finishSessionHome, resolveContext } 
 
 const W = { anthropic: { type: "oauth", access: "w-access", refresh: "w-refresh", expires: 1 } };
 const P = { "openai-codex": { type: "oauth", access: "p-access", refresh: "p-refresh", expires: 2 } };
-const COPILOT = { "github-copilot": { type: "oauth", access: "gh", refresh: "gh", expires: 3 } };
+const GLOBAL = { google: { type: "api_key", key: "g-key" } }; // api-key providers stay global (S34)
 
 const sha = (path: string): string => (existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : "missing");
 
@@ -35,7 +35,7 @@ function twoSessions() {
   store.create("personal");
   writeAuthFile(store.authPath("work"), W);
   writeAuthFile(store.authPath("personal"), P);
-  writeAuthFile(join(shared, "auth.json"), COPILOT);
+  writeAuthFile(join(shared, "auth.json"), GLOBAL);
   const h1 = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
   const h2 = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base }).home;
   return { ...box, h1, h2 };
@@ -54,10 +54,10 @@ test("S30: a switch inside session 1 leaves session 2, every snapshot and the gl
   assert.equal(switchProfile({ store: s1.store, liveAuthPath: s1.liveAuthPath, env, to: "personal" }).status, "switched");
   assert.deepEqual(fingerprint(watched), before);
   assert.equal(readFileSync(join(h1, SESSION_CURRENT), "utf8"), "personal\n");
-  assert.deepEqual(readAuthFile(join(h1, "auth.json")), { ...COPILOT, ...P });
+  assert.deepEqual(readAuthFile(join(h1, "auth.json")), { ...GLOBAL, ...P });
   assert.equal(existsSync(store.currentPath), false, "profiles/current is never written by a session");
   assert.equal(resolveContext(h2).store.current(), "personal");
-  assert.deepEqual(readAuthFile(join(h2, "auth.json")), { ...COPILOT, ...P });
+  assert.deepEqual(readAuthFile(join(h2, "auth.json")), { ...GLOBAL, ...P });
   assert.equal(env.CLAUDE_CONFIG_DIR, join(shared, "profiles", "personal", "claude"));
 });
 
@@ -67,13 +67,13 @@ test("S30: no snapshot ever receives the other session's credentials", () => {
   const s2 = resolveContext(h2);
   // Session 2 rotates its Codex token, then both sessions switch around.
   const p2 = { "openai-codex": { type: "oauth", access: "p-rotated", refresh: "p-rotated", expires: 22 } };
-  writeAuthFile(s2.liveAuthPath, { ...COPILOT, ...p2 });
+  writeAuthFile(s2.liveAuthPath, { ...GLOBAL, ...p2 });
   switchProfile({ store: s2.store, liveAuthPath: s2.liveAuthPath, env: {}, to: "work" });
   switchProfile({ store: s1.store, liveAuthPath: s1.liveAuthPath, env: {}, to: "personal" });
   assert.deepEqual(readAuthFile(store.authPath("work")), W);
   assert.deepEqual(readAuthFile(store.authPath("personal")), p2);
-  assert.deepEqual(readAuthFile(s1.liveAuthPath), { ...COPILOT, ...p2 });
-  assert.deepEqual(readAuthFile(s2.liveAuthPath), { ...COPILOT, ...W });
+  assert.deepEqual(readAuthFile(s1.liveAuthPath), { ...GLOBAL, ...p2 });
+  assert.deepEqual(readAuthFile(s2.liveAuthPath), { ...GLOBAL, ...W });
   assert.equal(s1.store.current(), "personal");
   assert.equal(s2.store.current(), "work");
 });
@@ -82,14 +82,14 @@ test("S30: two sessions on different profiles copy back their own credentials", 
   const { shared, store, h1, h2 } = twoSessions();
   const w2 = { anthropic: { type: "oauth", access: "w2", refresh: "w2", expires: 11 } };
   const p2 = { "openai-codex": { type: "oauth", access: "p2", refresh: "p2", expires: 12 } };
-  writeAuthFile(join(h1, "auth.json"), { ...COPILOT, ...w2 });
-  writeAuthFile(join(h2, "auth.json"), { ...COPILOT, ...p2 });
+  writeAuthFile(join(h1, "auth.json"), { ...GLOBAL, ...w2 });
+  writeAuthFile(join(h2, "auth.json"), { ...GLOBAL, ...p2 });
   assert.equal(finishSessionHome(h2, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.equal(finishSessionHome(h1, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.deepEqual(readAuthFile(store.authPath("work")), w2);
   assert.deepEqual(readAuthFile(store.authPath("personal")), p2);
   assert.equal(existsSync(h1) || existsSync(h2), false);
-  assert.deepEqual(readAuthFile(join(shared, "auth.json")), COPILOT);
+  assert.deepEqual(readAuthFile(join(shared, "auth.json")), GLOBAL);
 });
 
 test("S30: a token rotation in one private auth.json lands only in its profile snapshot", () => {
@@ -97,7 +97,7 @@ test("S30: a token rotation in one private auth.json lands only in its profile s
   const personalBefore = sha(store.authPath("personal"));
   const sharedBefore = sha(join(shared, "auth.json"));
   const w2 = { anthropic: { type: "oauth", access: "w-rot", refresh: "w-rot", expires: 99 } };
-  writeAuthFile(join(h1, "auth.json"), { ...COPILOT, ...w2 });
+  writeAuthFile(join(h1, "auth.json"), { ...GLOBAL, ...w2 });
   const h2Before = sha(join(h2, "auth.json"));
   finishSessionHome(h1, { sharedAgentDir: shared, stderr: () => {} });
   assert.deepEqual(readAuthFile(store.authPath("work")), w2);
@@ -111,7 +111,7 @@ test("S30: a token rotation in one private auth.json lands only in its profile s
 
 test("S30: first-run default creation from 8 real processes at once (4 sessions, 4 global) is consistent", async () => {
   const { root, shared, base, store } = sandbox();
-  const live = { ...COPILOT, ...W };
+  const live = { ...GLOBAL, ...W };
   writeAuthFile(join(shared, "auth.json"), live);
   const homes: string[] = [];
   for (let i = 0; i < 4; i++) {
@@ -172,7 +172,7 @@ for (const order of ["rotating session first", "idle session first"]) {
     writeAuthFile(store.authPath("work"), rot("orig", 10));
     const a = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
     const c = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }).home;
-    writeAuthFile(join(a, "auth.json"), { ...COPILOT, ...rot("rotated", 20) });
+    writeAuthFile(join(a, "auth.json"), { ...GLOBAL, ...rot("rotated", 20) });
     const homes = order === "rotating session first" ? [a, c] : [c, a];
     for (const h of homes) assert.equal(finishSessionHome(h, { sharedAgentDir: shared, stderr: () => {} }), true);
     assert.deepEqual(readAuthFile(store.authPath("work")), rot("rotated", 20));

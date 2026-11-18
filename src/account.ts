@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { COVERED_PROVIDERS, applyClaudeConfigEnv, type AuthData, type Env } from "./auth-sync.ts";
+import { applyClaudeConfigEnv, coveredProviders, type AuthData, type Env } from "./auth-sync.ts";
 
 /** Plugin label shown in front of every status text. */
 export const PLUGIN_LABEL = "gentle-accounts";
@@ -88,7 +88,7 @@ export function providerStates(claude: ClaudeAccount | null, auth: AuthData, opt
       ? { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: true, email: options.showEmail === true ? claude.email : maskEmail(claude.email) }
       : { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: false },
   ];
-  for (const provider of COVERED_PROVIDERS) {
+  for (const provider of coveredProviders(auth)) {
     const entry = auth[provider];
     rows.push({ provider, label: PROVIDER_LABELS[provider] ?? provider, loggedIn: Boolean(entry && typeof entry === "object") });
   }
