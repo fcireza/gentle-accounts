@@ -70,7 +70,8 @@ export function loginEnv(base: NodeJS.ProcessEnv, claudeDir: string | undefined)
 /** Runs `claude auth login` in this terminal; resolves after the TUI is restored and `done` was called. */
 export function runClaudeLoginHere(ctx: CustomUi, claudeDir: string | undefined, deps: LoginHereDeps): Promise<InheritResult> {
   const env = loginEnv(deps.env, claudeDir);
-  // `shell: true` only on win32 for the `.cmd` shim; the arguments are fixed.
+  // `shell: true` only on win32 for the `.cmd` shim; the arguments are fixed (`auth login`) and the
+  // profile dir travels in the env, so no user input ever reaches the shell command line.
   const shell = deps.platform === "win32";
   return ctx.ui.custom<InheritResult>((tui, _theme, _keybindings, done) => {
     void handOverTerminal(tui, deps.signals, () => runInherit(deps.spawn, "claude", ["auth", "login"], env, shell))

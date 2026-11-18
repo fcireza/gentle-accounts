@@ -20,7 +20,8 @@ export interface SpawnPlan {
 type Env = Record<string, string | undefined>;
 
 const shQuote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
-const psQuote = (value: string) => `'${value.replaceAll("'", "''")}'`;
+// PowerShell also ends a single-quoted string at the typographic quotes U+2018..U+201B: double them too.
+const psQuote = (value: string) => `'${value.replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&")}'`;
 
 /** POSIX script: `cd -- '<cwd>' && env [-u VAR] [VAR='v'] 'arg'...`. */
 export function posixScript(cwd: string, command: TabCommand): string {
@@ -108,19 +109,25 @@ export interface OpenTabDeps {
   spawn: TabSpawn;
 }
 
-export type OpenTabResult = { ok: true; terminal: string } | { ok: false };
+/** `reason` (never the command or paths): "not-available", "spawn-error: <code or message>" or "exit <code>". */
+export type OpenTabResult = { ok: true; terminal: string } | { ok: false; reason?: string };
+
+const spawnError = (error: unknown): OpenTabResult => {
+  const e = error as { code?: unknown; message?: unknown } | null;
+  return { ok: false, reason: `spawn-error: ${typeof e?.code === "string" ? e.code : String(e?.message ?? error)}` };
+};
 
 /** Runs the plan (never through a shell); ok only when the opener exits with 0. */
 export function openInNewTab(deps: OpenTabDeps): Promise<OpenTabResult> {
   const plan = planNewTab(deps.env, deps.platform, deps.cwd, deps.command);
-  if (!plan) return Promise.resolve({ ok: false });
+  if (!plan) return Promise.resolve({ ok: false, reason: "not-available" });
   return new Promise((resolve) => {
     try {
       const child = deps.spawn(plan.file, plan.args, { stdio: "ignore", windowsHide: true });
-      child.on("error", () => resolve({ ok: false }));
-      child.on("close", (code) => resolve(code === 0 ? { ok: true, terminal: plan.terminal } : { ok: false }));
-    } catch {
-      resolve({ ok: false });
+      child.on("error", (error) => resolve(spawnError(error)));
+      child.on("close", (code, signal) => resolve(code === 0 ? { ok: true, terminal: plan.terminal } : { ok: false, reason: `exit ${code ?? signal}` }));
+    } catch (error) {
+      resolve(spawnError(error));
     }
   });
 }

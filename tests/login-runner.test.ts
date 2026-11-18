@@ -72,3 +72,11 @@ test("S32 same terminal: a failing, missing or throwing child still restores the
     else assert.deepEqual(r, { code: outcome.code, signal: outcome.signal ?? null });
   }
 });
+
+test("T22 same terminal: the shell (win32) only ever receives the fixed `auth login` args, never user input", async () => {
+  const h = harness({ code: 0 });
+  await runClaudeLoginHere(h.ctx as never, "C:\\dir with & space", { spawn: h.spawn, signals: h.signals, env: {}, platform: "win32" });
+  assert.equal(h.spawnCalls[0].file, "claude");
+  assert.deepEqual(h.spawnCalls[0].args, ["auth", "login"]);
+  assert.equal(h.spawnCalls[0].opts.env?.CLAUDE_CONFIG_DIR, "C:\\dir with & space", "the dir travels in the env, not the command line");
+});
