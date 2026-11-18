@@ -419,6 +419,20 @@ test("S34: a switch moves an extra oauth provider with the profile and leaves ap
   assert.deepEqual(readAuthFile(liveAuthPath), { "openai-codex": codexWork, ag: ag("work", 1), google });
 });
 
+test("S34: an api-key entry that the incoming profile holds as oauth is saved before it is replaced", () => {
+  const { store, liveAuthPath } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  const apiKey = { type: "api_key", key: "live-x" };
+  writeAuthFile(liveAuthPath, { x: apiKey });
+  writeAuthFile(store.authPath("personal"), { x: ag("personal", 1) });
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+  assert.deepEqual(readAuthFile(store.authPath("work")), { x: apiKey }, "the replaced api key is kept in the outgoing snapshot");
+  switchProfile({ store, liveAuthPath, env: {}, to: "work" });
+  assert.deepEqual(readAuthFile(liveAuthPath), { x: apiKey });
+});
+
 test("S34: the outgoing snapshot keeps the fresher oauth token of an extra provider", () => {
   const { store, liveAuthPath } = setup();
   store.create("work");

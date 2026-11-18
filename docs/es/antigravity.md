@@ -11,7 +11,7 @@ Guardar varias cuentas de Antigravity (Google) en perfiles de gentle-accounts, c
 ## Qué existe hoy
 
 - pi 1.5.x no incluye un proveedor de Antigravity ni de Gemini CLI. Sus proveedores `google` y `google-vertex` usan claves de API, no inicios de sesión de cuenta. Antes de que pi pueda usar una cuenta de Antigravity tiene que existir un proveedor OAuth propio para pi.
-- gentle-accounts solo intercambia las entradas de `auth.json` listadas en `COVERED_PROVIDERS` (`src/auth-sync.ts`): `openai-codex` y `anthropic`.
+- gentle-accounts intercambia las entradas de `auth.json` de `openai-codex` y `anthropic` (`COVERED_PROVIDERS` en `src/auth-sync.ts`) y las de cualquier otro proveedor cuya entrada sea oauth.
 - Claude se cubre de otra forma: cada perfil tiene su propio `CLAUDE_CONFIG_DIR`, que se define o elimina en cada proceso.
 
 ## Preguntas de investigación

@@ -10,7 +10,7 @@ What you will find here: worked scenarios from the first start to deleting a pro
 
 After installing, restart Gentle Shell or pi. On session start, when no profile is active yet, the extension wraps your current logins into a profile called `default`:
 
-- Your current Codex and Anthropic credentials in pi's `auth.json` are copied into `profiles/default/auth.json`.
+- Your current account credentials (Codex, Anthropic and any other oauth login) in pi's `auth.json` are copied into `profiles/default/auth.json`.
 - Your Claude Code login is not moved or copied. `default` keeps using Claude Code's own default folder, and `CLAUDE_CONFIG_DIR` is left **unset** while it is active. See [How it works](how-it-works.md) for why.
 - If you had set `CLAUDE_CONFIG_DIR` yourself, that folder is recorded (not copied) and kept.
 

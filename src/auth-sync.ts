@@ -82,9 +82,9 @@ export function pickFreshest<T>(preferred: T | undefined, other: T | undefined):
  * unless the snapshot holds a fresher oauth token (another session may have rotated it); a covered
  * provider absent from `live` is removed.
  */
-function snapshotOutgoing(live: AuthData, outgoing: AuthData): AuthData {
+function snapshotOutgoing(live: AuthData, outgoing: AuthData, incoming: AuthData): AuthData {
   const next: AuthData = { ...outgoing };
-  for (const provider of coveredProviders(live, outgoing)) {
+  for (const provider of coveredProviders(live, outgoing, incoming)) {
     if (provider in live) next[provider] = pickFreshest(live[provider], outgoing[provider]);
     else delete next[provider];
   }
@@ -114,7 +114,7 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
   const incoming = readAuthFile(store.authPath(to));
   const outgoing = from ? readAuthFile(store.authPath(from)) : null;
   if (from && outgoing) {
-    writeAuthFile(store.authPath(from), snapshotOutgoing(live, outgoing));
+    writeAuthFile(store.authPath(from), snapshotOutgoing(live, outgoing, incoming));
   }
   writeAuthFile(liveAuthPath, transferCovered(incoming, live));
   applyClaudeConfigEnv(env, store.claudeConfigEnv(to));

@@ -10,7 +10,7 @@ Qué encontrará aquí: escenarios completos desde el primer inicio hasta borrar
 
 Después de instalar, reinicie Gentle Shell o pi. Al iniciar la sesión, si todavía no hay un perfil activo, la extensión agrupa sus inicios de sesión actuales en un perfil llamado `default`:
 
-- Las credenciales actuales de Codex y Anthropic del `auth.json` de pi se copian a `profiles/default/auth.json`.
+- Las credenciales de cuenta actuales (Codex, Anthropic y cualquier otro login oauth) del `auth.json` de pi se copian a `profiles/default/auth.json`.
 - El inicio de sesión de Claude Code no se mueve ni se copia. `default` sigue usando la carpeta predeterminada de Claude Code, y `CLAUDE_CONFIG_DIR` queda **sin definir** mientras está activo. Consulte [Cómo funciona](how-it-works.md) para saber por qué.
 - Si había definido `CLAUDE_CONFIG_DIR` por su cuenta, esa carpeta se registra (no se copia) y se conserva.
 

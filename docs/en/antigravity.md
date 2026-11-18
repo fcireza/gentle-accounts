@@ -11,7 +11,7 @@ Keep several Antigravity (Google) accounts in gentle-accounts profiles, like Cla
 ## What exists today
 
 - pi 1.5.x ships no Antigravity or Gemini CLI provider. Its `google` and `google-vertex` providers use API keys, not account logins. A custom OAuth provider for pi has to exist before pi can use an Antigravity account at all.
-- gentle-accounts swaps only the `auth.json` entries listed in `COVERED_PROVIDERS` (`src/auth-sync.ts`): `openai-codex` and `anthropic`.
+- gentle-accounts swaps the `auth.json` entries of `openai-codex` and `anthropic` (`COVERED_PROVIDERS` in `src/auth-sync.ts`) and every other provider whose entry is oauth.
 - Claude is covered differently: each profile has its own `CLAUDE_CONFIG_DIR`, set or removed per process.
 
 ## Research questions

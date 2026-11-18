@@ -58,7 +58,7 @@ Codex and Anthropic use pi's own `/login`, which an extension cannot run. For th
 
 ### `/gentle:accounts <name>`
 
-Switches to `<name>`: saves the Codex and Anthropic credentials of the profile you leave, loads the ones of `<name>`, sets or removes `CLAUDE_CONFIG_DIR`, records the active profile, reloads pi's model registry and refreshes the status bar. See [How it works](how-it-works.md).
+Switches to `<name>`: saves the account credentials (Codex, Anthropic and any other oauth login) of the profile you leave, loads the ones of `<name>`, sets or removes `CLAUDE_CONFIG_DIR`, records the active profile, reloads pi's model registry and refreshes the status bar. See [How it works](how-it-works.md).
 
 - Success: `Switched to profile "<name>". Claude Code dir: <dir>`, where `<dir>` is the profile's Claude folder or `(unset: Claude Code default)`.
 - Already active: `Already on profile "<name>".`
