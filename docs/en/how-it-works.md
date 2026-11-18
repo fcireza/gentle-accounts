@@ -37,13 +37,27 @@ At session start the extension first creates `default` when no profile is active
 
 The startup switch is skipped when `GENTLE_ACCOUNTS_LAUNCH_PROFILE` is set (not empty): the launcher sets it when it starts gentle-shell with `gentle-accounts <name>`, which already switched to `<name>`. If `profiles/startup` names a profile that no longer exists, session start shows `Startup profile "<name>" does not exist; starting on the last used profile.` (warning) and nothing changes. The startup switch only happens when pi starts. It does not run on `/new`, `/resume`, `/fork` or `/reload`, so a profile you switched to by hand stays active.
 
-### Known limit: one agent dir, shared by every session
+### A different account per session
 
-The startup profile and the active profile are global to the agent dir, not per session. Claude uses `CLAUDE_CONFIG_DIR`, a per-process variable, but the Codex and Anthropic credentials live in the single `auth.json` that every open session shares and pi reads again. So a session that switches profile, at start or with `/gentle:accounts <name>`, changes the credentials the other open sessions read. Per-session isolation is not supported.
+A session started without the launcher uses the global profile: `profiles/current` and the single `auth.json` that every such session shares. Switching profile in one of them changes the Codex and Anthropic credentials the others read.
+
+A session started with `gentle-accounts <name>` gets its own private agent home instead, so several projects can run at the same time with a different account each:
+
+1. The launcher creates `<tmp>/gentle-accounts-<uid>/<uuid>` (`<tmp>/gentle-accounts/<uuid>` on Windows) with `0700` permissions. On POSIX it refuses a base folder that is a symlink, owned by another user or writable by group or others: `gentle-accounts: refusing to use <path>: <reason>`.
+2. Every entry of the shared agent dir is linked into it, except `auth.json`, `settings.json`, `auth.json.*`, `*.lock` and names starting with `.gentle-` (on Windows folders become junctions and files fall back to a hard link, then a copy).
+3. The home gets its own `auth.json` (`0600`) with the profile's credentials, its own `settings.json` (a copy of the shared one with relative package paths made absolute) and a marker `.gentle-accounts-session.json`.
+4. It runs `gentle-shell --home <home>` with `GENTLE_SHELL_NO_AUTO_SETUP=1`, `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` and the profile's `CLAUDE_CONFIG_DIR`.
+5. When gentle-shell exits (any exit code, Ctrl+C or a kill signal), the launcher copies the session's `openai-codex` and `anthropic` entries back into the profile and removes the home without following links. The next launch also cleans up homes whose launcher and gentle-shell processes are gone.
+
+Inside such a session the extension reads profiles from the shared agent dir, but the live credentials are the home's `auth.json` and the session's current profile is stored in the home (`.gentle-accounts-current`), never in `profiles/current`. A switch inside the session only changes that session. The startup profile is not applied there; the menu shows the mode `session home`.
+
+When copying credentials back, or saving them on a switch, the freshest login wins per provider: the OAuth entry with the later expiry is kept, so a session that ends later never overwrites a token that another session refreshed.
+
+Known limit: Codex and Anthropic OAuth logins use rotating refresh tokens. Using the SAME account in two live sessions at once can make one of them invalidate the token the other holds, and that session then has to log in again. Prefer a different account (profile) per session.
 
 ## Switching, step by step
 
-`/gentle:accounts <name>` and the launcher's `gentle-accounts <name>` run the same steps:
+`/gentle:accounts <name>` (and the menu) run these steps. In a session started by the launcher, "live `auth.json`" means the home's own file and the current profile is stored in the home:
 
 1. Check that the target exists and that its `auth.json` can be read. If not, stop before creating anything.
 2. If no profile is active, create `default` from the current logins first (see [Workflow](workflow.md)).
@@ -56,7 +70,7 @@ The startup profile and the active profile are global to the agent dir, not per 
 
 Every `auth.json` is written to a temporary file next to it and then renamed over the original, so a reader never sees a half-written file. pi reloads `auth.json` when it changes. Files are created with `0600` permissions and profile folders with `0700`, on systems that honor them.
 
-In the extension, the switch also reloads pi's model registry and refreshes the status bar. The launcher instead starts `gentle-shell` with the new environment.
+In the extension, the switch also reloads pi's model registry and refreshes the status bar. The launcher does not switch: it builds a session home (see above).
 
 On session start, the extension also sets `CLAUDE_CONFIG_DIR` for the active profile, unless the environment already sets it, so the bridge uses the right login even when you start Gentle Shell without the launcher.
 
@@ -87,7 +101,7 @@ Email mask: keep the first `min(4, max(1, len-3))` characters of the part before
 | Email | Shown as |
 | --- | --- |
 | `maria.lopez@company.com` | `mari****@company.com` |
-| `fcireza@gmail.com` | `fcir****@gmail.com` |
+| `maria.lopez@company.com` | `mari****@company.com` |
 | `ab@x.com` | `a****@x.com` |
 | `abcde@x.com` | `ab****@x.com` |
 | `no-at-sign` | `****` |
@@ -115,9 +129,9 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 
 ## Not supported on purpose
 
-- Running `claude auth login` inside the TUI: it is interactive and the TUI owns the terminal; use the printed command or `gentle-accounts login <profile>`.
-- Adding entries to Gentle Shell's command menu: it is a fixed list that extensions cannot extend, so the entry points are `/gentle:accounts` and the status bar.
+- Running pi's `/login` from the extension: the accounts menu writes `/login` in the editor and you press Enter.
+- Adding entries to Gentle Shell's command menu: it is a fixed list that extensions cannot extend, so the entry points are `/gentle:accounts` (and its menu) and the status bar.
 - Switching during an agent turn.
 - Deleting the active profile, or deleting from the launcher.
-- Swapping providers other than `openai-codex` and `anthropic` (plus Claude through `CLAUDE_CONFIG_DIR`).
+- Swapping providers other than `openai-codex` and `anthropic` (plus Claude through `CLAUDE_CONFIG_DIR`). Antigravity is only a plan for now: see [Antigravity](antigravity.md).
 - The old `/profile` command: it was renamed to `/gentle:accounts`.

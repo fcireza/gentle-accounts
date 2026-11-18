@@ -18,10 +18,43 @@ Disponible dentro de Gentle Shell y pi. Al presionar Tab después de `/gentle:ac
 
 ### `/gentle:accounts`
 
-Sin argumentos, abre un selector titulado `Switch profile` con todos los perfiles; el activo aparece con la etiqueta `(active)`. Elegir uno cambia a ese perfil, igual que `/gentle:accounts <name>`; cerrar el selector no hace nada.
+Sin argumentos, abre el menú de cuentas (igual que `/gentle:accounts menu`) cuando la TUI interactiva está disponible. En los modos RPC, print o json abre en su lugar un selector titulado `Switch profile` con todos los perfiles; el activo aparece con la etiqueta `(active)`. Elegir uno cambia a ese perfil, igual que `/gentle:accounts <name>`; cerrar el selector no hace nada.
 
-- Sin perfiles: `No profiles. Create one with /gentle:accounts create <name>` (advertencia).
+- Sin perfiles (selector): `No profiles. Create one with /gentle:accounts create <name>` (advertencia).
 - Sin interfaz interactiva: muestra el texto de uso (advertencia).
+
+### `/gentle:accounts menu`
+
+Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:profiles` de Gentle Shell. Sin la TUI interactiva usa el selector `Switch profile`.
+
+- Encabezado: el modo (`session home` cuando la sesión la inició el launcher, `global` en otro caso) y la visualización del correo (`shown` o `hidden`).
+- Una pestaña por perfil: `◉` marca el perfil activo en esta sesión y `★` el perfil de inicio.
+- Filas: la fila del perfil (`Switch to "<name>"`, o `Profile "<name>"` para el activo) y luego una fila por proveedor (Claude, Codex, Anthropic) con `●` si hay sesión iniciada u `○` si no. El correo aparece enmascarado salvo que se muestre el correo completo. Abrir el menú nunca ejecuta `claude auth status` por perfil: reutiliza el resultado de la barra de estado para el perfil activo y lee archivos para los demás.
+- Sin perfiles: `no profiles yet: press n to create one`.
+
+| Tecla | Acción |
+| --- | --- |
+| `←` `→` o `h` `l` | Perfil anterior o siguiente. |
+| `↑` `↓` o `j` `k` | Fila anterior o siguiente. |
+| `Enter` | En la fila del perfil: cambia a él (mismas reglas y mensajes que `/gentle:accounts <name>`). En una fila de proveedor: inicia sesión en ese proveedor. |
+| `n` | Perfil nuevo (pide el nombre con `New profile name`; mismos mensajes que `create`). |
+| `d` | Borra el perfil seleccionado (misma confirmación y rechazos que `delete`). |
+| `s` | Define el perfil seleccionado como perfil de inicio, o lo borra si ya lo es. |
+| `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
+| `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. |
+| `Esc` o `Ctrl+C` | Cierra. |
+
+Los mensajes aparecen dentro del menú, porque las notificaciones quedan ocultas detrás de él.
+
+Iniciar sesión en Claude desde su fila pregunta `Log profile "<name>" into Claude Code` con tres opciones:
+
+- `In a new terminal tab`: ejecuta `claude auth login` con el `CLAUDE_CONFIG_DIR` del perfil (eliminado para `default`) en una pestaña nueva y muestra `Opened a new terminal tab (<terminal>) to log profile "<name>" into Claude Code. When it finishes, run /gentle:accounts current to see the account.` Terminales admitidas, en orden de detección: Windows Terminal (`wt`) en Windows; tmux (`$TMUX`); Terminal.app e iTerm2 en macOS (según `TERM_PROGRAM`); gnome-terminal, konsole, kitty y wezterm en Linux. Si no se puede abrir una pestaña, muestra `Could not open a new terminal tab.` seguido del comando de inicio de sesión de `/gentle:accounts login claude`.
+- `In this terminal`: detiene la TUI, ejecuta `claude auth login` en la misma terminal (Ctrl+C va a `claude`) y restaura la TUI al terminar. Luego recarga el registro de modelos y la barra de estado y muestra `Claude Code login finished for profile "<name>".`, `claude auth login exited with code <code>.`, `claude auth login was stopped by <signal>.` o `Could not run claude auth login: <error>`.
+- `Show the command`: muestra el comando de inicio de sesión de `/gentle:accounts login claude`.
+
+Codex y Anthropic usan el `/login` propio de pi, que una extensión no puede ejecutar. Para el perfil activo, el menú se cierra, escribe `/login` en el editor y muestra `Press Enter to run /login and choose <provider> for profile "<name>".`. Para otro perfil muestra `/login signs in the active profile. Switch to "<name>" first, then log <provider> in.` (advertencia).
+
+`o` ejecuta `gentle-accounts <name>` en una pestaña nueva en la carpeta actual y muestra `Opened "<name>" in a new terminal tab (<terminal>): gentle-accounts <name>`. Si no se puede abrir una pestaña, muestra `Open this project with "<name>" in a new terminal: gentle-accounts <name>`. El alias o la función del launcher debe estar disponible en la pestaña nueva (consulte [Instalación](install.md)).
 
 ### `/gentle:accounts <name>`
 
@@ -120,7 +153,8 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 `help` y `--help` muestran el texto de uso:
 
 ```
-/gentle:accounts                 pick a profile and switch to it
+/gentle:accounts                 open the accounts menu (picker without the TUI)
+/gentle:accounts menu            open the accounts menu
 /gentle:accounts <name>          switch to <name>
 /gentle:accounts list            list profiles (* marks the active one)
 /gentle:accounts current         show the active profile
@@ -135,7 +169,7 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 
 Además del comando, la extensión registra:
 
-- **Inicio de sesión**: crea `default` si no hay un perfil activo; si lo hay, define `CLAUDE_CONFIG_DIR` para el perfil activo salvo que el entorno ya lo defina; luego, si hay un perfil de inicio definido y no es el activo, cambia a él y muestra `Started on profile "<name>" (startup profile).`; inicia un temporizador de 60 s para actualizar el estado y lo muestra. Si no puede leer un archivo de credenciales muestra `gentle-accounts: <message>` (error) y continúa.
+- **Inicio de sesión**: crea `default` si no hay un perfil activo; si lo hay, define `CLAUDE_CONFIG_DIR` para el perfil activo salvo que el entorno ya lo defina; luego, si hay un perfil de inicio definido y no es el activo, cambia a él y muestra `Started on profile "<name>" (startup profile).` (nunca en una sesión iniciada por el launcher); inicia un temporizador de 60 s para actualizar el estado y lo muestra. Si no puede leer un archivo de credenciales muestra `gentle-accounts: <message>` (error) y continúa.
 - **Fin del agente**: actualiza el estado después de cada turno del agente.
 - **Cierre de sesión**: detiene el temporizador de 60 s.
 
@@ -207,14 +241,16 @@ gentle-accounts email hide   # back to the masked email
 
 ### `gentle-accounts <name> [args...]`
 
-Cambia a `<name>` con las mismas reglas que `/gentle:accounts <name>` (primero crea `default` si no hay un perfil activo) y luego inicia `gentle-shell` con los argumentos restantes y el `CLAUDE_CONFIG_DIR` del perfil (eliminado para `default`). En Windows `gentle-shell` y `claude` se inician a través de la shell para que se resuelvan los shims `.cmd`.
+Inicia `gentle-shell` en `<name>` dentro de una carpeta del agente privada para esa sesión, sin cambiar el perfil activo global: la sesión recibe su propio `auth.json` con las credenciales del perfil, el `CLAUDE_CONFIG_DIR` del perfil (eliminado para `default`) y `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. Los argumentos restantes se pasan a `gentle-shell`. Al terminar, las credenciales de la sesión se copian de vuelta al perfil y la carpeta privada se elimina. Consulte [Cómo funciona](how-it-works.md). Primero crea `default` si no hay un perfil activo. En Windows `gentle-shell` y `claude` se inician a través de la shell para que se resuelvan los shims `.cmd`.
 
 - Perfil inexistente: `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`, código 1.
+- `--home`, `--link` o `--isolated` en los argumentos: `gentle-accounts manages the agent home; do not pass --home, --link or --isolated.`, código 1.
 - Archivo de credenciales ilegible: el mensaje de error, código 1, nada cambia.
+- `settings.json` compartido inválido: `gentle-accounts: cannot read <path>: <message>`, código 1, no se crea nada.
+- Carpeta temporal insegura (POSIX): `gentle-accounts: refusing to use <path>: <reason>`, código 1.
 - No se puede iniciar `gentle-shell`: `Cannot run gentle-shell: <error>`, código 1.
 
 ```sh
 gentle-accounts work                  # open Gentle Shell as "work"
-gentle-accounts personal --isolated   # extra args are passed through
 gentle-accounts login work            # log "work" into Claude
 ```

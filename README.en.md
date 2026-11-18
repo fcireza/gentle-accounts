@@ -36,7 +36,7 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 1. Create a profile: `/gentle:accounts create work`
 2. Switch to it: `/gentle:accounts work`
-3. Log Claude in: `/gentle:accounts login claude` shows a command to run in another terminal.
+3. Log in: open the menu with `/gentle:accounts`, pick the provider row and press Enter. Claude logs in in a new terminal tab, in the same terminal, or by showing the command; Codex and Anthropic use pi's `/login`.
 4. Check the account: `/gentle:accounts current`. The status bar shows `👤 gentle-accounts: work · mari****@company.com` (`🔒` and `not logged in` when there is no login). The email is masked by default; `/gentle:accounts email show` shows it in full (visible to anyone who sees your screen).
 5. Optional: `/gentle:accounts startup work` makes new sessions start on `work`; `/gentle:accounts startup last` goes back to the last used profile.
 
@@ -44,7 +44,15 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 ![The highlighted Claude login command for macOS, Linux and Windows](assets/workflow-login.svg)
 
-The login is not run from inside the TUI; `gentle-accounts login <profile>` runs it directly from a terminal.
+From a terminal, `gentle-accounts login <profile>` runs the Claude login directly.
+
+## Accounts menu
+
+`/gentle:accounts menu` (or just `/gentle:accounts`) opens a panel with one tab per profile: `◉` active in this session, `★` startup profile, and `●`/`○` per provider. Keys: `←` `→` profile, `↑` `↓` row, `Enter` switch or log in, `n` new, `d` delete, `s` startup, `e` email, `o` open the project with that profile in a new tab, `Esc` close.
+
+## A different account per session
+
+`gentle-accounts <profile>` runs each session with a private agent home, so two projects can use two accounts at the same time. Sessions started without the launcher still use the global profile. OAuth refresh tokens rotate: the SAME account in two live sessions can invalidate one of them, so prefer a different account per session.
 
 ## Installation
 
@@ -100,7 +108,8 @@ For details, updating, removing or dropping the old package, see [Installation](
 
 | Inside Gentle Shell or pi | What it does |
 | --- | --- |
-| `/gentle:accounts` | Opens a profile picker. |
+| `/gentle:accounts` | Opens the accounts menu (a picker without the TUI). |
+| `/gentle:accounts menu` | Opens the accounts menu. |
 | `/gentle:accounts <name>` | Switches to `<name>`. |
 | `/gentle:accounts list` | Lists profiles; `*` marks the active one. |
 | `/gentle:accounts current` | Shows the active profile and refreshes the status bar. |
@@ -113,7 +122,7 @@ For details, updating, removing or dropping the old package, see [Installation](
 
 | From a terminal | What it does |
 | --- | --- |
-| `gentle-accounts <name> [args...]` | Starts `gentle-shell` with that profile. |
+| `gentle-accounts <name> [args...]` | Starts `gentle-shell` with that profile in a private session home. |
 | `gentle-accounts list` | Lists profiles. |
 | `gentle-accounts current` | Shows the active profile. |
 | `gentle-accounts create <name>` | Creates an empty profile. |
@@ -133,6 +142,7 @@ The full reference, with every message, is in [Commands](docs/en/commands.md).
 - [How it works](docs/en/how-it-works.md): disk layout, switching, status bar and security.
 - [Troubleshooting](docs/en/troubleshooting.md): symptoms, causes and fixes.
 - [Development](docs/en/development.md): tests, CI, Conventional Commits and releases.
+- [Antigravity](docs/en/antigravity.md): plan for several Antigravity (Google) accounts (not implemented).
 
 ## Gentle Hub
 

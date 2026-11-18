@@ -18,10 +18,43 @@ Available inside Gentle Shell and pi. Pressing Tab after `/gentle:accounts ` com
 
 ### `/gentle:accounts`
 
-With no argument, opens a picker titled `Switch profile` with every profile; the active one is labeled `(active)`. Choosing one switches to it, exactly like `/gentle:accounts <name>`; closing the picker does nothing.
+With no argument, opens the accounts menu (the same as `/gentle:accounts menu`) when the interactive TUI is available. In RPC, print or json mode it opens a picker titled `Switch profile` with every profile instead; the active one is labeled `(active)`. Choosing one switches to it, exactly like `/gentle:accounts <name>`; closing the picker does nothing.
 
-- No profiles: `No profiles. Create one with /gentle:accounts create <name>` (warning).
+- No profiles (picker): `No profiles. Create one with /gentle:accounts create <name>` (warning).
 - No interactive UI: shows the usage text (warning).
+
+### `/gentle:accounts menu`
+
+Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:profiles` panel. Without the interactive TUI it falls back to the `Switch profile` picker.
+
+- Header: the mode (`session home` when the session was started by the launcher, `global` otherwise) and the email display (`shown` or `hidden`).
+- One tab per profile: `◉` marks the profile active in this session, `★` the startup profile.
+- Rows: the profile row (`Switch to "<name>"`, or `Profile "<name>"` for the active one), then one row per provider (Claude, Codex, Anthropic) with `●` logged in or `○` not logged in. The email is masked unless the email display is shown. Opening the menu never runs `claude auth status` per profile: it reuses the status bar result for the active profile and reads files for the others.
+- With no profiles: `no profiles yet: press n to create one`.
+
+| Key | Action |
+| --- | --- |
+| `←` `→` or `h` `l` | Previous or next profile. |
+| `↑` `↓` or `j` `k` | Previous or next row. |
+| `Enter` | On the profile row: switch (same rules and messages as `/gentle:accounts <name>`). On a provider row: log that provider in. |
+| `n` | New profile (asks for a name with `New profile name`; same messages as `create`). |
+| `d` | Delete the selected profile (same confirmation and refusals as `delete`). |
+| `s` | Set the selected profile as the startup profile, or clear it when it already is. |
+| `e` | Toggle the email display (same messages as `email show` and `email hide`). |
+| `o` | Open this project with the selected profile in a new terminal tab. |
+| `Esc` or `Ctrl+C` | Close. |
+
+Messages appear inside the menu, because notifications are hidden behind it.
+
+Logging Claude in from its row asks `Log profile "<name>" into Claude Code` with three choices:
+
+- `In a new terminal tab`: runs `claude auth login` with the profile's `CLAUDE_CONFIG_DIR` (removed for `default`) in a new tab and shows `Opened a new terminal tab (<terminal>) to log profile "<name>" into Claude Code. When it finishes, run /gentle:accounts current to see the account.` Supported terminals, in detection order: Windows Terminal (`wt`) on Windows; tmux (`$TMUX`); Terminal.app and iTerm2 on macOS (from `TERM_PROGRAM`); gnome-terminal, konsole, kitty and wezterm on Linux. When no tab can be opened it shows `Could not open a new terminal tab.` followed by the login command of `/gentle:accounts login claude`.
+- `In this terminal`: stops the TUI, runs `claude auth login` in the same terminal (Ctrl+C goes to `claude`) and restores the TUI when it ends. Then it reloads the model registry and the status bar and shows `Claude Code login finished for profile "<name>".`, `claude auth login exited with code <code>.`, `claude auth login was stopped by <signal>.` or `Could not run claude auth login: <error>`.
+- `Show the command`: shows the login command of `/gentle:accounts login claude`.
+
+Codex and Anthropic use pi's own `/login`, which an extension cannot run. For the active profile the menu closes, writes `/login` in the editor and shows `Press Enter to run /login and choose <provider> for profile "<name>".`. For another profile it shows `/login signs in the active profile. Switch to "<name>" first, then log <provider> in.` (warning).
+
+`o` runs `gentle-accounts <name>` in a new tab in the current folder and shows `Opened "<name>" in a new terminal tab (<terminal>): gentle-accounts <name>`. When no tab can be opened it shows `Open this project with "<name>" in a new terminal: gentle-accounts <name>`. The launcher alias or function must be available in the new tab (see [Installation](install.md)).
 
 ### `/gentle:accounts <name>`
 
@@ -120,7 +153,8 @@ Warning: with `show`, anyone who sees your screen can read the full address, inc
 `help` and `--help` show the usage text:
 
 ```
-/gentle:accounts                 pick a profile and switch to it
+/gentle:accounts                 open the accounts menu (picker without the TUI)
+/gentle:accounts menu            open the accounts menu
 /gentle:accounts <name>          switch to <name>
 /gentle:accounts list            list profiles (* marks the active one)
 /gentle:accounts current         show the active profile
@@ -135,7 +169,7 @@ Warning: with `show`, anyone who sees your screen can read the full address, inc
 
 Besides the command, the extension registers:
 
-- **Session start**: creates `default` when no profile is active, otherwise sets `CLAUDE_CONFIG_DIR` for the active profile unless the environment already sets it; then, if a startup profile is set and is not the active one, switches to it and shows `Started on profile "<name>" (startup profile).`; starts a 60 s status refresh timer and shows the status. If a credentials file cannot be read it shows `gentle-accounts: <message>` (error) and continues.
+- **Session start**: creates `default` when no profile is active, otherwise sets `CLAUDE_CONFIG_DIR` for the active profile unless the environment already sets it; then, if a startup profile is set and is not the active one, switches to it and shows `Started on profile "<name>" (startup profile).` (never in a session started by the launcher); starts a 60 s status refresh timer and shows the status. If a credentials file cannot be read it shows `gentle-accounts: <message>` (error) and continues.
 - **Agent end**: refreshes the status after every agent turn.
 - **Session shutdown**: stops the 60 s timer.
 
@@ -207,14 +241,16 @@ gentle-accounts email hide   # back to the masked email
 
 ### `gentle-accounts <name> [args...]`
 
-Switches to `<name>` with the same rules as `/gentle:accounts <name>` (creating `default` first when no profile is active), then starts `gentle-shell` with the remaining arguments and the profile's `CLAUDE_CONFIG_DIR` (removed for `default`). On Windows `gentle-shell` and `claude` start through the shell so `.cmd` shims resolve.
+Starts `gentle-shell` on `<name>` in a private session home, without changing the global active profile: the session gets its own `auth.json` with the profile's credentials, `CLAUDE_CONFIG_DIR` for the profile (removed for `default`) and `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. The remaining arguments are passed to `gentle-shell`. When it exits, the session's credentials are copied back into the profile and the home is removed. See [How it works](how-it-works.md). It creates `default` first when no profile is active. On Windows `gentle-shell` and `claude` start through the shell so `.cmd` shims resolve.
 
 - Missing profile: `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`, exit 1.
+- `--home`, `--link` or `--isolated` in the arguments: `gentle-accounts manages the agent home; do not pass --home, --link or --isolated.`, exit 1.
 - Unreadable credentials file: the error message, exit 1, nothing changed.
+- Invalid shared `settings.json`: `gentle-accounts: cannot read <path>: <message>`, exit 1, nothing created.
+- Unsafe temporary folder (POSIX): `gentle-accounts: refusing to use <path>: <reason>`, exit 1.
 - `gentle-shell` cannot be started: `Cannot run gentle-shell: <error>`, exit 1.
 
 ```sh
 gentle-accounts work                  # open Gentle Shell as "work"
-gentle-accounts personal --isolated   # extra args are passed through
 gentle-accounts login work            # log "work" into Claude
 ```

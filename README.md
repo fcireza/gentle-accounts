@@ -38,7 +38,7 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 1. Crear un perfil: `/gentle:accounts create work`
 2. Cambiar a ese perfil: `/gentle:accounts work`
-3. Iniciar sesión en Claude: `/gentle:accounts login claude` muestra un comando para ejecutar en otra terminal.
+3. Iniciar sesión: abrir el menú con `/gentle:accounts`, elegir la fila del proveedor y presionar Enter. Claude inicia sesión en una pestaña nueva de la terminal, en la misma terminal o mostrando el comando; Codex y Anthropic usan el `/login` de pi.
 4. Comprobar la cuenta: `/gentle:accounts current`. La barra de estado muestra `👤 gentle-accounts: work · mari****@company.com` (`🔒` y `not logged in` si no hay sesión). El correo aparece enmascarado de forma predeterminada; `/gentle:accounts email show` lo muestra completo (visible para cualquiera que vea su pantalla).
 5. Opcional: `/gentle:accounts startup work` hace que las sesiones nuevas empiecen en `work`; `/gentle:accounts startup last` vuelve al último perfil usado.
 
@@ -46,7 +46,15 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 ![El comando de inicio de sesión de Claude resaltado para macOS, Linux y Windows](assets/workflow-login.svg)
 
-El inicio de sesión no se ejecuta desde dentro de la TUI; `gentle-accounts login <profile>` lo ejecuta directamente desde una terminal.
+Desde una terminal, `gentle-accounts login <profile>` ejecuta directamente el inicio de sesión de Claude.
+
+## Menú de cuentas
+
+`/gentle:accounts menu` (o simplemente `/gentle:accounts`) abre un panel con una pestaña por perfil: `◉` activo en esta sesión, `★` perfil de inicio y `●`/`○` por proveedor. Teclas: `←` `→` perfil, `↑` `↓` fila, `Enter` cambiar o iniciar sesión, `n` nuevo, `d` borrar, `s` inicio, `e` correo, `o` abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar.
+
+## Una cuenta distinta en cada sesión
+
+`gentle-accounts <profile>` ejecuta cada sesión con una carpeta del agente privada, así que dos proyectos pueden usar dos cuentas al mismo tiempo. Las sesiones iniciadas sin el launcher siguen usando el perfil global. Los refresh tokens de OAuth rotan: la MISMA cuenta en dos sesiones abiertas puede invalidar una de ellas, así que es preferible usar una cuenta distinta en cada sesión.
 
 ## Instalación
 
@@ -102,7 +110,8 @@ Para más detalles, actualizar, desinstalar o quitar el paquete anterior, consul
 
 | Dentro de Gentle Shell o pi | Qué hace |
 | --- | --- |
-| `/gentle:accounts` | Abre un selector de perfiles. |
+| `/gentle:accounts` | Abre el menú de cuentas (un selector sin la TUI). |
+| `/gentle:accounts menu` | Abre el menú de cuentas. |
 | `/gentle:accounts <name>` | Cambia a `<name>`. |
 | `/gentle:accounts list` | Lista los perfiles; `*` marca el activo. |
 | `/gentle:accounts current` | Muestra el perfil activo y actualiza la barra de estado. |
@@ -115,7 +124,7 @@ Para más detalles, actualizar, desinstalar o quitar el paquete anterior, consul
 
 | Desde la terminal | Qué hace |
 | --- | --- |
-| `gentle-accounts <name> [args...]` | Inicia `gentle-shell` con ese perfil. |
+| `gentle-accounts <name> [args...]` | Inicia `gentle-shell` con ese perfil en una carpeta privada para la sesión. |
 | `gentle-accounts list` | Lista los perfiles. |
 | `gentle-accounts current` | Muestra el perfil activo. |
 | `gentle-accounts create <name>` | Crea un perfil vacío. |
@@ -135,6 +144,7 @@ La referencia completa, con cada mensaje, está en [Comandos](docs/es/commands.m
 - [Cómo funciona](docs/es/how-it-works.md): estructura en disco, cambio de perfil, barra de estado y seguridad.
 - [Solución de problemas](docs/es/troubleshooting.md): síntomas, causas y soluciones.
 - [Desarrollo](docs/es/development.md): tests, CI, Conventional Commits y versiones.
+- [Antigravity](docs/es/antigravity.md): plan para varias cuentas de Antigravity (Google) (no implementado).
 
 ## Gentle Hub
 

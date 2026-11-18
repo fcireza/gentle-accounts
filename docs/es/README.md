@@ -15,11 +15,12 @@ gentle-accounts mantiene **perfiles** con nombre (por ejemplo `work` y `personal
 | Documento | Qué cubre |
 | --- | --- |
 | [Instalación](install.md) | Gentle Shell o pi, requisitos, una sección por sistema, alias del launcher, actualización y desinstalación. |
-| [Flujo de trabajo](workflow.md) | Escenarios completos: primer inicio, cuentas de trabajo y personal, cambio de perfil, el launcher, borrado. |
+| [Flujo de trabajo](workflow.md) | Escenarios completos: primer inicio, cuentas de trabajo y personal, cambio de perfil, el launcher, borrado, el menú de cuentas, una cuenta distinta por proyecto. |
 | [Comandos](commands.md) | Referencia completa de `/gentle:accounts` y `gentle-accounts`, con cada mensaje y código de salida. |
 | [Cómo funciona](how-it-works.md) | Estructura en disco, el algoritmo de cambio, `CLAUDE_CONFIG_DIR`, la barra de estado y la seguridad. |
 | [Solución de problemas](troubleshooting.md) | Síntomas, causas y soluciones. |
-| [Desarrollo](development.md) | Tests, CI, Conventional Commits, releases y protección de ramas. |
+| [Desarrollo](development.md) | Tests, CI, Conventional Commits, releases, protección de ramas y la imagen de vista previa social. |
+| [Antigravity](antigravity.md) | Plan (no implementado) para varias cuentas de Antigravity (Google). |
 
 ## Por dónde empezar
 
