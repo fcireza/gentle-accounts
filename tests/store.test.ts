@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, writeFileAtomic } from "../src/store.ts";
+import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, writeFileAtomic, renameWithRetry } from "../src/store.ts";
 
 function tempStore(): { store: ProfileStore; agentDir: string } {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-"));
@@ -260,4 +260,22 @@ test("S30: create reports an existing profile created by another session in betw
   };
   assert.throws(() => racing.create("default"), /Profile "default" already exists\./);
   assert.equal(readFileSync(other.authPath("default"), "utf8"), '{"anthropic":{"type":"api_key","key":"theirs"}}\n');
+});
+
+test("renameWithRetry retries a transient Windows lock error and then succeeds", () => {
+  let calls = 0;
+  const flaky = () => {
+    if (++calls < 3) throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+  };
+  renameWithRetry(flaky, "a", "b");
+  assert.equal(calls, 3);
+});
+
+test("renameWithRetry rethrows other errors at once and a lock error after the attempts", () => {
+  let calls = 0;
+  assert.throws(() => renameWithRetry(() => { calls++; throw Object.assign(new Error("gone"), { code: "ENOENT" }); }, "a", "b"), /gone/);
+  assert.equal(calls, 1);
+  calls = 0;
+  assert.throws(() => renameWithRetry(() => { calls++; throw Object.assign(new Error("busy"), { code: "EBUSY" }); }, "a", "b", 2), /busy/);
+  assert.equal(calls, 3);
 });
