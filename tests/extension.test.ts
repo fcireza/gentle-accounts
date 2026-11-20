@@ -893,3 +893,75 @@ test("T22: /gentle:accounts create refuses a reserved name and email rejects ext
   await profile.handler("email hide", f.ctx);
   assert.deepEqual(f.notes, [{ message: "Email display set to hidden. The status bar does not show the email.", type: "info" }]);
 });
+
+// -- rename --------------------------------------------------------------------------------------------------
+
+test("S1/S8 rename command: renames a profile and answers with the exact message", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  store.create("other");
+  store.setCurrent("other");
+  const c = fakeCtx();
+  await profile.handler("rename work office", c.ctx);
+  assert.deepEqual(c.notes, [{ message: 'Renamed profile "work" to "office".', type: "info" }]);
+  assert.deepEqual(store.list(), ["office", "other"]);
+});
+
+test("S4 rename command: renaming the current profile keeps CLAUDE_CONFIG_DIR and the status bar on it", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  store.setStartup("work");
+  process.env.CLAUDE_CONFIG_DIR = store.claudeConfigEnv("work");
+  try {
+    const c = fakeCtx();
+    await profile.handler("rename work office", c.ctx);
+    assert.equal(c.notes[0].type, "info");
+    assert.match(c.notes[0].message, /^Renamed profile "work" to "office"\. Other open sessions that use it keep the old path until they switch or restart\.$/);
+    assert.equal(process.env.CLAUDE_CONFIG_DIR, join(store.profileDir("office"), "claude"));
+    assert.equal(store.current(), "office");
+    assert.equal(store.startup(), "office");
+    assert.match(c.statuses.at(-1)?.text ?? "", /gentle-accounts: office/, "the status bar shows the new name");
+  } finally {
+    delete process.env.CLAUDE_CONFIG_DIR;
+  }
+});
+
+test("S6 rename command: a refusal is an error notification and changes nothing", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  store.create("other");
+  for (const [args, message] of [
+    ["rename ghost office", 'Profile "ghost" does not exist.'],
+    ["rename work work", "The new name is the same as the current one."],
+    ["rename work other", 'Profile "other" already exists.'],
+    ["rename work rename", '"rename" is a reserved word (it is a subcommand). Pick another profile name.'],
+  ] as const) {
+    const c = fakeCtx();
+    await profile.handler(args, c.ctx);
+    assert.deepEqual(c.notes, [{ message, type: "error" }], args);
+  }
+  assert.deepEqual(store.list(), ["other", "work"]);
+});
+
+test("S1 rename command: missing or extra words print the usage as a warning", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  for (const args of ["rename", "rename work", "rename work office extra"]) {
+    const c = fakeCtx();
+    await profile.handler(args, c.ctx);
+    assert.equal(c.notes.length, 1, args);
+    assert.equal(c.notes[0].type, "warning", args);
+    assert.match(c.notes[0].message, /^\/gentle:accounts rename <old> <new> +rename a profile/m, args);
+  }
+  assert.deepEqual(store.list(), ["work"]);
+});
+
+test("S1 rename command: help and completions list rename", async () => {
+  const { store, profile } = setup();
+  store.create("work");
+  const c = fakeCtx();
+  await profile.handler("help", c.ctx);
+  assert.match(c.notes[0].message, /^\/gentle:accounts rename <old> <new> +rename a profile \(its logins move with it\)$/m);
+  assert.deepEqual((profile.getArgumentCompletions!("ren") as { value: string }[]).map((x) => x.value), ["rename"]);
+});

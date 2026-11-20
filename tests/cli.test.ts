@@ -452,3 +452,66 @@ test("T22: a corrupt profile auth.json at launch is reported with the gentle-acc
 test("T22 win32: windowsShellArgs doubles a trailing backslash of a quoted argument and quotes an empty one", () => {
   assert.deepEqual(windowsShellArgs(["C:\\a b\\", "C:\\a b\\\\", "C:\\ab\\", ""]), ['"C:\\a b\\\\"', '"C:\\a b\\\\\\\\"', "C:\\ab\\", '""']);
 });
+
+// -- rename --------------------------------------------------------------------------------------------------
+
+test("S1/S8 cli rename: renames a profile and prints the message", () => {
+  const { store, deps, out, err } = setup();
+  store.create("work");
+  assert.equal(runCli(["rename", "work", "office"], deps), 0);
+  assert.deepEqual(out, ['Renamed profile "work" to "office".']);
+  assert.deepEqual(err, []);
+  assert.deepEqual(store.list(), ["office"]);
+});
+
+test("S8 cli rename: the current profile follows and the message warns about other sessions", () => {
+  const { store, deps, out } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  store.setStartup("work");
+  assert.equal(runCli(["rename", "work", "office"], deps), 0);
+  assert.equal(out[0], 'Renamed profile "work" to "office". Other open sessions that use it keep the old path until they switch or restart.');
+  assert.equal(store.current(), "office");
+  assert.equal(store.startup(), "office");
+});
+
+test("S6 cli rename: a refusal goes to stderr with exit code 1 and changes nothing", () => {
+  const { store, deps, out, err } = setup();
+  store.create("work");
+  store.create("other");
+  for (const [args, message] of [
+    [["rename", "ghost", "office"], 'Profile "ghost" does not exist.'],
+    [["rename", "work", "work"], "The new name is the same as the current one."],
+    [["rename", "work", "Office"], 'Invalid profile name "Office": use lowercase letters, digits, "-" or "_" (max 32 chars).'],
+    [["rename", "work", "other"], 'Profile "other" already exists.'],
+    [["rename", "work", "rename"], '"rename" is a reserved word (it is a subcommand). Pick another profile name.'],
+  ] as const) {
+    err.length = 0;
+    assert.equal(runCli([...args], deps), 1, args.join(" "));
+    assert.deepEqual(err, [message]);
+  }
+  assert.deepEqual(out, []);
+  assert.deepEqual(store.list(), ["other", "work"]);
+});
+
+test("S5 cli rename: a profile held by a live session is refused", () => {
+  const { store, agentDir, deps, err } = setup();
+  store.create("work");
+  buildSessionHome({ sharedAgentDir: realpathSync(agentDir), profile: "work", baseDir: deps.sessionBaseDir! });
+  assert.equal(runCli(["rename", "work", "office"], { ...deps, isAlive: () => true }), 1);
+  assert.deepEqual(err, ['Cannot rename profile "work": a session started with gentle-accounts is using it. Close it first.']);
+  assert.deepEqual(store.list(), ["work"]);
+});
+
+test("S1 cli rename: missing or extra words print the usage and exit 1; the help lists the command", () => {
+  const { store, deps, err, out } = setup();
+  store.create("work");
+  for (const args of [["rename"], ["rename", "work"], ["rename", "work", "office", "extra"]]) {
+    err.length = 0;
+    assert.equal(runCli(args, deps), 1, args.join(" "));
+    assert.match(err[0], /^Usage:/);
+  }
+  assert.equal(runCli(["--help"], deps), 0);
+  assert.match(out.at(-1)!, /^  gentle-accounts rename <old> <new> +rename a profile \(its logins move with it\)$/m);
+  assert.deepEqual(store.list(), ["work"]);
+});

@@ -6,6 +6,7 @@ import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assert
 import { menuAvailable, runAccountsMenu, type MenuFlows, type Report } from "./menu/run.ts";
 import type { Feedback } from "./menu/view.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
+import { renameProfile } from "./rename.ts";
 import { getShowEmail, runEmailCommand, settingsPath } from "./settings.ts";
 import { resolveContext } from "./session-home.ts";
 
@@ -17,12 +18,13 @@ const USAGE = [
   "/gentle:accounts current         show the active profile",
   "/gentle:accounts create <name>   create an empty profile",
   "/gentle:accounts delete <name>   delete a profile (asks for confirmation)",
+  "/gentle:accounts rename <old> <new>  rename a profile (its logins move with it)",
   "/gentle:accounts login claude    show the command that logs the active profile into Claude Code",
   "/gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)",
   "/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email",
 ].join("\n");
 
-const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "login", "session", "startup", "email"];
+const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "rename", "login", "session", "startup", "email"];
 
 function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "warning" | "error" = "info"): void {
   ctx.ui.notify(message, type);
@@ -167,7 +169,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     },
     handler: async (args, ctx) => {
       const s = store();
-      const [sub = "", arg = ""] = args.trim().split(/\s+/);
+      const [sub = "", arg = "", arg2 = "", ...extra] = args.trim().split(/\s+/);
 
       if (sub === "list") {
         const current = s.current();
@@ -190,6 +192,14 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (!arg) return notify(ctx, USAGE, "warning");
         const result = await deleteFlow(ctx, s, arg);
         return notify(ctx, result.message, result.type);
+      }
+      if (sub === "rename") {
+        if (!arg || !arg2 || extra.length) return notify(ctx, USAGE, "warning");
+        // The environment of this process follows the folder when the renamed profile is the current one.
+        const result = renameProfile(s, arg, arg2, { env: process.env });
+        notify(ctx, result.message, result.ok ? "info" : "error");
+        if (result.ok) await updateStatus(ctx, s);
+        return;
       }
       if (sub === "login") {
         if (arg !== "claude") return notify(ctx, USAGE, "warning");
