@@ -5,16 +5,30 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box;margin:0}
-body{background:#060407;color:#F6EFF3;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh;display:grid;place-items:center;padding:32px}
-.wrap{width:min(780px,100%)}
+body{background:#060407;color:#F6EFF3;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh;padding:24px;display:grid;place-items:center}
+.wrap{width:min(1180px,100%)}
 .intro{color:#A78E9B;font-size:13px;margin-bottom:12px}
 .intro kbd{border:1px solid #563040;border-radius:3px;padding:0 5px;color:#F6EFF3;font:inherit}
-#menu{border:1px solid #563040;border-radius:8px;background:#100A0F;outline:none}
+.dim{color:#A78E9B}.faint{color:#76616B}.ok{color:#B4E7C7}.warn{color:#F2B86D}.acc{color:#F095C8}.err{color:#FF718F}.gold{color:#E0C27A}
+
+/* the terminal behind the overlay */
+.term{position:relative;height:640px;border:1px solid #2A1720;border-radius:8px;background:#0b070b;overflow:hidden;display:flex;flex-direction:column}
+.chat{flex:1;padding:14px 20px;color:#76616B;overflow:hidden;font-size:14px}
+.chat p{margin-bottom:10px;white-space:nowrap}
+.chat .gold{color:#8a7648}
+.input{padding:6px 20px;border-top:1px solid #1d3a45;color:#76616B;font-size:13px}
+.input b{color:#A9C7EE;font-weight:400}
+.statusline{padding:6px 20px;border-top:1px solid #2A1720;color:#76616B;font-size:13px;display:flex;gap:16px}
+.statusline .r{margin-left:auto}
+
+/* the accounts menu: centered, ~60% of the terminal width */
+#menu{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);width:60%;min-width:520px;max-width:100%;
+  border:1px solid #563040;border-radius:8px;background:#100A0F;outline:none;box-shadow:0 10px 40px #000a}
 #menu:focus-visible{outline:2px solid #FFB1DD;outline-offset:3px}
-header{padding:12px 20px;border-bottom:1px solid #563040;display:flex;justify-content:space-between;gap:12px}
-h1{font-size:15px;font-weight:600;color:#F095C8}
-.dim{color:#A78E9B}.faint{color:#76616B}.ok{color:#B4E7C7}.warn{color:#F2B86D}.acc{color:#F095C8}.err{color:#FF718F}
-ul{list-style:none;padding:8px}
+.top{display:flex;justify-content:space-between;padding:12px 20px 0}
+.top h1{font-size:15px;font-weight:600;color:#A9C7EE}
+.sub{padding:0 20px 10px;color:#A78E9B;font-size:13px;border-bottom:1px solid #2A1720}
+ul{list-style:none;padding:10px 8px}
 li.p{display:grid;grid-template-columns:20px 20px 150px 24px minmax(0,1fr) auto;gap:6px;padding:4px 12px;border-radius:4px;cursor:pointer}
 li.p.sel{background:#28121E}
 li.p.sel .name{color:#F095C8;font-weight:700}
@@ -23,30 +37,44 @@ ul.prov{list-style:none;padding:2px 0 6px 44px}
 li.r{display:grid;grid-template-columns:20px 20px 210px minmax(0,1fr);gap:6px;padding:2px 12px;border-radius:4px;cursor:pointer}
 li.r.sel{background:#28121E}
 li.r.sel .lbl{color:#F095C8}
-.fb{padding:6px 20px;min-height:32px;border-top:1px solid #563040;font-size:13px}
-footer{padding:10px 20px;border-top:1px solid #563040;color:#A78E9B;font-size:13px}
+.fb{padding:6px 20px;min-height:34px;font-size:13px}
+footer{padding:12px 20px;color:#A78E9B;font-size:13px;border-top:1px solid #2A1720}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:700px){#menu{width:calc(100% - 24px);min-width:0}}
 </style>
 <div class="wrap">
 <p class="intro">Demo: click the menu, then use <kbd>↑</kbd><kbd>↓</kbd> profiles · <kbd>→</kbd> open providers · <kbd>←</kbd> close · <kbd>Enter</kbd> switch / log in · <kbd>s</kbd> session · <kbd>e</kbd> show/hide email · <kbd>n</kbd> <kbd>d</kbd> <kbd>o</kbd> on a logged-in provider (simulated)</p>
-<main id="menu" tabindex="0" aria-label="Accounts menu demo">
-<header><h1>gentle-accounts · accounts</h1><span class="dim" id="mode"></span></header>
-<ul id="list" aria-label="Profiles"></ul>
-<div class="fb" id="fb" role="status" aria-live="polite"></div>
-<footer id="hints"></footer>
-</main>
+<div class="term" aria-label="Terminal with the accounts menu open">
+  <div class="chat" aria-hidden="true">
+    <p>Warning: Gentle Shell is running inside a project folder. Every Git operation can reach it.</p>
+    <p class="gold">Update Available · New version 1.6.0 is available. Run pi update</p>
+    <p>Theme applies now and is saved by Pi.</p>
+    <p>Disable this warning in /settings.</p>
+    <p>— gentle-ai · dev binary override · field-test only —</p>
+  </div>
+  <div class="input" aria-hidden="true">— ✿ waiting for input —<br><b>›</b> type, or / for commands</div>
+  <div class="statusline" aria-hidden="true"><span>✿ ~ │ main</span><span class="r">claude-sonnet-5-5 · medium · ctx 0% · $0.000 sub</span></div>
+
+  <main id="menu" tabindex="0" aria-label="Accounts menu demo">
+    <div class="top"><h1>Accounts</h1><span class="faint">esc</span></div>
+    <div class="sub" id="mode"></div>
+    <ul id="list" aria-label="Profiles"></ul>
+    <div class="fb" id="fb" role="status" aria-live="polite"></div>
+    <footer id="hints"></footer>
+  </main>
+</div>
 </div>
 <script>
 const P=[
- {n:"work",email:"mari****@company.com",full:"maria.lopez@company.com",pr:[["Claude Bridge",1],["Codex",1],["Anthropic",0]]},
- {n:"personal",email:"fede****@gmail.com",full:"federico@gmail.com",pr:[["Claude Bridge",1],["Codex",1],["Anthropic",1]]},
- {n:"client-acme",email:"",full:"",pr:[["Claude Bridge",0],["Codex",0],["Anthropic",0]]}
+ {n:"work",full:"maria.lopez@company.com",pr:[["Claude Bridge",1],["Codex",1],["Anthropic",0]]},
+ {n:"personal",full:"federico@gmail.com",pr:[["Claude Bridge",1],["Codex",1],["Anthropic",1]]},
+ {n:"client-acme",full:"",pr:[["Claude Bridge",0],["Codex",0],["Anthropic",0]]}
 ];
 let sel=0,row=0,active=0,startup=1,showEmail=false,fb="";
 const $=s=>document.querySelector(s);
 const esc=t=>t.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 function render(){
-  $("#mode").textContent="mode: global · email: "+(showEmail?"shown":"hidden");
+  $("#mode").textContent="gentle-accounts · mode: global · email: "+(showEmail?"shown":"hidden");
   let h="";
   P.forEach((p,i)=>{
     const s=i===sel,logged=p.pr.filter(x=>x[1]).map(x=>x[0]);
@@ -68,8 +96,8 @@ function render(){
     }
   });
   $("#list").innerHTML=h;
-  const x=sel===sel&&row>0?P[sel].pr[row-1]:null;
-  $("#hints").textContent="↑↓ profile · →← providers · enter select · n new · d delete · s set session · e email"+(x&&x[1]?" · o open in tab":"")+" · esc close";
+  const x=row>0?P[sel].pr[row-1]:null;
+  $("#hints").textContent="Click · ↑↓ profile · →← providers · Enter select · n new · d delete · s set session · e email"+(x&&x[1]?" · o open in tab":"")+" · Esc close";
   $("#fb").innerHTML=fb||'<span class="faint">enter: switch on a profile, log in on a provider (→ opens its providers)</span>';
 }
 function say(t,c){fb=`<span class="${c||"ok"}">${esc(t)}</span>`}

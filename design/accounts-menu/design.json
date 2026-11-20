@@ -5,9 +5,9 @@
     {
       "file": "01-terminal-list.html",
       "title": "Terminal list",
-      "tradeoff": "Native to the shell and keyboard-first; little room for provider detail",
-      "width": 900,
-      "height": 500
+      "tradeoff": "Native to the shell and keyboard-first; centered ~60% panel over the terminal, little room for provider detail",
+      "width": 1240,
+      "height": 780
     }
   ]
 }
