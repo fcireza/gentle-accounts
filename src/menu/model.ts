@@ -50,6 +50,8 @@ export interface BuildMenuOptions {
   sessionMode?: boolean;
   /** Logins detected outside the profiles; empty when none. */
   detected?: DetectedLogin[];
+  /** The providers pi's `/login` offers (id and name), logged in or not; listed for every profile. */
+  loginProviders?: { id: string; name: string }[];
   homeDir: string;
   /** Cached `claude auth status` result of the status bar for the active profile; undefined when none is cached. */
   activeClaude?: ClaudeAccount | null;
@@ -73,7 +75,10 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
   const startup = store.startup();
   const names = store.list();
   // Every provider logged in anywhere (the live file from /login, any snapshot) is listed for every profile.
+  const offered = options.loginProviders ?? [];
   const providers = coveredProviders(safeAuth(options.liveAuthPath), ...names.map((name) => safeAuth(store.authPath(name))));
+  for (const { id } of offered) if (!providers.includes(id)) providers.push(id);
+  const labels = Object.fromEntries(offered.map(({ id, name }) => [id, name]));
   const profiles = names.map((name): MenuProfile => {
     const active = name === current;
     const claude =
@@ -81,7 +86,7 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
         ? options.activeClaude
         : readClaudeAccount(store.claudeConfigEnv(name) ?? join(homeDir, ".claude"), homeDir);
     const auth = safeAuth(active ? options.liveAuthPath : store.authPath(name));
-    return { name, active, startup: name === startup, providers: providerStates(claude, auth, { showEmail: options.showEmail, providers }) };
+    return { name, active, startup: name === startup, providers: providerStates(claude, auth, { showEmail: options.showEmail, providers, labels }) };
   });
   const wanted = options.selectedName ?? current;
   const selected = Math.max(0, profiles.findIndex((p) => p.name === wanted));

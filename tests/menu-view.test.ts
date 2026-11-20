@@ -354,3 +354,14 @@ test("every profile lists the providers logged in anywhere, logged out where it 
   }
   assert.deepEqual(m.profiles[0].providers.map((x) => x.provider), m.profiles[1].providers.map((x) => x.provider), "same rows, same order");
 });
+
+test("the providers /login offers are listed for every profile, logged in or not, with pi's names", () => {
+  const { agentDir, store, liveAuthPath } = globalSetup();
+  const loginProviders = [{ id: "github-copilot", name: "GitHub Copilot" }, { id: "openai-codex", name: "ChatGPT Plus/Pro" }];
+  const m = buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir, loginProviders });
+  for (const p of m.profiles) {
+    const copilot = p.providers.find((x) => x.provider === "github-copilot");
+    assert.deepEqual(copilot && [copilot.label, copilot.loggedIn], ["GitHub Copilot", false], `${p.name}: offered, not logged in`);
+    assert.equal(p.providers.find((x) => x.provider === "openai-codex")?.label, "Codex", "known labels are kept");
+  }
+});

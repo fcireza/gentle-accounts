@@ -13,6 +13,25 @@ import { adoptLogin } from "../adopt.ts";
 import { detectLogins } from "../detect.ts";
 import { buildMenuModel, type Feedback, type FeedbackType } from "./view.ts";
 
+/**
+ * The providers `/login` offers (those with an OAuth method), logged in or not. pi has no public list, so they come
+ * from the model registry: every provider that has models, kept when it has OAuth. Never throws.
+ */
+export function loginProviders(ctx: ExtensionCommandContext): { id: string; name: string }[] {
+  try {
+    const registry = ctx.modelRegistry;
+    const ids = [...new Set(registry.getAll().map((model) => model.provider))];
+    const found: { id: string; name: string }[] = [];
+    for (const id of ids) {
+      const provider = registry.getProvider(id);
+      if (provider?.auth?.oauth) found.push({ id, name: provider.name ?? id });
+    }
+    return found;
+  } catch {
+    return [];
+  }
+}
+
 export type Report = (message: string, type?: FeedbackType) => void;
 
 /** The command's own flows (they live in src/index.ts with its messages), reused here so nothing is duplicated. */
@@ -126,6 +145,7 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
       showEmail: getShowEmail(path),
       sessionMode: session !== null,
       // Detection is for the global layout: a session home's auth.json is a private copy.
+      loginProviders: loginProviders(ctx),
       detected: session === null ? detectLogins({ store: s, liveAuthPath, homeDir: deps.homeDir ?? homedir() }) : [],
       homeDir: deps.homeDir ?? homedir(),
       activeClaude: deps.activeClaude(s),

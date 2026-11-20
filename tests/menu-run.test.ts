@@ -9,7 +9,7 @@ import { resolveContext } from "../src/session-home.ts";
 import { settingsPath } from "../src/settings.ts";
 import { claudeLoginCommand, loginHint } from "../src/login.ts";
 import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
-import { OVERLAY_OPTIONS, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
+import { OVERLAY_OPTIONS, loginProviders, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
 import type { AccountsMenuPanel, MenuAction } from "../src/menu/panel.ts";
 import { identityTheme } from "../src/menu/view.ts";
 import type { OpenTabResult, TabCommand } from "../src/terminal.ts";
@@ -414,4 +414,13 @@ test("adopt: a live login of another account becomes a new profile, and a cancel
   assert.equal(store.current(), "second");
   assert.deepEqual(JSON.parse(readFileSync(store.authPath("work"), "utf8"))["openai-codex"], codex("A"), "work keeps its own account");
   assert.doesNotMatch(ok.frames[1], /Detected login/, "nothing left to adopt");
+});
+
+test("loginProviders keeps the registry providers that have an OAuth method and never throws", () => {
+  const registry = {
+    getAll: () => [{ provider: "github-copilot" }, { provider: "github-copilot" }, { provider: "google" }, { provider: "openai-codex" }],
+    getProvider: (id: string) => ({ google: { auth: { apiKey: {} } }, "github-copilot": { name: "GitHub Copilot", auth: { oauth: {} } }, "openai-codex": { auth: { oauth: {} } } } as Record<string, unknown>)[id],
+  };
+  assert.deepEqual(loginProviders({ modelRegistry: registry } as never), [{ id: "github-copilot", name: "GitHub Copilot" }, { id: "openai-codex", name: "openai-codex" }]);
+  assert.deepEqual(loginProviders({} as never), []);
 });
