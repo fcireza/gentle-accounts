@@ -12,6 +12,7 @@ export type MenuAction =
   | { type: "email"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
   | { type: "adopt"; row: number }
+  | { type: "logout"; profile: string; provider: string; row: number }
   | { type: "close" };
 
 /**
@@ -185,6 +186,12 @@ export class AccountsMenuPanel {
         // Only while a login is detected, as the hint says.
         if ((this.model.detected ?? []).length) return this.finish({ type: "adopt", row });
         return;
+      case "char:x": {
+        // Only on a logged-in provider row, as the key hint says.
+        const provider = this.model.profiles[this.selected]?.providers[row - 1];
+        if (name && provider && canOpenProject({ profiles: this.model.profiles, selected: this.selected, row })) return this.finish({ type: "logout", profile: name, provider: provider.provider, row });
+        return;
+      }
       case "char:o":
         // Only on a logged-in provider row, as the key hint says.
         if (name && canOpenProject({ profiles: this.model.profiles, selected: this.selected, row })) return this.finish({ type: "open", profile: name, row });

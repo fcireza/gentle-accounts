@@ -283,3 +283,14 @@ test("i adopts only while a login is detected, and the panel shows the hint and 
   assert.match(r.text(), /i adopt/);
   assert.doesNotMatch(run([]).text(), /Detected login|i adopt/);
 });
+
+test("x logs out only on a logged-in provider row", () => {
+  const m = model();
+  m.profiles[1].providers[1].loggedIn = true;
+  assert.deepEqual(run(["x"], m).actions, [], "profile row: nothing");
+  assert.deepEqual(run([KEYS.right, "x"], m).actions, [], "logged-out provider row: nothing");
+  const r = run([KEYS.right, KEYS.down, "x"], m);
+  assert.deepEqual(r.actions, [{ type: "logout", profile: "work", provider: "openai-codex", row: 2 }]);
+  assert.match(run([KEYS.right, KEYS.down], m).text(), /x logout/);
+  assert.doesNotMatch(run([], m).text(), /x logout/);
+});

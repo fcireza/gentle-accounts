@@ -157,7 +157,7 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   assert.match(open, /● Claude Bridge {2}logged in\s*│/, "no email while the display is hidden");
   assert.doesNotMatch(open, /o open/, "row 3 (Codex) is not logged in");
   const onLogged = renderMenu({ ...m, row: 1 }, 200).join("\n");
-  assert.match(onLogged, /e email {2}o open in tab {2}esc close/);
+  assert.match(onLogged, /e email {2}o open in tab {2}x logout {2}esc close/);
   const shownEmail = renderMenu({ ...model({ showEmail: true }), selected: 0, row: 1 }, 100).join("\n");
   assert.match(shownEmail, /logged in · mar\*{4}@company\.com/);
   assert.match(open, /▸ ○ Codex {10}not logged in/);
@@ -304,7 +304,7 @@ test("S10 hints: r rename is listed and the wide hints take three lines that fit
   assert.equal(hintLines.length, 3, "three hint lines");
   assert.doesNotMatch(hintLines.join("\n"), /…/, "no hint is cut at the 60 columns of the panel's minimum width");
   const open = renderMenu({ ...m, row: 1 }, 60, identityTheme).map(strip).join("\n");
-  assert.match(open, /│ e email {2}o open in tab {2}esc close +│/);
+  assert.match(open, /│ e email {2}o open in tab {2}x logout {2}esc close +│/);
   for (const width of WIDTHS) for (const line of renderMenu({ ...m, row: 1 }, width, identityTheme)) assert.ok(visibleWidth(line) <= width, `width ${width}`);
 });
 

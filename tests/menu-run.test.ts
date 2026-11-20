@@ -424,3 +424,21 @@ test("loginProviders keeps the registry providers that have an OAuth method and 
   assert.deepEqual(loginProviders({ modelRegistry: registry } as never), [{ id: "github-copilot", name: "GitHub Copilot" }, { id: "openai-codex", name: "openai-codex" }]);
   assert.deepEqual(loginProviders({} as never), []);
 });
+
+test("logout: confirms, forgets the provider in that profile only, and Claude points to its own CLI", async () => {
+  const { agentDir, store } = setup();
+  const tok = { type: "oauth", access: "a", refresh: "r", expires: 1 };
+  writeFileSync(store.authPath("personal"), JSON.stringify({ "openai-codex": tok }));
+  writeFileSync(join(agentDir, "auth.json"), JSON.stringify({ anthropic: tok }));
+  const no = fakeCtx([{ type: "logout", profile: "personal", provider: "openai-codex", row: 1 }, { type: "close" }], { confirm: false });
+  await runAccountsMenu(no.ctx, deps(agentDir));
+  assert.ok("openai-codex" in JSON.parse(readFileSync(store.authPath("personal"), "utf8")), "declined: nothing changes");
+  const yes = fakeCtx([{ type: "logout", profile: "personal", provider: "openai-codex", row: 1 }, { type: "close" }], { confirm: true });
+  await runAccountsMenu(yes.ctx, deps(agentDir));
+  assert.deepEqual(JSON.parse(readFileSync(store.authPath("personal"), "utf8")), {});
+  assert.match(feedbackOf(yes.frames[1]), /Logged "openai-codex" out of profile "personal"\./);
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "auth.json"), "utf8")), { anthropic: tok }, "the live file of another profile is untouched");
+  const claude = fakeCtx([{ type: "logout", profile: "work", provider: "claude", row: 1 }, { type: "close" }], { confirm: true });
+  await runAccountsMenu(claude.ctx, deps(agentDir));
+  assert.match(feedbackOf(claude.frames[1]), /claude auth logout/);
+});

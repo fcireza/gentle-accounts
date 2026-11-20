@@ -47,6 +47,7 @@ Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:prof
 | `s` | Set the selected profile as the session profile, or clear it when it already is. |
 | `e` | Toggle the email display (same messages as `email show` and `email hide`). |
 | `o` | Open this project with the selected profile in a new terminal tab. Only on a provider row with a login; the key hint `o open in tab` appears only there. |
+| `x` | Log the selected provider out of the profile (asks to confirm; removes its credentials from that profile only, the token is just forgotten on this machine). Only on a provider row with a login; for Claude it shows `claude auth logout` instead. |
 | `Esc` or `Ctrl+C` | Close. |
 
 Mouse, in `fullscreen` mode only (in the regular mode the terminal owns the mouse and the keyboard is the only way): a click selects the profile or provider under the pointer, a double click acts like `Enter`, and the wheel moves like `↑` `↓`. Clicks on the frame, the header or the hints do nothing.

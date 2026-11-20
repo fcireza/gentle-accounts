@@ -112,11 +112,12 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
   // Each hint is [key, what it does]: the key is drawn in the theme's accent, the text dim.
   type Hint = [string, string];
   const open: Hint[] = canOpen ? [["o", compact ? "open" : "open in tab"]] : [];
+  const logout: Hint[] = canOpen ? [["x", "logout"]] : [];
   const adopt: Hint[] = (model.detected ?? []).length ? [["i", "adopt"]] : [];
   const hints: Hint[][] = compact
-    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["s", "session"], ["e", "email"]], [...adopt, ...open, ["esc", "close"]]]
-    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["s", "set session"]], [["e", "email"], ...adopt, ...open, ["esc", "close"]]];
-  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["s", "session"], ["e", "email"], ...adopt, ...open.map(([k]): Hint => [k, "open"]), ["esc", "close"]];
+    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["s", "session"], ["e", "email"]], [...adopt, ...open, ...logout, ["esc", "close"]]]
+    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["s", "set session"]], [["e", "email"], ...adopt, ...open, ...logout, ["esc", "close"]]];
+  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["s", "session"], ["e", "email"], ...adopt, ...open.map(([k]): Hint => [k, "open"]), ...logout, ["esc", "close"]];
   add(theme.fg("borderAccent", "─".repeat(inner)));
   const render = (line: Hint[], gap: string) => line.map(([key, text]) => `${theme.fg("accent", key)} ${theme.fg("dim", text)}`).join(gap);
   const width = (line: Hint[], gap: string) => visibleWidth(line.map(([key, text]) => `${key} ${text}`).join(gap));

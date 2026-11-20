@@ -10,6 +10,7 @@ import type { AgentContext } from "../session-home.ts";
 import { runStartupCommand, type ProfileStore } from "../store.ts";
 import { AccountsMenuPanel, type MenuAction } from "./panel.ts";
 import { adoptLogin } from "../adopt.ts";
+import { logoutProvider } from "../logout.ts";
 import { detectLogins } from "../detect.ts";
 import { buildMenuModel, type Feedback, type FeedbackType } from "./view.ts";
 
@@ -210,6 +211,19 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
             row = 0;
             await deps.refreshStatus(ctx, s);
           }
+          break;
+        }
+        case "logout": {
+          if (action.provider === "claude") {
+            // Claude's login lives in its config dir (possibly the shared default), so it is not removed from here.
+            set("Claude logs out with its own CLI: run claude auth logout (with the profile's CLAUDE_CONFIG_DIR).", "warning");
+            break;
+          }
+          const ok = await ctx.ui.confirm("Log out", `Log "${action.provider}" out of profile "${action.profile}"? Its token is only forgotten on this machine.`);
+          if (!ok) break;
+          const result = logoutProvider({ store: s, liveAuthPath, profile: action.profile, provider: action.provider });
+          set(result.message, result.ok ? "info" : "error");
+          if (result.ok) await deps.refreshStatus(ctx, s);
           break;
         }
         case "startup": {

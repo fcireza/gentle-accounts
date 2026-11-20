@@ -47,6 +47,7 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `s` | Define el perfil seleccionado como perfil de sesión, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
+| `x` | Cierra la sesión del proveedor seleccionado en ese perfil (pide confirmación; borra sus credenciales solo de ese perfil, el token solo se olvida en esta máquina). Solo en una fila de proveedor con sesión; para Claude muestra `claude auth logout`. |
 | `Esc` o `Ctrl+C` | Cierra. |
 
 Mouse, solo en modo `fullscreen` (en el modo normal la terminal es dueña del mouse y solo se usa el teclado): un clic selecciona el perfil o proveedor bajo el puntero, un doble clic actúa como `Enter` y la rueda se mueve como `↑` `↓`. Los clics sobre el marco, el encabezado o las pistas no hacen nada.
