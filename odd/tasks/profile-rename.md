@@ -19,14 +19,16 @@ Risk: item 1 (moves a folder with credentials) and item 3 (a new reserved word).
 
 ## Tasks
 
-- [ ] T1 (S3, S7, S9): `ProfileStore.rename` and the reserved word, tests first. Route: inline. Commit: pending.
-- [ ] T2 (S4, S5, S6, S8): `src/rename.ts` flow: validations, live-session check with sweep, env re-apply, messages. Route: inline. Commit: pending.
-- [ ] T3 (S1): `/gentle:accounts rename`, `gentle-accounts rename`, usage, completions. Route: inline. Commit: pending.
-- [ ] T4 (S10): menu key `r`, action, prompt, hints in three lines. Route: inline. Commit: pending.
-- [ ] T5 (S2): README and docs en/es. Route: inline. Commit: pending.
-- [ ] T6 (S11): full suite, differential check of the shared code (store, hints, USAGE, reserved words), real-filesystem end to end. Route: inline. Commit: pending.
+- [x] T1 (S3, S7, S9): `ProfileStore.rename` and the reserved word, tests first. Route: inline. Commit: 0ca818a.
+- [x] T2 (S4, S5, S6, S8): `src/rename.ts` flow: validations, live-session check with sweep, env re-apply, messages. Route: inline. Commit: 782a14d.
+- [x] T3 (S1): `/gentle:accounts rename`, `gentle-accounts rename`, usage, completions. Route: inline. Commit: 488b07e.
+- [x] T4 (S10): menu key `r`, action, prompt, hints in three lines. Route: inline. Commit: f486513.
+- [x] T5 (S2): README and docs en/es. Route: inline. Commit: 49b0700.
+- [x] T6 (S11): full suite (411 tests), differential check of the CLI against the base (22 of 26 commands identical; the 4 help outputs differ only by the new rename line), real-filesystem run and two e2e tests. Route: inline. Commit: f1370da.
 
 ## Log
 
 - L1 (user, verbatim): "Agregame el command r raname, para las accounts actualiza todas las docus"
 - L2 (user, 2026-11-20): explore inline (not with the explorer, which cannot start); the active profile and the session profile can be renamed and the pointers move; a profile in use by a launcher session is rejected.
+- L3 (evidence, 2026-11-20): the differential check covered the CLI only. The `/gentle:accounts` command, the menu key hints and the new reserved word are covered by the test suite (the only changed lines of shared parsing are `[sub, arg, arg2, ...extra]`, used by rename alone). The independent verifier (item 1 of the risk list) could not run: subagents cannot start while the Node path of this session is stale. The real-filesystem run and the e2e tests stand in for it.
+- L4 (known limit, documented): sessions already running on the renamed profile keep the old `CLAUDE_CONFIG_DIR` until they switch or restart; the success message and the docs say so.
