@@ -1,3 +1,4 @@
+import { maskEmail } from "../account.ts";
 import { fit, truncateToWidth, visibleWidth } from "./width.ts";
 import { canOpenProject, identityTheme, type MenuModel, type MenuTheme } from "./model.ts";
 
@@ -44,7 +45,7 @@ function providerLines(model: MenuModel, compact: boolean, theme: MenuTheme): st
     const row = k + 1;
     const pointer = row === model.row ? theme.fg("accent", "▸ ") : "  ";
     const dot = p.loggedIn ? theme.fg("success", "●") : theme.fg("dim", "○");
-    const state = p.loggedIn ? `logged in${model.showEmail && p.email ? ` · ${clean(p.email)}` : ""}` : "not logged in";
+    const state = p.loggedIn ? `logged in${model.showEmail && p.email ? ` · ${maskEmail(clean(p.email))}` : ""}` : "not logged in";
     const label = compact ? p.label : p.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(p.label)));
     return `    ${pointer}${dot} ${theme.fg(row === model.row ? "accent" : "text", label)}${compact ? " " : ""}${theme.fg(p.loggedIn ? "success" : "muted", state)}`;
   });
@@ -69,17 +70,17 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
     lines.push(line);
     hits.push(hit);
   };
-  const title = "Accounts";
-  const esc = "esc";
-  add(`${theme.fg("accent", bold(theme, title))}${" ".repeat(Math.max(1, inner - visibleWidth(title) - visibleWidth(esc)))}${theme.fg("dim", esc)}`);
   // The default account is the session profile: the one new sessions start on (`★` in the list).
   const defaultName = model.profiles.find((p) => p.startup)?.name ?? "none";
   // The labels use the theme's accent, the values the plain text color.
   const label = (text: string) => theme.fg("accent", text);
-  const emailValue = model.showEmail ? "shown" : "hidden";
-  add(compact ? `${label("Default:")} ${theme.fg("text", defaultName)}` : `${label("Account Default:")} ${theme.fg("text", defaultName)} ${theme.fg("muted", "·")} ${label("email:")} ${theme.fg("text", emailValue)}`);
-  if (compact) add(`${label("email:")} ${theme.fg("text", emailValue)}`);
-  add(theme.fg("border", "─".repeat(inner)));
+  // The session account is the profile set for this session; it is shown only when there is one.
+  const sessionName = model.sessionName;
+  const session = sessionName ? `${label("Account Session:")} ${theme.fg("text", sessionName)}` : "";
+  const sep = ` ${theme.fg("muted", "·")} `;
+  add(compact ? `${label("Default:")} ${theme.fg("text", defaultName)}` : `${label("Account Default:")} ${theme.fg("text", defaultName)}${session ? sep + session : ""}`);
+  if (compact && sessionName) add(`${label("Session:")} ${theme.fg("text", sessionName)}`);
+  add(theme.fg("borderAccent", "─".repeat(inner)));
   if (!model.profiles.length) {
     add(theme.fg("muted", "no profiles yet: press n to create one"));
   } else {
@@ -109,9 +110,16 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
   const hints: Hint[][] = compact
     ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["s", "session"], ["e", "email"]], [...open, ["esc", "close"]]]
     : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["s", "set session"]], [["e", "email"], ...open, ["esc", "close"]]];
-  const gap = compact ? " " : "  ";
-  add(theme.fg("border", "─".repeat(inner)));
-  for (const line of hints) add(line.map(([key, text]) => `${theme.fg("accent", key)} ${theme.fg("dim", text)}`).join(gap));
+  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["s", "session"], ["e", "email"], ...open.map(([k]): Hint => [k, "open"]), ["esc", "close"]];
+  add(theme.fg("borderAccent", "─".repeat(inner)));
+  const render = (line: Hint[], gap: string) => line.map(([key, text]) => `${theme.fg("accent", key)} ${theme.fg("dim", text)}`).join(gap);
+  const width = (line: Hint[], gap: string) => visibleWidth(line.map(([key, text]) => `${key} ${text}`).join(gap));
+  // All the hints go on one line when they fit (full labels, then short ones); otherwise they wrap in their groups.
+  const single = hints.flat();
+  if (!compact && width(single, "  ") <= inner) add(render(single, "  "));
+  else if (width(short, "  ") <= inner) add(render(short, "  "));
+  else if (width(short, " ") <= inner) add(render(short, " "));
+  else for (const line of hints) add(render(line, compact ? " " : "  "));
   return { lines, hits };
 }
 
@@ -123,9 +131,13 @@ export function renderMenu(model: MenuModel, width: number, theme: MenuTheme = i
   const w = Math.max(0, Math.floor(width));
   if (w < 6) return bodyLines(model, 20, identityTheme).lines.map((line) => truncateToWidth(line, w, ""));
   const inner = w - 4;
-  const border = (text: string) => theme.fg("border", text);
+  const border = (text: string) => theme.fg("borderAccent", text);
+  // The title sits centered in the top border.
+  const title = ` ${truncateToWidth("Gentle Accounts", Math.max(0, inner - 2))} `;
+  const room = inner + 2 - visibleWidth(title);
+  const left = Math.floor(room / 2);
   return [
-    border(`╭${"─".repeat(inner + 2)}╮`),
+    `${border(`╭${"─".repeat(left)}`)}${theme.fg("accent", bold(theme, title))}${border(`${"─".repeat(room - left)}╮`)}`,
     ...bodyLines(model, inner, theme).lines.map((line) => `${border("│")} ${fit(line, inner)} ${border("│")}`),
     border(`╰${"─".repeat(inner + 2)}╯`),
   ];

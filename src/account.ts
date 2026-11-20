@@ -41,16 +41,26 @@ export function readClaudeAccount(claudeDir: string, homeDir: string): ClaudeAcc
   }
 }
 
+/** Masks the name of an email for display, keeping the `@` and the domain as they are (`fci****@gmail.com`). */
+export function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  const name = at === -1 ? email : email.slice(0, at);
+  return `${name.slice(0, 3)}****${at === -1 ? "" : email.slice(at)}`;
+}
+
 export interface StatusTextOptions {
   /** Print the full email instead of hiding it (S29); default false. */
   showEmail?: boolean;
+  /** Colors the text with the theme's colors; plain text without it. */
+  theme?: { fg(color: string, text: string): string };
 }
 
 export function statusText(profile: string, account: { email: string } | null, options: StatusTextOptions = {}): string {
+  const fg = options.theme?.fg.bind(options.theme) ?? ((_color: string, text: string) => text);
   const icon = account ? "👤" : "🔒";
-  const base = `${icon} ${PLUGIN_LABEL}: ${profile}`;
-  if (!account) return `${base} · not logged in`;
-  return options.showEmail === true ? `${base} · ${account.email}` : base;
+  const base = `${icon} ${fg("muted", `${PLUGIN_LABEL}:`)} ${fg("accent", profile)}`;
+  if (!account) return `${base} ${fg("muted", "·")} ${fg("warning", "not logged in")}`;
+  return options.showEmail === true ? `${base} ${fg("muted", "·")} ${fg("text", account.email)}` : base;
 }
 
 /** Menu labels of the providers a profile covers (S31); unknown covered providers show their id. */

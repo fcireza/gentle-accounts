@@ -162,7 +162,7 @@ test("S31 run: startup toggles set and clear; email toggles and refreshes the st
   assert.match(feedbackOf(c.frames[2]), /Session profile cleared\. New sessions start on the last used profile\./);
   assert.equal(store.startup(), null);
   assert.match(feedbackOf(c.frames[3]), /Email display set to shown\. The status bar shows the full email\./);
-  assert.match(c.frames[3], /email: shown/);
+  assert.doesNotMatch(c.frames[3], /Session:/, "global mode: no session account");
   assert.equal(JSON.parse(readFileSync(settingsPath(agentDir), "utf8")).showEmail, false);
   assert.match(feedbackOf(c.frames[4]), /Email display set to hidden/);
   assert.deepEqual(log, ["work", "work"]);

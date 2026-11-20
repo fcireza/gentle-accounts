@@ -116,12 +116,13 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
   const loginHere = deps.loginHere ?? defaultLoginHere(platform);
   const cwd = deps.cwd ?? (ctx as { cwd?: string }).cwd ?? process.cwd();
   for (;;) {
-    const { store: s, liveAuthPath, sharedDir } = deps.context();
+    const { store: s, liveAuthPath, sharedDir, session } = deps.context();
     const path = settingsPath(sharedDir);
     const model = buildMenuModel({
       store: s,
       liveAuthPath,
       showEmail: getShowEmail(path),
+      sessionMode: session !== null,
       homeDir: deps.homeDir ?? homedir(),
       activeClaude: deps.activeClaude(s),
       selectedName,

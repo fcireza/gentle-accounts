@@ -29,6 +29,8 @@ export interface MenuProfile {
 export interface MenuModel {
   title: string;
   showEmail: boolean;
+  /** The profile set for this session (session mode only); null or absent when none is set. */
+  sessionName?: string | null;
   profiles: MenuProfile[];
   /** Index of the selected profile in the list (0 when there are no profiles). */
   selected: number;
@@ -41,6 +43,8 @@ export interface BuildMenuOptions {
   store: ProfileStore;
   liveAuthPath: string;
   showEmail: boolean;
+  /** True when the menu runs in a session home, where the current profile is the session's own. */
+  sessionMode?: boolean;
   homeDir: string;
   /** Cached `claude auth status` result of the status bar for the active profile; undefined when none is cached. */
   activeClaude?: ClaudeAccount | null;
@@ -78,6 +82,7 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
   return {
     title: PLUGIN_LABEL,
     showEmail: options.showEmail,
+    sessionName: options.sessionMode ? current : null,
     profiles,
     selected,
     row,
