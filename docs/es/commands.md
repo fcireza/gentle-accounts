@@ -94,7 +94,7 @@ Crea un perfil vacío: una carpeta `claude/` y un `auth.json` sin credenciales. 
 - Éxito: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Ya existe: `Profile "<name>" already exists.` (error).
 - Nombre inválido: el mensaje de nombre inválido (error).
-- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector.
+- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector. `session` pasó a ser una palabra reservada en esta versión: un perfil que ya había creado con ese nombre sigue en disco bajo `profiles/`, pero ya no se puede activar por nombre. Cambie el nombre de su carpeta bajo `profiles/` para volver a usarlo.
 - Sin nombre: el texto de uso (advertencia).
 
 ### `/gentle:accounts delete <name>`

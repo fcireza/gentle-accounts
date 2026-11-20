@@ -1,5 +1,5 @@
 import { fit, truncateToWidth, visibleWidth } from "./width.ts";
-import { identityTheme, type MenuModel, type MenuTheme } from "./model.ts";
+import { canOpenProject, identityTheme, type MenuModel, type MenuTheme } from "./model.ts";
 
 // The menu's public surface stays in this module: the model and the width helpers are re-exported.
 export * from "./model.ts";
@@ -56,6 +56,11 @@ export interface MenuHit {
   row: number;
 }
 
+/**
+ * The body of the panel as `lines` plus `hits`, one entry per line. Invariant: every entry of `lines` is rendered as
+ * exactly one output line (`renderMenu` fits it to the width, it never wraps), so a click row maps to `hits[row - 1]`.
+ * Add a line only through `add`, with its hit or null.
+ */
 function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: string[]; hits: (MenuHit | null)[] } {
   const compact = inner + 4 < COMPACT_WIDTH;
   const lines: string[] = [];
@@ -97,7 +102,7 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
     add(theme.fg("dim", compact ? "enter: switch or log in" : "enter: switch on a profile, log in on a provider (→ opens its providers)"));
   }
   // `o` opens the project with the selected profile, so it is offered only on a logged-in provider row.
-  const canOpen = model.row > 0 && model.profiles[model.selected]?.providers[model.row - 1]?.loggedIn === true;
+  const canOpen = canOpenProject(model);
   // Each hint is [key, what it does]: the key is drawn in the theme's accent, the text dim.
   type Hint = [string, string];
   const open: Hint[] = canOpen ? [["o", compact ? "open" : "open in tab"]] : [];

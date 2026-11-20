@@ -39,13 +39,12 @@ function globalSetup() {
 
 function model(extra: Partial<Parameters<typeof buildMenuModel>[0]> = {}) {
   const { agentDir, store, liveAuthPath } = globalSetup();
-  return buildMenuModel({ store, liveAuthPath, session: false, showEmail: false, homeDir: agentDir, ...extra });
+  return buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir, ...extra });
 }
 
 test("S31 view: global model has one entry per profile with active, startup and provider states", () => {
   const m = model();
   assert.equal(m.title, "gentle-accounts");
-  assert.equal(m.mode, "global");
   assert.equal(m.showEmail, false);
   assert.deepEqual(m.profiles.map((p) => [p.name, p.active, p.startup]), [["personal", false, true], ["work", true, false]]);
   assert.equal(m.selected, 1, "opens on the active profile");
@@ -66,7 +65,7 @@ test("S31 view: global model has one entry per profile with active, startup and 
 test("S31 view: the active profile reuses the cached Claude answer (null = logged out wins over the file)", () => {
   const { agentDir, store, liveAuthPath } = globalSetup();
   writeAccount(store.claudeDir("work"), "file@x.io");
-  const base = { store, liveAuthPath, session: false, showEmail: true, homeDir: agentDir };
+  const base = { store, liveAuthPath, showEmail: true, homeDir: agentDir };
   assert.equal(buildMenuModel({ ...base, activeClaude: { email: "cached@x.io" } }).profiles[1].providers[0].email, "cached@x.io");
   assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[1].providers[0].loggedIn, false);
   assert.equal(buildMenuModel(base).profiles[1].providers[0].email, "file@x.io", "no cache: file read");
@@ -101,12 +100,10 @@ test("S31 view: session mode reads the shared store, the session current and H/a
   const ctx = resolveContext(home);
   writeAuthFile(ctx.liveAuthPath, { "openai-codex": { type: "oauth", access: TOKEN, expires: 1 } });
   writeFileSync(ctx.store.currentPath, "work\n");
-  const m = buildMenuModel({ store: ctx.store, liveAuthPath: ctx.liveAuthPath, session: ctx.session !== null, showEmail: false, homeDir: agentDir });
-  assert.equal(m.mode, "session home");
+  const m = buildMenuModel({ store: ctx.store, liveAuthPath: ctx.liveAuthPath, showEmail: false, homeDir: agentDir });
   assert.deepEqual(m.profiles.map((p) => [p.name, p.active]), [["personal", false], ["work", true]]);
   assert.deepEqual(m.profiles[1].providers.map((p) => p.loggedIn), [false, true, false]);
-  assert.equal(m.mode, "session home");
-  assert.doesNotMatch(renderMenu(m, 100).join("\n"), /mode:/, "the header no longer shows the mode");
+  assert.doesNotMatch(renderMenu(m, 100).join("\n"), /mode:/, "the header does not show the mode");
 });
 
 test("S31 view: selection restores by name and clamps the row; an unknown name falls back to the first tab", () => {
@@ -184,7 +181,7 @@ test("S31 render: many profiles scroll the list and always show the selected one
   const store = new ProfileStore(agentDir);
   for (let i = 0; i < 20; i++) store.create(`profile-${String(i).padStart(2, "0")}`);
   store.setCurrent("profile-00");
-  const base = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), session: false, showEmail: false, homeDir: agentDir });
+  const base = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), showEmail: false, homeDir: agentDir });
   for (const width of WIDTHS) {
     for (const selected of [0, 10, 19]) {
       for (const row of [0, 2]) {
@@ -202,13 +199,13 @@ test("S31 render: many profiles scroll the list and always show the selected one
 test("S31 render: long names, wide characters, an empty list and a single profile", () => {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-menu-view-edge-"));
   const store = new ProfileStore(agentDir);
-  const empty = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), session: false, showEmail: true, homeDir: agentDir });
+  const empty = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), showEmail: true, homeDir: agentDir });
   assert.deepEqual(empty.profiles, []);
   for (const width of WIDTHS) assert.match(check(empty, width, identityTheme).join("\n"), /no profiles|n new/);
   store.create("a-very-long-profile-name-32-char");
   store.setCurrent("a-very-long-profile-name-32-char");
   writeAccount(store.claudeDir("a-very-long-profile-name-32-char"), "名前名前名前@例え.jp");
-  const single = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), session: false, showEmail: true, homeDir: agentDir });
+  const single = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), showEmail: true, homeDir: agentDir });
   assert.equal(single.profiles.length, 1);
   for (const width of WIDTHS) {
     const text = check({ ...single, feedback: { message: "日本語のフィードバック🙂".repeat(10), type: "warning" } }, width, taggedTheme).join("\n");
@@ -284,4 +281,12 @@ test("S41 render: the header labels use the theme's accent and the values the te
   const compact = renderMenu({ ...model(), selected: 0 }, 40, named).join("\n");
   assert.ok(compact.includes(`${A}Default:${R} ${T}personal${R}`));
   assert.ok(compact.includes(`${A}email:${R} ${T}hidden${R}`));
+});
+
+test("S42 hits: one entry per rendered line with multi-line feedback, in the compact layout and with scrolling", () => {
+  const long = { message: "first line\nsecond line\nthird line", type: "info" as const };
+  for (const width of WIDTHS) {
+    const m = { ...model(), selected: 0, row: 2, feedback: long };
+    assert.equal(menuHits(m, width).length, renderMenu(m, width, identityTheme).length, `width ${width}`);
+  }
 });

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AccountsMenuPanel, type MenuAction } from "../src/menu/panel.ts";
 import { decodeKey, isKeyRelease } from "../src/menu/keys.ts";
-import { identityTheme, type MenuModel, type MenuProfile } from "../src/menu/view.ts";
+import { canOpenProject, identityTheme, type MenuModel, type MenuProfile } from "../src/menu/view.ts";
 
 const providers = (n = 3) =>
   [
@@ -13,7 +13,7 @@ const providers = (n = 3) =>
 
 function model(names = ["personal", "work", "zeta"], selected = 1): MenuModel {
   const profiles: MenuProfile[] = names.map((name) => ({ name, active: name === "work", startup: false, providers: providers() }));
-  return { title: "gentle-accounts", mode: "global", showEmail: false, profiles, selected, row: 0 };
+  return { title: "gentle-accounts", showEmail: false, profiles, selected, row: 0 };
 }
 
 const KEYS = {
@@ -148,6 +148,8 @@ test("S35 mouse: a click selects the profile under the pointer and swallows the 
 test("S35 mouse: a double click acts like Enter, on a profile and on a provider", () => {
   const onProfile: MenuAction[] = [];
   const a = new AccountsMenuPanel(model(), identityTheme, (x) => onProfile.push(x));
+  a.handleMouse(mouse(lineOf(a, /personal/), { clickCount: 1 }));
+  assert.deepEqual(onProfile, [], "the first click only selects");
   a.handleMouse(mouse(lineOf(a, /personal/), { clickCount: 2 }));
   assert.deepEqual(onProfile, [{ type: "switch", profile: "personal", row: 0 }]);
 
@@ -221,4 +223,40 @@ test("S40 mouse: a left press is handled, because pi only delivers the click of 
   assert.equal(panel.handleMouse(mouse(y, { type: "release" })), undefined);
   assert.ok(panel.handleMouse(mouse(y, { clickCount: 1 }))?.handled);
   assert.match(panel.render(W).join("\n"), /▸ ○ zeta/);
+});
+
+test("S42 mouse: a click on the frame or its padding is swallowed without selecting", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  const y = lineOf(panel, /zeta/);
+  const before = panel.render(W).join("\n");
+  for (const x of [0, 1, W - 2, W - 1]) {
+    assert.deepEqual(panel.handleMouse(mouse(y, { x, clickCount: 2 })), { handled: true }, `x ${x}`);
+  }
+  assert.equal(panel.render(W).join("\n"), before, "nothing moved");
+  assert.deepEqual(actions, []);
+  assert.deepEqual(panel.handleMouse(mouse(y, { x: 2 })), { handled: true }, "the first content cell selects");
+  assert.match(panel.render(W).join("\n"), /▸ ○ zeta/);
+});
+
+test("S42 mouse: a double click acts only on what the first click selected, even if that click moved the layout", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  panel.handleInput(KEYS.right); // work's providers are open
+  const zeta = lineOf(panel, /zeta/);
+  panel.handleMouse(mouse(zeta, { clickCount: 1 })); // selects zeta and closes work's providers: rows move up
+  const moved = lineOf(panel, /zeta/);
+  assert.notEqual(moved, zeta, "the list moved under the pointer");
+  // pi counts the second click of the same cell as clickCount 2, but that cell is now another row: select, never act.
+  panel.handleMouse(mouse(zeta, { clickCount: 2 }));
+  assert.deepEqual(actions, [], "no action on a row the user never single-clicked");
+});
+
+test("S42 mouse: the open rule is one function for the hint and the key", () => {
+  const m = model();
+  m.profiles[1].providers[1].loggedIn = true;
+  assert.equal(canOpenProject({ ...m, row: 0 }), false);
+  assert.equal(canOpenProject({ ...m, row: 1 }), false, "Claude Bridge is not logged in");
+  assert.equal(canOpenProject({ ...m, row: 2 }), true);
+  assert.equal(canOpenProject({ ...m, profiles: [], row: 1 }), false);
 });

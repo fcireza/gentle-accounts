@@ -1,7 +1,7 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { PLUGIN_LABEL, type ClaudeStatusRunner } from "./account.ts";
 import { createStatusBar, type TimerHandle } from "./status-bar.ts";
-import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
+import { ProfileStore, MISSING_PROFILE_MESSAGE, SESSION_PROFILE_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { menuAvailable, runAccountsMenu, type MenuFlows, type Report } from "./menu/run.ts";
 import type { Feedback } from "./menu/view.ts";
@@ -90,7 +90,7 @@ export function createFlow(s: ProfileStore, name: string): Feedback {
 export async function deleteFlow(ctx: ExtensionCommandContext, s: ProfileStore, name: string): Promise<Feedback> {
   if (!s.exists(name)) return { message: MISSING_PROFILE_MESSAGE(name), type: "error" };
   if (s.current() === name) return { message: `Cannot delete the active profile "${name}". Switch to another profile first.`, type: "error" };
-  if (s.startup() === name) return { message: STARTUP_DELETE_MESSAGE(name), type: "error" };
+  if (s.startup() === name) return { message: SESSION_PROFILE_DELETE_MESSAGE(name), type: "error" };
   if (!ctx.hasUI) return { message: "Deleting needs a confirmation dialog; run it from the TUI.", type: "error" };
   const ok = await ctx.ui.confirm("Delete profile", `Delete profile "${name}" and its Claude login and credentials? This cannot be undone.`);
   if (!ok) return { message: "Delete cancelled.", type: "info" };

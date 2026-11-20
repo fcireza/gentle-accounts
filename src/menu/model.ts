@@ -28,7 +28,6 @@ export interface MenuProfile {
 
 export interface MenuModel {
   title: string;
-  mode: "session home" | "global";
   showEmail: boolean;
   profiles: MenuProfile[];
   /** Index of the selected profile in the list (0 when there are no profiles). */
@@ -41,7 +40,6 @@ export interface MenuModel {
 export interface BuildMenuOptions {
   store: ProfileStore;
   liveAuthPath: string;
-  session: boolean;
   showEmail: boolean;
   homeDir: string;
   /** Cached `claude auth status` result of the status bar for the active profile; undefined when none is cached. */
@@ -79,11 +77,15 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
   const row = Math.min(Math.max(0, options.row ?? 0), rows - 1);
   return {
     title: PLUGIN_LABEL,
-    mode: options.session ? "session home" : "global",
     showEmail: options.showEmail,
     profiles,
     selected,
     row,
     feedback: options.feedback,
   };
+}
+
+/** `o` opens the project with the selected profile: only on a provider row that is logged in. Shared by the hint and the key. */
+export function canOpenProject(model: Pick<MenuModel, "profiles" | "selected" | "row">): boolean {
+  return model.row > 0 && model.profiles[model.selected]?.providers[model.row - 1]?.loggedIn === true;
 }

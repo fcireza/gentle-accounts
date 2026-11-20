@@ -94,7 +94,7 @@ Creates an empty profile: a `claude/` folder and an `auth.json` with no credenti
 - Success: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Already exists: `Profile "<name>" already exists.` (error).
 - Invalid name: the invalid name message (error).
-- Reserved name (`menu`, `list`, `current`, `create`, `delete`, `login`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). These words are subcommands, so a profile with one of these names could not be switched to with `/gentle:accounts <name>`. A profile that already has such a name keeps working from the menu and the picker.
+- Reserved name (`menu`, `list`, `current`, `create`, `delete`, `login`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). These words are subcommands, so a profile with one of these names could not be switched to with `/gentle:accounts <name>`. A profile that already has such a name keeps working from the menu and the picker. `session` became a reserved word in this version: a profile you had already created with that name stays on disk under `profiles/`, but it can no longer be switched to by name. Rename its folder under `profiles/` to use it again.
 - No name: the usage text (warning).
 
 ### `/gentle:accounts delete <name>`

@@ -1,5 +1,5 @@
 import { decodeKey } from "./keys.ts";
-import { menuHits, renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
+import { canOpenProject, menuHits, renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
 
 /** Tagged result of one panel opening; `profile`/`row` let the caller reopen on the same selection. */
 export type MenuAction =
@@ -111,12 +111,17 @@ export class AccountsMenuPanel {
     // press starts a text selection in the chat instead, and no click ever arrives.
     if (event.type === "press" && event.button === "left") return { handled: true, render: false };
     if (event.type !== "click" || event.button !== "left") return undefined;
+    // The frame and its padding (two cells on each side) are not rows: swallow the click without selecting.
+    if (event.x < 2 || event.x > event.width - 3) return { handled: true };
     const hit = menuHits({ ...this.model, selected: this.selected, row: this.row }, event.width)[event.y];
     if (!hit) return { handled: true };
+    // A double click acts only on what the first click already selected. The first click can move the layout (it
+    // closes the providers of the previously selected profile), so the same cell may now be another row: select it.
+    const sameRow = hit.profile === this.selected && hit.row === this.row;
     this.selected = hit.profile;
     this.row = hit.row;
     this.invalidate();
-    if ((event.clickCount ?? 1) >= 2) this.activate();
+    if ((event.clickCount ?? 1) >= 2 && sameRow) this.activate();
     return { handled: true };
   }
 
@@ -173,7 +178,7 @@ export class AccountsMenuPanel {
         return;
       case "char:o":
         // Only on a logged-in provider row, as the key hint says.
-        if (name && row > 0 && profile?.providers[row - 1]?.loggedIn) return this.finish({ type: "open", profile: name, row });
+        if (name && canOpenProject({ profiles: this.model.profiles, selected: this.selected, row })) return this.finish({ type: "open", profile: name, row });
         return;
       default:
         return;

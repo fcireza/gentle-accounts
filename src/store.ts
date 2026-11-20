@@ -44,7 +44,7 @@ export const INVALID_NAME_MESSAGE = (name: string): string =>
 
 export const MISSING_PROFILE_MESSAGE = (name: string): string => `Profile "${name}" does not exist.`;
 
-export const STARTUP_DELETE_MESSAGE = (name: string): string =>
+export const SESSION_PROFILE_DELETE_MESSAGE = (name: string): string =>
   `Cannot delete the session profile "${name}". Set another one or clear it with "session last" first.`;
 
 /** Subcommands of `/gentle:accounts` and the CLI: a profile with one of these names could never be switched to by name. */
@@ -195,7 +195,7 @@ export class ProfileStore {
     if (this.current() === name) {
       throw new Error(`Cannot delete the active profile "${name}". Switch to another profile first.`);
     }
-    if (this.startup() === name) throw new Error(STARTUP_DELETE_MESSAGE(name));
+    if (this.startup() === name) throw new Error(SESSION_PROFILE_DELETE_MESSAGE(name));
     rmSync(this.profileDir(name), { recursive: true, force: true });
   }
 

@@ -336,3 +336,12 @@ test("S39 run: the menu hands pi the terminal it is shown on, so the margin read
   await runAccountsMenu(plain.ctx, deps(agentDir));
   assert.equal((plain.options[0] as { overlayOptions: () => ReturnType<typeof menuOverlayOptions> }).overlayOptions().margin, 1);
 });
+
+test("S42 margin: it is read when the layout asks, so the first layout never sees a stale value", () => {
+  let terminal: unknown = undefined; // pi may resolve the options before the terminal exists
+  const options = menuOverlayOptions(() => terminal);
+  const first = options.margin;
+  terminal = withSidebar(owning);
+  assert.equal(first, 1);
+  assert.deepEqual(options.margin, { top: 1, right: 54, bottom: 1, left: 1 }, "no visible() call needed in between");
+});

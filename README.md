@@ -10,7 +10,7 @@ Varias cuentas de Claude, Codex y Anthropic en Gentle Shell y pi, con un solo co
 
 <p align="center"><img src="assets/logo.svg" alt="gentle-accounts" width="350"></p>
 
-![Barra de estado de Gentle Shell con el perfil activo y su perfil](assets/hero-status-bar.svg)
+![Barra de estado de Gentle Shell con el nombre del perfil activo](assets/hero-status-bar.svg)
 
 Las imágenes son ilustraciones construidas con los mensajes reales del programa, no capturas de pantalla.
 

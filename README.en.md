@@ -8,7 +8,7 @@ Several Claude, Codex and Anthropic accounts in Gentle Shell and pi, with one co
 
 <p align="center"><img src="assets/logo.svg" alt="gentle-accounts" width="350"></p>
 
-![Gentle Shell status bar showing the active profile and its profile](assets/hero-status-bar.svg)
+![Gentle Shell status bar showing the name of the active profile](assets/hero-status-bar.svg)
 
 The images are illustrations built from the program's real messages, not screenshots.
 
