@@ -273,3 +273,13 @@ test("S10 panel: with no profiles r does nothing, and it ends the panel only onc
   assert.deepEqual(run(["r"], model([], 0)).actions, []);
   assert.deepEqual(run(["r", "r", "n", KEYS.esc]).actions, [{ type: "rename", profile: "work", row: 0 }]);
 });
+
+test("i adopts only while a login is detected, and the panel shows the hint and the detected line", () => {
+  assert.deepEqual(run(["i"]).actions, [], "nothing detected: the key does nothing");
+  const detected = { ...model(), detected: [{ kind: "live" as const, providers: ["openai-codex"] }] };
+  const r = run(["i"], detected);
+  assert.deepEqual(r.actions, [{ type: "adopt", row: 0 }]);
+  assert.match(r.text(), /Detected login: Codex/);
+  assert.match(r.text(), /i adopt/);
+  assert.doesNotMatch(run([]).text(), /Detected login|i adopt/);
+});

@@ -1,4 +1,4 @@
-import { maskEmail } from "../account.ts";
+import { PROVIDER_LABELS, maskEmail } from "../account.ts";
 import { fit, truncateToWidth, visibleWidth } from "./width.ts";
 import { canOpenProject, identityTheme, type MenuModel, type MenuTheme } from "./model.ts";
 
@@ -95,6 +95,11 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
     }
     if (end < count) add(theme.fg("dim", `  ↓ ${count - end} more`));
   }
+  for (const login of model.detected ?? []) {
+    const what = login.providers.map((p) => PROVIDER_LABELS[p] ?? p).join(" · ");
+    const who = login.kind === "claude" && model.showEmail && login.email ? ` (${maskEmail(clean(login.email))})` : "";
+    add(`${theme.fg("warning", "+")} ${theme.fg("muted", "Detected login:")} ${theme.fg("text", what + who)} ${theme.fg("dim", compact ? "" : "· press")} ${theme.fg("accent", "i")}${compact ? "" : ` ${theme.fg("dim", "to adopt it as a new profile")}`}`.trimEnd());
+  }
   add("");
   if (model.feedback) {
     const tone = model.feedback.type === "error" ? "error" : model.feedback.type === "warning" ? "warning" : "success";
@@ -107,10 +112,11 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
   // Each hint is [key, what it does]: the key is drawn in the theme's accent, the text dim.
   type Hint = [string, string];
   const open: Hint[] = canOpen ? [["o", compact ? "open" : "open in tab"]] : [];
+  const adopt: Hint[] = (model.detected ?? []).length ? [["i", "adopt"]] : [];
   const hints: Hint[][] = compact
-    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["s", "session"], ["e", "email"]], [...open, ["esc", "close"]]]
-    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["s", "set session"]], [["e", "email"], ...open, ["esc", "close"]]];
-  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["s", "session"], ["e", "email"], ...open.map(([k]): Hint => [k, "open"]), ["esc", "close"]];
+    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["s", "session"], ["e", "email"]], [...adopt, ...open, ["esc", "close"]]]
+    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["s", "set session"]], [["e", "email"], ...adopt, ...open, ["esc", "close"]]];
+  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["s", "session"], ["e", "email"], ...adopt, ...open.map(([k]): Hint => [k, "open"]), ["esc", "close"]];
   add(theme.fg("borderAccent", "─".repeat(inner)));
   const render = (line: Hint[], gap: string) => line.map(([key, text]) => `${theme.fg("accent", key)} ${theme.fg("dim", text)}`).join(gap);
   const width = (line: Hint[], gap: string) => visibleWidth(line.map(([key, text]) => `${key} ${text}`).join(gap));

@@ -1,3 +1,4 @@
+import type { DetectedLogin } from "../detect.ts";
 import { join } from "node:path";
 import { PLUGIN_LABEL, providerStates, readClaudeAccount, type ClaudeAccount, type ProviderState } from "../account.ts";
 import { readAuthFile, type AuthData } from "../auth-sync.ts";
@@ -31,6 +32,8 @@ export interface MenuModel {
   showEmail: boolean;
   /** The profile set for this session (session mode only); null or absent when none is set. */
   sessionName?: string | null;
+  /** Logins found outside the profiles, offered with the `i` key (global mode only). */
+  detected?: DetectedLogin[];
   profiles: MenuProfile[];
   /** Index of the selected profile in the list (0 when there are no profiles). */
   selected: number;
@@ -45,6 +48,8 @@ export interface BuildMenuOptions {
   showEmail: boolean;
   /** True when the menu runs in a session home, where the current profile is the session's own. */
   sessionMode?: boolean;
+  /** Logins detected outside the profiles; empty when none. */
+  detected?: DetectedLogin[];
   homeDir: string;
   /** Cached `claude auth status` result of the status bar for the active profile; undefined when none is cached. */
   activeClaude?: ClaudeAccount | null;
@@ -83,6 +88,7 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
     title: PLUGIN_LABEL,
     showEmail: options.showEmail,
     sessionName: options.sessionMode ? current : null,
+    detected: options.detected ?? [],
     profiles,
     selected,
     row,

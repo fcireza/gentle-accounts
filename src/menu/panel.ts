@@ -11,6 +11,7 @@ export type MenuAction =
   | { type: "startup"; profile: string; row: number }
   | { type: "email"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
+  | { type: "adopt"; row: number }
   | { type: "close" };
 
 /**
@@ -179,6 +180,10 @@ export class AccountsMenuPanel {
         return;
       case "char:r":
         if (name) return this.finish({ type: "rename", profile: name, row });
+        return;
+      case "char:i":
+        // Only while a login is detected, as the hint says.
+        if ((this.model.detected ?? []).length) return this.finish({ type: "adopt", row });
         return;
       case "char:o":
         // Only on a logged-in provider row, as the key hint says.

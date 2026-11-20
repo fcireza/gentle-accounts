@@ -9,6 +9,8 @@ import { getShowEmail, runEmailCommand, settingsPath } from "../settings.ts";
 import type { AgentContext } from "../session-home.ts";
 import { runStartupCommand, type ProfileStore } from "../store.ts";
 import { AccountsMenuPanel, type MenuAction } from "./panel.ts";
+import { adoptLogin } from "../adopt.ts";
+import { detectLogins } from "../detect.ts";
 import { buildMenuModel, type Feedback, type FeedbackType } from "./view.ts";
 
 export type Report = (message: string, type?: FeedbackType) => void;
@@ -123,6 +125,8 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
       liveAuthPath,
       showEmail: getShowEmail(path),
       sessionMode: session !== null,
+      // Detection is for the global layout: a session home's auth.json is a private copy.
+      detected: session === null ? detectLogins({ store: s, liveAuthPath, homeDir: deps.homeDir ?? homedir() }) : [],
       homeDir: deps.homeDir ?? homedir(),
       activeClaude: deps.activeClaude(s),
       selectedName,
@@ -138,7 +142,7 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
       { overlay: true, overlayOptions: () => menuOverlayOptions(() => tuiRef?.terminal) },
     );
     if (!action || action.type === "close") return;
-    selectedName = action.profile ?? selectedName;
+    selectedName = ("profile" in action ? action.profile : undefined) ?? selectedName;
     row = action.row;
     feedback = undefined;
     const set = (message: string, type: FeedbackType = "info") => {
@@ -169,6 +173,21 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
           feedback = deps.flows.rename(s, action.profile, name);
           if (feedback.type === "info") {
             selectedName = name;
+            await deps.refreshStatus(ctx, s);
+          }
+          break;
+        }
+        case "adopt": {
+          const login = model.detected?.[0];
+          if (!login) break;
+          const suggestion = login.kind === "claude" ? "claude-home" : login.providers[0].replace(/^openai-/, "");
+          const name = (await ctx.ui.input("Name for the detected login", suggestion))?.trim();
+          if (!name) break;
+          const result = adoptLogin({ store: s, liveAuthPath, env: process.env, login, name });
+          set(result.message, result.ok ? "info" : "error");
+          if (result.ok) {
+            selectedName = name;
+            row = 0;
             await deps.refreshStatus(ctx, s);
           }
           break;

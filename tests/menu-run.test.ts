@@ -398,3 +398,20 @@ test("S10 run: a profile that is not the current one gets the plain message", as
   assert.match(feedbackOf(c.frames[1]), /^Renamed profile "personal" to "home"\.$/m);
   assert.deepEqual(store.list(), ["home", "work"]);
 });
+
+test("adopt: a live login of another account becomes a new profile, and a cancelled name does nothing", async () => {
+  const { agentDir, store } = setup();
+  const codex = (accountId: string) => ({ type: "oauth", access: "a", refresh: "r", expires: 1, accountId });
+  writeFileSync(store.authPath("work"), JSON.stringify({ "openai-codex": codex("A") }));
+  writeFileSync(join(agentDir, "auth.json"), JSON.stringify({ "openai-codex": codex("B") }));
+  const none = fakeCtx([{ type: "adopt", row: 0 }, { type: "close" }], { input: undefined });
+  await runAccountsMenu(none.ctx, deps(agentDir));
+  assert.equal(store.exists("second"), false);
+  assert.match(none.frames[0], /Detected login: Codex/);
+  const ok = fakeCtx([{ type: "adopt", row: 0 }, { type: "close" }], { input: "second" });
+  await runAccountsMenu(ok.ctx, deps(agentDir));
+  assert.match(feedbackOf(ok.frames[1]), /Adopted the detected login as profile "second"\./);
+  assert.equal(store.current(), "second");
+  assert.deepEqual(JSON.parse(readFileSync(store.authPath("work"), "utf8"))["openai-codex"], codex("A"), "work keeps its own account");
+  assert.doesNotMatch(ok.frames[1], /Detected login/, "nothing left to adopt");
+});

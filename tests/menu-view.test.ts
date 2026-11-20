@@ -333,3 +333,12 @@ test("hints use short labels on one line when the full ones do not fit", () => {
   const plain = renderMenu({ ...model(), selected: 0 }, 100, identityTheme).map(strip);
   assert.ok(plain.some((l) => /↑↓ profile  →← providers  ⏎ ok  n new  r rename  d del  s session  e email  esc close/.test(l)));
 });
+
+test("a detected Claude login shows its email only when email display is on, masked", () => {
+  const detected = [{ kind: "claude" as const, providers: ["claude"], email: "maria.lopez@company.com" }];
+  const hidden = renderMenu({ ...model(), detected }, 100, identityTheme).join("\n");
+  assert.match(hidden, /Detected login: Claude Bridge · press i to adopt it as a new profile/);
+  assert.doesNotMatch(hidden, /mar\*|maria/);
+  const shown = renderMenu({ ...model({ showEmail: true }), detected }, 100, identityTheme).join("\n");
+  assert.match(shown, /Claude Bridge \(mar\*{4}@company\.com\)/);
+});
