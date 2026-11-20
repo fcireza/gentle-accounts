@@ -74,6 +74,16 @@ En la extensión, el cambio además recarga el registro de modelos de pi y actua
 
 Al iniciar la sesión, la extensión también define `CLAUDE_CONFIG_DIR` para el perfil activo, salvo que el entorno ya lo defina, para que el bridge use el inicio de sesión correcto aunque Gentle Shell se inicie sin el launcher.
 
+## Renombrar un perfil
+
+1. Primero van todos los rechazos, antes de tocar nada: el perfil anterior existe, los nombres difieren, el nombre nuevo es válido y no está reservado, y `profiles/<new>` no existe (una carpeta sobrante cuenta).
+2. Las carpetas de sesión cuyo launcher ya no existe se terminan, así que sus credenciales se guardan con el nombre anterior. Después, una sesión del launcher que sigue en marcha sobre el perfil impide el cambio.
+3. `profiles/<old>/` pasa a `profiles/<new>/` con un solo renombrado de carpeta, reintentado brevemente ante errores de bloqueo en Windows. Las credenciales nunca se copian.
+4. Se reescriben los archivos que nombraban al perfil anterior: `profiles/current` (y el archivo de perfil actual de la propia sesión), `profiles/startup`, y un `claude-dir` que apuntaba dentro de la carpeta anterior. Uno externo no se toca.
+5. `CLAUDE_CONFIG_DIR` de este proceso se define con la carpeta de Claude nueva solo cuando contenía la anterior, así que un valor que usted definió se respeta.
+
+Si falla un paso después del movimiento, la carpeta y los archivos ya reescritos vuelven a su lugar y se muestra el error original. Las sesiones que ya estaban en marcha sobre el perfil conservan el `CLAUDE_CONFIG_DIR` anterior hasta que cambien de perfil o se reinicien, por eso el mensaje de éxito lo avisa.
+
 ## Por qué `CLAUDE_CONFIG_DIR` queda sin definir para `default`
 
 En macOS, Claude Code guarda el inicio de sesión en el llavero, y la entrada depende de la carpeta configurada. Por eso definir `CLAUDE_CONFIG_DIR` con la ruta predeterminada no equivale a dejarlo sin definir. Esto se midió en macOS con `claude auth status`:
@@ -125,5 +135,6 @@ Codex no muestra correo, porque pi solo guarda un identificador de cuenta opaco 
 - Agregar entradas al menú de comandos de Gentle Shell: es una lista fija que las extensiones no pueden ampliar, así que los puntos de entrada son `/gentle:accounts` (y su menú) y la barra de estado.
 - Cambiar de perfil durante un turno del agente.
 - Borrar el perfil activo, o borrar desde el launcher.
+- Renombrar un perfil que usa una sesión en marcha del launcher: cierre la sesión primero.
 - Intercambiar proveedores con clave de API distintos de `openai-codex` y `anthropic` (los proveedores OAuth y Claude mediante `CLAUDE_CONFIG_DIR` sí se intercambian). Antigravity por ahora es solo un plan: consulte [Antigravity](antigravity.md).
 - El antiguo comando `/profile`: se renombró a `/gentle:accounts`.

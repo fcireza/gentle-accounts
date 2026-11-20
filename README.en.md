@@ -46,13 +46,14 @@ Providers that use an API key stay global; every account (oauth) provider belong
 
 ## Commands
 
-The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `d` delete, `s` session, `e` email, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode you can also click a profile or provider, double-click to switch or log in, and use the wheel.
+The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `r` rename, `d` delete, `s` session, `e` email, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode you can also click a profile or provider, double-click to switch or log in, and use the wheel.
 
 | Command | What it does |
 | --- | --- |
 | `/gentle:accounts` | Opens the accounts menu. |
 | `/gentle:accounts <name>` | Switches to `<name>`. |
 | `/gentle:accounts list` | Lists profiles. |
+| `/gentle:accounts rename <old> <new>` | Renames a profile; its logins move with it. |
 | `/gentle:accounts session [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
 | `/gentle:accounts email [show\|hide]` | Shows or sets whether the status bar shows the full email. |
 | `gentle-accounts <name>` | Starts `gentle-shell` with that profile in a private session home. |

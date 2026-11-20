@@ -2,7 +2,7 @@
 
 # Workflow
 
-What you will find here: worked scenarios from the first start to deleting a profile, with the messages you will see.
+What you will find here: worked scenarios from the first start to renaming and deleting a profile, with the messages you will see.
 
 ![Status bar showing the active profile and its profile](../../assets/hero-status-bar.svg)
 
@@ -191,7 +191,15 @@ Email display set to hidden. The status bar does not show the email.
 
 Privacy warning: with `show`, anyone who sees your screen can read the address, including screen shares, screenshots and recordings. Hide it before sharing your screen. The setting applies to every session of the same agent dir.
 
-## 8. Deleting a profile
+## 8. Renaming and deleting a profile
+
+To change the name of a profile, run `rename`. Its logins move with it:
+
+```
+/gentle:accounts rename work office
+```
+
+You get `Renamed profile "work" to "office".`. When `work` was the current profile the message also says that other open sessions keep the old path until they switch or restart. A session started with `gentle-accounts work` that is still open blocks the rename: close it first. In the menu, select the profile and press `r`.
 
 You cannot delete the active profile or the session profile, so switch away (or run `session last`) first:
 
@@ -210,7 +218,7 @@ Open the menu (or run `/gentle:accounts` with no argument):
 /gentle:accounts menu
 ```
 
-The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the session profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, and the email when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `d` to delete, `s` for the session profile, `e` for the email display, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, and `Esc` to close. Every key and message is in [Commands](commands.md).
+The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the session profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, and the email when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `r` to rename, `d` to delete, `s` for the session profile, `e` for the email display, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, and `Esc` to close. Every key and message is in [Commands](commands.md).
 
 Logging in from a provider row:
 

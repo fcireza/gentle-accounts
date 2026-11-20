@@ -40,6 +40,7 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `Enter` | En un perfil: cambia a él (mismas reglas y mensajes que `/gentle:accounts <name>`). En una fila de proveedor: inicia sesión en ese proveedor. |
 | `n` | Perfil nuevo (pide el nombre con `New profile name`; mismos mensajes que `create`). |
 | `d` | Borra el perfil seleccionado (misma confirmación y rechazos que `delete`). |
+| `r` | Renombra el perfil seleccionado (pide el nuevo nombre con `Rename profile "<name>" to`, con el nombre actual ya escrito; una respuesta vacía, igual o cancelada no hace nada; mismos mensajes que `rename`). |
 | `s` | Define el perfil seleccionado como perfil de sesión, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
@@ -94,7 +95,7 @@ Crea un perfil vacío: una carpeta `claude/` y un `auth.json` sin credenciales. 
 - Éxito: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Ya existe: `Profile "<name>" already exists.` (error).
 - Nombre inválido: el mensaje de nombre inválido (error).
-- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector. `session` pasó a ser una palabra reservada en esta versión: un perfil que ya había creado con ese nombre sigue en disco bajo `profiles/`, pero ya no se puede activar por nombre. Cambie el nombre de su carpeta bajo `profiles/` para volver a usarlo.
+- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `rename`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector. `session` y `rename` pasaron a ser palabras reservadas en esta versión: un perfil que ya había creado con uno de esos nombres sigue en disco, pero ya no se puede activar por nombre. `rename` todavía lo acepta como nombre anterior, por ejemplo `/gentle:accounts rename session work`.
 - Sin nombre: el texto de uso (advertencia).
 
 ### `/gentle:accounts delete <name>`
@@ -108,6 +109,19 @@ Borra la carpeta de un perfil después de un diálogo de confirmación titulado 
 - Perfil inexistente: `Profile "<name>" does not exist.` (error).
 - Sin interfaz interactiva: `Deleting needs a confirmation dialog; run it from the TUI.` (error).
 - Sin nombre: el texto de uso (advertencia).
+
+### `/gentle:accounts rename <old> <new>`
+
+Renombra un perfil. Su carpeta se mueve en un solo paso atómico, así que el inicio de sesión de Claude y las credenciales van con ella y no se copia nada. El perfil activo y el perfil de sesión siguen al nombre nuevo, `CLAUDE_CONFIG_DIR` de esta sesión sigue apuntando a la carpeta de Claude movida y la barra de estado se actualiza.
+
+- Éxito: `Renamed profile "<old>" to "<new>".`
+- Si era el perfil activo, el mensaje de éxito agrega: `Other open sessions that use it keep the old path until they switch or restart.` Esas sesiones siguen con la ruta anterior de la carpeta de Claude.
+- Perfil inexistente: `Profile "<old>" does not exist.` (error).
+- Mismo nombre: `The new name is the same as the current one.` (error).
+- Nombre nuevo inválido o reservado: el mensaje de nombre inválido o el de nombre reservado (error).
+- Ya existe: `Profile "<new>" already exists.` (error).
+- En uso: `Cannot rename profile "<old>": a session started with gentle-accounts is using it. Close it first.` (error). Solo cuentan las sesiones que siguen en marcha; las que ya perdieron su launcher se terminan primero, así que sus credenciales se guardan con el nombre anterior.
+- Faltan palabras o sobran: el texto de uso (advertencia).
 
 ### `/gentle:accounts login claude`
 
@@ -165,6 +179,7 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 /gentle:accounts current         show the active profile
 /gentle:accounts create <name>   create an empty profile
 /gentle:accounts delete <name>   delete a profile (asks for confirmation)
+/gentle:accounts rename <old> <new>  rename a profile (its logins move with it)
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
 /gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)
 /gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
@@ -189,6 +204,7 @@ El launcher opcional (`bin/gentle-accounts.mjs`). Necesita Node 22.18 o posterio
 | `gentle-accounts list` | perfiles, `* ` marca el activo | 0 |
 | `gentle-accounts current` | el nombre del perfil activo o `No active profile.` | 0 |
 | `gentle-accounts create <name>` | `Created profile "<name>".` | 0, o 1 si hay error |
+| `gentle-accounts rename <old> <new>` | renombra un perfil | 0, o 1 si hay error |
 | `gentle-accounts login <name>` | ejecuta `claude auth login` | código de salida de `claude`, o 1 si hay error |
 | `gentle-accounts session [<name>\|last]` | muestra, define o borra el perfil de sesión | 0, o 1 si hay error |
 | `gentle-accounts email [show\|hide]` | muestra o define la visualización del correo | 0, o 1 si hay error de uso |
@@ -202,6 +218,7 @@ Usage:
   gentle-accounts list                            list profiles (* marks the active one)
   gentle-accounts current                         print the active profile
   gentle-accounts create <name>                   create an empty profile
+  gentle-accounts rename <old> <new>              rename a profile (its logins move with it)
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
   gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)
   gentle-accounts email [show|hide]               show or set whether the status bar shows the full email
@@ -219,6 +236,10 @@ Imprime el nombre del perfil activo, o `No active profile.`
 ### `gentle-accounts create <name>`
 
 Crea un perfil vacío e imprime `Created profile "<name>".`. Con un nombre inválido o existente imprime el error (`Invalid profile name ...`, el mensaje de nombre reservado o `Profile "<name>" already exists.`) en stderr y termina con 1. Sin nombre imprime el uso en stderr y termina con 1.
+
+### `gentle-accounts rename <old> <new>`
+
+Igual que `/gentle:accounts rename`, con los mismos mensajes: el de éxito por stdout con código de salida 0, cada rechazo y el texto de uso por stderr con código de salida 1. No toca otras sesiones en marcha.
 
 ### `gentle-accounts login <name>`
 

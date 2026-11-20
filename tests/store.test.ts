@@ -431,3 +431,15 @@ test("S3 rename: a failure after the move puts the folder and the pointers back"
   assert.equal(store.current(), "work", "the pointer written before the failure was restored");
   assert.equal(readFileSync(join(locked, "startup"), "utf8"), "work\n");
 });
+
+test("S9 rename: a profile that already has a reserved name can be renamed away from it", () => {
+  const { store } = tempStore();
+  for (const word of ["session", "rename", "startup"]) {
+    // `create` refuses these now; they exist on disk from before the word was reserved.
+    mkdirSync(store.claudeDir(word), { recursive: true });
+    writeFileSync(store.authPath(word), "{}\n");
+    assert.equal(store.exists(word), true, word);
+    store.rename(word, `${word}-old`);
+    assert.deepEqual([store.exists(word), store.exists(`${word}-old`)], [false, true], word);
+  }
+});

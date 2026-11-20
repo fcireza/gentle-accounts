@@ -2,7 +2,7 @@
 
 # Flujo de trabajo
 
-Qué encontrará aquí: escenarios completos desde el primer inicio hasta borrar un perfil, con los mensajes que verá.
+Qué encontrará aquí: escenarios completos desde el primer inicio hasta renombrar y borrar un perfil, con los mensajes que verá.
 
 ![Barra de estado con el perfil activo y su perfil](../../assets/hero-status-bar.svg)
 
@@ -191,7 +191,15 @@ Email display set to hidden. The status bar does not show the email.
 
 Advertencia de privacidad: con `show`, cualquier persona que vea su pantalla puede leer la dirección, incluso al compartir pantalla, en capturas de pantalla y en grabaciones. Oculte el correo antes de compartir su pantalla. La opción se aplica a todas las sesiones de la misma carpeta del agente.
 
-## 8. Borrar un perfil
+## 8. Renombrar y borrar un perfil
+
+Para cambiar el nombre de un perfil, ejecute `rename`. Sus sesiones se mueven con él:
+
+```
+/gentle:accounts rename work office
+```
+
+Aparece `Renamed profile "work" to "office".`. Si `work` era el perfil activo, el mensaje también avisa que las otras sesiones abiertas conservan la ruta anterior hasta que cambien de perfil o se reinicien. Una sesión iniciada con `gentle-accounts work` que sigue abierta impide el cambio: ciérrela primero. En el menú, seleccione el perfil y presione `r`.
 
 No se puede borrar el perfil activo ni el perfil de sesión, así que primero cambie a otro (o ejecute `session last`):
 
@@ -210,7 +218,7 @@ Abra el menú (o ejecute `/gentle:accounts` sin argumentos):
 /gentle:accounts menu
 ```
 
-El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión. Presione `→` sobre un perfil para abrir una fila por proveedor con `●` si hay sesión iniciada u `○` si no, y el correo cuando se muestra el correo; `←` las cierra. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en un perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `d` para borrar, `s` para el perfil de sesión, `e` para la visualización del correo, `o` (en una fila de proveedor con sesión) para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
+El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión. Presione `→` sobre un perfil para abrir una fila por proveedor con `●` si hay sesión iniciada u `○` si no, y el correo cuando se muestra el correo; `←` las cierra. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en un perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `r` para renombrar, `d` para borrar, `s` para el perfil de sesión, `e` para la visualización del correo, `o` (en una fila de proveedor con sesión) para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
 
 Iniciar sesión desde una fila de proveedor:
 

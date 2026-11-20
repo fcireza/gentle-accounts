@@ -74,6 +74,16 @@ In the extension, the switch also reloads pi's model registry and refreshes the 
 
 On session start, the extension also sets `CLAUDE_CONFIG_DIR` for the active profile, unless the environment already sets it, so the bridge uses the right login even when you start Gentle Shell without the launcher.
 
+## Renaming a profile
+
+1. Every refusal comes first, before anything is touched: the old profile exists, the names differ, the new name is valid and not reserved, and `profiles/<new>` does not exist (a leftover folder counts).
+2. Session homes whose launcher is gone are finished, so their credentials are saved under the old name. Then a launcher session that is still running on the profile blocks the rename.
+3. `profiles/<old>/` moves to `profiles/<new>/` with one directory rename, retried briefly on Windows lock errors. Credentials are never copied.
+4. The files that named the old profile are rewritten: `profiles/current` (and the session's own current file), `profiles/startup`, and a `claude-dir` override that pointed inside the old folder. An external override is left alone.
+5. `CLAUDE_CONFIG_DIR` of this process is set to the new Claude folder only when it held the old one, so a value you set yourself is respected.
+
+If a step after the move fails, the folder and the files already rewritten are put back and the original error is shown. Sessions that were already running on the profile keep the old `CLAUDE_CONFIG_DIR` until they switch or restart, which is why the success message says so.
+
 ## Why `CLAUDE_CONFIG_DIR` stays unset for `default`
 
 On macOS, Claude Code stores the login in the keychain, and the entry depends on the configured folder. Setting `CLAUDE_CONFIG_DIR` to the default path is therefore not the same as leaving it unset. This was measured on macOS with `claude auth status`:
@@ -125,5 +135,6 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 - Adding entries to Gentle Shell's command menu: it is a fixed list that extensions cannot extend, so the entry points are `/gentle:accounts` (and its menu) and the status bar.
 - Switching during an agent turn.
 - Deleting the active profile, or deleting from the launcher.
+- Renaming a profile that a running launcher session uses: close the session first.
 - Swapping API-key providers other than `openai-codex` and `anthropic` (OAuth providers and Claude through `CLAUDE_CONFIG_DIR` are swapped). Antigravity is only a plan for now: see [Antigravity](antigravity.md).
 - The old `/profile` command: it was renamed to `/gentle:accounts`.

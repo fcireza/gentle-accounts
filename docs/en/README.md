@@ -15,7 +15,7 @@ gentle-accounts keeps named **profiles** (for example `work` and `personal`), ea
 | Document | What it covers |
 | --- | --- |
 | [Installation](install.md) | Gentle Shell or plain pi, requirements, one section per system, launcher alias, update, remove. |
-| [Workflow](workflow.md) | Worked scenarios: first start, work and personal accounts, switching, the launcher, deleting, the accounts menu, a different account per project. |
+| [Workflow](workflow.md) | Worked scenarios: first start, work and personal accounts, switching, the launcher, renaming and deleting, the accounts menu, a different account per project. |
 | [Commands](commands.md) | Complete reference of `/gentle:accounts` and `gentle-accounts`, with every message and exit code. |
 | [How it works](how-it-works.md) | On-disk layout, the switching algorithm, `CLAUDE_CONFIG_DIR`, the status bar and security. |
 | [Troubleshooting](troubleshooting.md) | Symptoms, causes and fixes. |

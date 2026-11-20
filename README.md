@@ -48,13 +48,14 @@ Los proveedores con clave de API siguen siendo globales; todo proveedor de cuent
 
 ## Comandos
 
-El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles (`●` activo en esta sesión, `○` los demás y `★` perfil de sesión). Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `d` borrar, `s` sesión, `e` correo, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar. En modo `fullscreen` también puede hacer clic en un perfil o proveedor, doble clic para cambiar o iniciar sesión, y usar la rueda.
+El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles (`●` activo en esta sesión, `○` los demás y `★` perfil de sesión). Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `r` renombrar, `d` borrar, `s` sesión, `e` correo, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar. En modo `fullscreen` también puede hacer clic en un perfil o proveedor, doble clic para cambiar o iniciar sesión, y usar la rueda.
 
 | Comando | Qué hace |
 | --- | --- |
 | `/gentle:accounts` | Abre el menú de cuentas. |
 | `/gentle:accounts <name>` | Cambia a `<name>`. |
 | `/gentle:accounts list` | Lista los perfiles. |
+| `/gentle:accounts rename <old> <new>` | Renombra un perfil; sus sesiones se mueven con él. |
 | `/gentle:accounts session [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
 | `/gentle:accounts email [show\|hide]` | Muestra o define si la barra de estado muestra el correo completo. |
 | `gentle-accounts <name>` | Inicia `gentle-shell` con ese perfil en una carpeta de sesión privada. |
