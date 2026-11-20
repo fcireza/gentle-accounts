@@ -218,7 +218,12 @@ Open the menu (or run `/gentle:accounts` with no argument):
 /gentle:accounts menu
 ```
 
-The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the session profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, and the email when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `r` to rename, `d` to delete, `s` for the session profile, `e` for the email display, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, and `Esc` to close. Every key and message is in [Commands](commands.md).
+The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the session profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, the ones with a login first. Every provider that `/login` offers is listed, with or without an account, and the email appears masked (`mar****@company.com`) when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `r` to rename, `d` to delete, `s` for the session profile, `e` for the email display, `i` to adopt a detected login, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, `x` (on a logged-in provider row) to log that provider out of the profile, and `Esc` to close. Every key and message is in [Commands](commands.md).
+
+Two things the menu does for you:
+
+- A login made with `/login` outside the profiles shows a `Detected login:` line; press `i`, type a name and it becomes a new profile. The previous profile keeps its own account.
+- `x` on a provider row asks to confirm and removes that provider's credentials from that profile only. Claude shows `claude auth logout` instead.
 
 Logging in from a provider row:
 

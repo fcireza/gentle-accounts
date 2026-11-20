@@ -105,6 +105,12 @@ A login made with `/login` in pi or Gentle Shell while a profile is active is sa
 
 Anthropic entries carry no account id, so a new Anthropic login cannot be told apart from a token refresh and is not detected. Detection is read-only, runs only outside launcher sessions, and an unreadable `auth.json` detects nothing.
 
+## Logging a provider out
+
+`x` on a logged-in provider row removes that provider's entry from the profile's `auth.json`, and from the live `auth.json` too when the profile is the current one. Other profiles and API keys are not touched, and every file is read before any is written, so a corrupt file changes nothing. The token is only forgotten on this machine; it is not revoked at the provider.
+
+Claude is not handled from the menu: its login lives in its own config dir, which can be the default one shared with other tools, so the menu shows `claude auth logout` for you to run with the profile's `CLAUDE_CONFIG_DIR`.
+
 ## The status bar
 
 The extension shows the account with pi's `setStatus`, under the key `gentle-accounts`. Gentle Shell shows it in its status bar and sidebar.

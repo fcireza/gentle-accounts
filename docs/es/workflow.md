@@ -218,7 +218,12 @@ Abra el menú (o ejecute `/gentle:accounts` sin argumentos):
 /gentle:accounts menu
 ```
 
-El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión. Presione `→` sobre un perfil para abrir una fila por proveedor con `●` si hay sesión iniciada u `○` si no, y el correo cuando se muestra el correo; `←` las cierra. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en un perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `r` para renombrar, `d` para borrar, `s` para el perfil de sesión, `e` para la visualización del correo, `o` (en una fila de proveedor con sesión) para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
+El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión. Presione `→` sobre un perfil para abrir una fila por proveedor con `●` si hay sesión iniciada u `○` si no, primero las que tienen sesión. Se listan todos los proveedores que ofrece `/login`, con o sin cuenta, y el correo aparece enmascarado (`mar****@company.com`) cuando se muestra el correo; `←` las cierra. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en un perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `r` para renombrar, `d` para borrar, `s` para el perfil de sesión, `e` para la visualización del correo, `i` para adoptar un login detectado, `o` (en una fila de proveedor con sesión) para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal, `x` (en una fila de proveedor con sesión) para cerrar la sesión de ese proveedor en el perfil y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
+
+Dos cosas que hace el menú por usted:
+
+- Un login hecho con `/login` fuera de los perfiles muestra una línea `Detected login:`; presione `i`, escriba un nombre y pasa a ser un perfil nuevo. El perfil anterior conserva su propia cuenta.
+- `x` en una fila de proveedor pide confirmación y borra las credenciales de ese proveedor solo de ese perfil. Claude muestra `claude auth logout` en su lugar.
 
 Iniciar sesión desde una fila de proveedor:
 
