@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, writeFileAtomic, renameWithRetry } from "../src/store.ts";
+import { ProfileStore, validateProfileName, INVALID_NAME_MESSAGE, MISSING_PROFILE_MESSAGE, RESERVED_NAME_MESSAGE, RESERVED_NAMES, writeFileAtomic, renameWithRetry } from "../src/store.ts";
 
 function tempStore(): { store: ProfileStore; agentDir: string } {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-"));
@@ -300,4 +300,134 @@ test("renameWithRetry rethrows other errors at once and a lock error after the a
   calls = 0;
   assert.throws(() => renameWithRetry(() => { calls++; throw Object.assign(new Error("busy"), { code: "EBUSY" }); }, "a", "b", 2), /busy/);
   assert.equal(calls, 3);
+});
+
+// -- S3-S9: rename ---------------------------------------------------------------------------------------
+
+/** Everything under `dir` as `relative path -> content`, to prove a refusal leaves the disk untouched. */
+function snapshot(dir: string, base = dir): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) Object.assign(out, { [path.slice(base.length)]: "<dir>" }, snapshot(path, base));
+    else out[path.slice(base.length)] = readFileSync(path, "utf8");
+  }
+  return out;
+}
+
+function profileWithData(store: ProfileStore, name: string): void {
+  store.create(name);
+  writeFileSync(store.authPath(name), '{"anthropic":{"type":"oauth","access":"tok"}}\n');
+  writeFileSync(join(store.claudeDir(name), ".claude.json"), '{"oauthAccount":{"emailAddress":"a@b.c"}}');
+}
+
+test("S3 rename: moves the whole profile folder in one step and keeps every file", () => {
+  const { store } = tempStore();
+  profileWithData(store, "work");
+  const before = snapshot(store.profileDir("work"));
+  store.rename("work", "office");
+  assert.equal(existsSync(store.profileDir("work")), false, "the old folder is gone");
+  assert.deepEqual(snapshot(store.profileDir("office")), before, "same files, same content");
+  assert.deepEqual(store.list(), ["office"]);
+  assert.equal(store.exists("work"), false);
+  assert.equal(store.exists("office"), true);
+});
+
+test("S4 rename: the current and session profile pointers follow the new name, and only those", () => {
+  const { store } = tempStore();
+  for (const name of ["work", "other"]) profileWithData(store, name);
+  store.setCurrent("work");
+  store.setStartup("work");
+  store.rename("work", "office");
+  assert.equal(store.current(), "office");
+  assert.equal(store.startup(), "office");
+  assert.equal(readFileSync(store.currentPath, "utf8"), "office\n");
+
+  const { store: other } = tempStore();
+  for (const name of ["work", "other"]) profileWithData(other, name);
+  other.setCurrent("other");
+  other.setStartup("other");
+  other.rename("work", "office");
+  assert.equal(other.current(), "other", "a pointer naming another profile is left alone");
+  assert.equal(other.startup(), "other");
+});
+
+test("S4 rename: a private session current file and the shared current file are both retargeted", () => {
+  const { store: shared, agentDir } = tempStore();
+  profileWithData(shared, "work");
+  shared.setCurrent("work");
+  const privateCurrent = join(agentDir, "private-current");
+  writeFileSync(privateCurrent, "work\n");
+  const session = new ProfileStore(agentDir, { currentPath: privateCurrent });
+  session.rename("work", "office");
+  assert.equal(readFileSync(privateCurrent, "utf8"), "office\n", "the session's own pointer");
+  assert.equal(readFileSync(join(agentDir, "profiles", "current"), "utf8"), "office\n", "the global pointer too");
+});
+
+test("S6 rename: every refusal has its exact message and leaves the disk untouched", () => {
+  const { store, agentDir } = tempStore();
+  for (const name of ["work", "other"]) profileWithData(store, name);
+  store.setCurrent("work");
+  store.setStartup("other");
+  mkdirSync(store.profileDir("leftover"), { recursive: true }); // a folder without auth.json is not a profile
+  writeFileSync(join(store.profileDir("leftover"), "keep"), "x");
+  const before = snapshot(agentDir);
+  const refuse = (from: string, to: string, message: string, code?: string) => {
+    assert.throws(
+      () => store.rename(from, to),
+      (error: Error & { code?: string }) => error.message === message && (code === undefined || error.code === code),
+      `${from} -> ${to}`,
+    );
+    assert.deepEqual(snapshot(agentDir), before, `${from} -> ${to} changed the disk`);
+  };
+  refuse("ghost", "office", MISSING_PROFILE_MESSAGE("ghost"));
+  refuse("work", "work", "The new name is the same as the current one.");
+  refuse("work", "Office", INVALID_NAME_MESSAGE("Office"));
+  refuse("work", "", INVALID_NAME_MESSAGE(""));
+  refuse("work", "wo rk", INVALID_NAME_MESSAGE("wo rk"));
+  for (const word of RESERVED_NAMES) refuse("work", word, RESERVED_NAME_MESSAGE(word));
+  refuse("work", "other", 'Profile "other" already exists.', "EEXIST");
+  refuse("work", "leftover", 'Profile "leftover" already exists.', "EEXIST");
+});
+
+test("S7 rename: a claude-dir override inside the old folder follows it, an external one stays, the default marker travels", () => {
+  const { store } = tempStore();
+  store.create("inside");
+  writeFileSync(store.claudeDirPath("inside"), `${join(store.profileDir("inside"), "claude")}\n`);
+  store.create("outside", { claudeDir: "/somewhere/else/.claude" });
+  store.create("marker", { claudeDefault: true });
+  store.rename("inside", "inside2");
+  store.rename("outside", "outside2");
+  store.rename("marker", "marker2");
+  assert.equal(store.claudeDir("inside2"), join(store.profileDir("inside2"), "claude"), "rewritten to the new folder");
+  assert.equal(store.claudeDir("outside2"), "/somewhere/else/.claude", "an external dir is not ours to touch");
+  assert.equal(store.claudeConfigEnv("marker2"), undefined, "still on Claude Code's default dir");
+  assert.equal(existsSync(store.claudeDefaultPath("marker2")), true);
+});
+
+test("S9 rename: rename is a reserved word, like the other subcommands", () => {
+  assert.ok(RESERVED_NAMES.includes("rename"));
+  const { store } = tempStore();
+  assert.throws(() => store.create("rename"), { message: RESERVED_NAME_MESSAGE("rename") });
+});
+
+test("S3 rename: a failure after the move puts the folder and the pointers back", { skip: process.platform === "win32" || process.getuid?.() === 0 }, () => {
+  const { store, agentDir } = tempStore();
+  profileWithData(store, "work");
+  store.setCurrent("work");
+  // The session profile pointer lives in a folder we cannot write to: reading it works, replacing it fails.
+  const locked = join(agentDir, "locked");
+  mkdirSync(locked);
+  writeFileSync(join(locked, "startup"), "work\n");
+  (store as unknown as { startupPath: string }).startupPath = join(locked, "startup");
+  chmodSync(locked, 0o500);
+  try {
+    assert.throws(() => store.rename("work", "office"), (error: Error & { code?: string }) => error.code === "EACCES" || error.code === "EPERM", "the pointer write fails, not a missing method");
+  } finally {
+    chmodSync(locked, 0o700);
+  }
+  assert.equal(existsSync(store.profileDir("work")), true, "the folder is back under its old name");
+  assert.equal(existsSync(store.profileDir("office")), false);
+  assert.equal(store.current(), "work", "the pointer written before the failure was restored");
+  assert.equal(readFileSync(join(locked, "startup"), "utf8"), "work\n");
 });
