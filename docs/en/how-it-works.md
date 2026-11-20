@@ -115,7 +115,7 @@ The extension shows the account with pi's `setStatus`, under the key `gentle-acc
 The icon tells the two states apart at a glance: `👤` means a Claude login was detected for the profile, `🔒` means it was not.
 - No active profile: the status is cleared.
 
-Email display: while hidden, no email appears anywhere, not even masked; only `showEmail` set to `true` shows the full address.
+Email display: while hidden, no email appears anywhere, not even masked. With `showEmail` set to `true` the status bar shows the full address and the menu shows it masked after three characters (`mar****@company.com`). The status bar text uses the theme colors: `muted` for the label, `accent` for the profile, `text` for the email and `warning` for `not logged in`.
 
 Detection:
 
@@ -145,5 +145,5 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 - Switching during an agent turn.
 - Deleting the active profile, or deleting from the launcher.
 - Renaming a profile that a running launcher session uses: close the session first.
-- Swapping API-key providers other than `openai-codex` and `anthropic` (OAuth providers and Claude through `CLAUDE_CONFIG_DIR` are swapped). Antigravity is only a plan for now: see [Antigravity](antigravity.md).
+- Swapping API-key providers other than `openai-codex` and `anthropic` (OAuth providers and Claude through `CLAUDE_CONFIG_DIR` are swapped).
 - The old `/profile` command: it was renamed to `/gentle:accounts`.

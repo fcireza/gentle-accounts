@@ -25,11 +25,13 @@ With no argument, opens the accounts menu (the same as `/gentle:accounts menu`) 
 
 ### `/gentle:accounts menu`
 
-Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:profiles` panel. It is a panel of about 60% of the chat column, centered in it: when Gentle Shell shows its sidebar the panel stays beside it instead of the full terminal, with the title and `esc` on top and the key hints at the bottom; on narrow terminals it switches to a compact layout. Without the interactive TUI it falls back to the `Switch profile` picker.
+Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:profiles` panel. It is a panel of about 60% of the chat column, centered in it: when Gentle Shell shows its sidebar the panel stays beside it instead of the full terminal, with the title `Gentle Accounts` centered in the top border and the key hints at the bottom; on narrow terminals it switches to a compact layout. Without the interactive TUI it falls back to the `Switch profile` picker.
 
-- Header: `Account Default`, the session profile new sessions start on (`none` when it is not set), and the email display (`shown` or `hidden`).
+- Header: `Account Default`, the session profile new sessions start on (`none` when it is not set), and `Account Session`, the profile set for this session. `Account Session` appears only inside a session started with `gentle-accounts`; otherwise it is not shown. The frame and the rules use the theme's `borderAccent` color.
 - One row per profile: `●` marks the profile active in this session, `○` the others, `★` the session profile, followed by the providers it is logged in to. The list shows eight profiles at a time and scrolls; `↑ N more` and `↓ N more` count the hidden ones.
-- Providers: `→` on the selected profile opens one row per provider (Claude, Codex, Anthropic) with `●` logged in or `○` not logged in, and `←` closes them. The email appears only on those rows and only when the email display is shown; while it is hidden nothing follows `logged in`. Opening the menu never runs `claude auth status` per profile: it reuses the status bar result for the active profile and reads files for the others.
+- Providers: `→` on the selected profile opens one row per provider (Claude, Codex, Anthropic) with `●` logged in or `○` not logged in, and `←` closes them. The email appears only on those rows and only when the email display is shown, with the name masked after three characters and the domain as it is, for example `mar****@company.com`; while it is hidden nothing follows `logged in`. Opening the menu never runs `claude auth status` per profile: it reuses the status bar result for the active profile and reads files for the others.
+- Key hints: all on one line when they fit, with short labels (`⏎ ok`, `del`, `session`) when the full ones do not; otherwise they wrap in groups.
+- Detected logins: one `Detected login:` line per login found outside the profiles (see `i` below).
 - With no profiles: `no profiles yet: press n to create one`.
 
 | Key | Action |

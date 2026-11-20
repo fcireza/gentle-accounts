@@ -20,7 +20,6 @@ gentle-accounts keeps named **profiles** (for example `work` and `personal`), ea
 | [How it works](how-it-works.md) | On-disk layout, the switching algorithm, `CLAUDE_CONFIG_DIR`, the status bar and security. |
 | [Troubleshooting](troubleshooting.md) | Symptoms, causes and fixes. |
 | [Development](development.md) | Tests, CI, Conventional Commits, releases, branch protection and the social preview image. |
-| [Antigravity](antigravity.md) | Plan (not implemented) for several Antigravity (Google) accounts. |
 
 ## Start here
 

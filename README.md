@@ -31,7 +31,6 @@ Las imágenes son ilustraciones construidas con los mensajes reales del programa
 - [Cómo funciona](docs/es/how-it-works.md): estructura en disco, cambio de perfil, barra de estado y seguridad.
 - [Solución de problemas](docs/es/troubleshooting.md): síntomas, causas y soluciones.
 - [Desarrollo](docs/es/development.md): pruebas, CI, Conventional Commits y versiones.
-- [Antigravity](docs/es/antigravity.md): plan para varias cuentas de Antigravity (Google) (no implementado).
 
 ## Objetivo
 
@@ -56,7 +55,7 @@ Los proveedores con clave de API siguen siendo globales; todo proveedor de cuent
 
 ## Comandos
 
-El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles (`●` activo en esta sesión, `○` los demás y `★` perfil de sesión). Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `r` renombrar, `d` borrar, `s` sesión, `e` correo, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar. En modo `fullscreen` también puede hacer clic en un perfil o proveedor, doble clic para cambiar o iniciar sesión, y usar la rueda.
+El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles (`●` activo en esta sesión, `○` los demás y `★` perfil de sesión). Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `r` renombrar, `d` borrar, `s` sesión, `e` correo, `i` adoptar un login detectado fuera de los perfiles, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar. En modo `fullscreen` también puede hacer clic en un perfil o proveedor, doble clic para cambiar o iniciar sesión, y usar la rueda.
 
 | Comando | Qué hace |
 | --- | --- |

@@ -29,7 +29,6 @@ The images are illustrations built from the program's real messages, not screens
 - [How it works](docs/en/how-it-works.md): disk layout, switching, status bar and security.
 - [Troubleshooting](docs/en/troubleshooting.md): symptoms, causes and fixes.
 - [Development](docs/en/development.md): tests, CI, Conventional Commits and releases.
-- [Antigravity](docs/en/antigravity.md): plan for several Antigravity (Google) accounts (not implemented).
 
 ## Objective
 
@@ -54,7 +53,7 @@ Providers that use an API key stay global; every account (oauth) provider belong
 
 ## Commands
 
-The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `r` rename, `d` delete, `s` session, `e` email, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode you can also click a profile or provider, double-click to switch or log in, and use the wheel.
+The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `r` rename, `d` delete, `s` session, `e` email, `i` adopt a login detected outside the profiles, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode you can also click a profile or provider, double-click to switch or log in, and use the wheel.
 
 | Command | What it does |
 | --- | --- |

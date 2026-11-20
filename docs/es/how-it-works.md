@@ -115,7 +115,7 @@ La extensión muestra la cuenta con `setStatus` de pi, bajo la clave `gentle-acc
 El ícono distingue los dos estados de un vistazo: `👤` indica que se detectó un inicio de sesión de Claude para el perfil y `🔒` que no se detectó.
 - Sin perfil activo: el estado se borra.
 
-Visualización del correo: mientras está oculto no aparece ningún correo en ninguna parte, ni siquiera enmascarado; solo `showEmail` en `true` muestra la dirección completa.
+Visualización del correo: mientras está oculto no aparece ningún correo en ninguna parte, ni siquiera enmascarado. Con `showEmail` en `true` la barra de estado muestra la dirección completa y el menú la muestra enmascarada después de tres caracteres (`mar****@company.com`). El texto de la barra de estado usa los colores del tema: `muted` para la etiqueta, `accent` para el perfil, `text` para el correo y `warning` para `not logged in`.
 
 Detección:
 
@@ -145,5 +145,5 @@ Codex no muestra correo, porque pi solo guarda un identificador de cuenta opaco 
 - Cambiar de perfil durante un turno del agente.
 - Borrar el perfil activo, o borrar desde el launcher.
 - Renombrar un perfil que usa una sesión en marcha del launcher: cierre la sesión primero.
-- Intercambiar proveedores con clave de API distintos de `openai-codex` y `anthropic` (los proveedores OAuth y Claude mediante `CLAUDE_CONFIG_DIR` sí se intercambian). Antigravity por ahora es solo un plan: consulte [Antigravity](antigravity.md).
+- Intercambiar proveedores con clave de API distintos de `openai-codex` y `anthropic` (los proveedores OAuth y Claude mediante `CLAUDE_CONFIG_DIR` sí se intercambian).
 - El antiguo comando `/profile`: se renombró a `/gentle:accounts`.

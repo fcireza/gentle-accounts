@@ -25,11 +25,13 @@ Sin argumentos, abre el menú de cuentas (igual que `/gentle:accounts menu`) cua
 
 ### `/gentle:accounts menu`
 
-Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:profiles` de Gentle Shell. Es un panel de cerca del 60% de la columna del chat, centrado en ella: cuando Gentle Shell muestra su barra lateral el panel queda a su lado y no en toda la terminal, con el título y `esc` arriba y las pistas de teclas abajo; en terminales angostas pasa a un diseño compacto. Sin la TUI interactiva usa el selector `Switch profile`.
+Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:profiles` de Gentle Shell. Es un panel de cerca del 60% de la columna del chat, centrado en ella: cuando Gentle Shell muestra su barra lateral el panel queda a su lado y no en toda la terminal, con el título `Gentle Accounts` centrado en el borde superior y las pistas de teclas abajo; en terminales angostas pasa a un diseño compacto. Sin la TUI interactiva usa el selector `Switch profile`.
 
-- Encabezado: `Account Default`, el perfil de sesión con el que empiezan las sesiones nuevas (`none` si no está definido) y la visualización del correo (`shown` o `hidden`).
+- Encabezado: `Account Default`, el perfil de sesión con el que empiezan las sesiones nuevas (`none` si no está definido) y `Account Session`, el perfil definido para esta sesión. `Account Session` aparece solo dentro de una sesión iniciada con `gentle-accounts`; si no, no se muestra. El marco y las líneas usan el color `borderAccent` del tema.
 - Una fila por perfil: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión, seguidos de los proveedores con sesión iniciada. La lista muestra ocho perfiles a la vez y se desplaza; `↑ N more` y `↓ N more` cuentan los ocultos.
-- Proveedores: `→` sobre el perfil seleccionado abre una fila por proveedor (Claude, Codex, Anthropic) con `●` si hay sesión iniciada u `○` si no, y `←` las cierra. El correo aparece solo en esas filas y solo cuando se muestra el correo; mientras está oculto no aparece nada después de `logged in`. Abrir el menú nunca ejecuta `claude auth status` por perfil: reutiliza el resultado de la barra de estado para el perfil activo y lee archivos para los demás.
+- Proveedores: `→` sobre el perfil seleccionado abre una fila por proveedor (Claude, Codex, Anthropic) con `●` si hay sesión iniciada u `○` si no, y `←` las cierra. El correo aparece solo en esas filas y solo cuando se muestra el correo, con el nombre enmascarado después de tres caracteres y el dominio tal cual, por ejemplo `mar****@company.com`; mientras está oculto no aparece nada después de `logged in`. Abrir el menú nunca ejecuta `claude auth status` por perfil: reutiliza el resultado de la barra de estado para el perfil activo y lee archivos para los demás.
+- Pistas de teclas: todas en una línea cuando caben, con etiquetas cortas (`⏎ ok`, `del`, `session`) cuando las completas no entran; si no, se reparten en grupos.
+- Logins detectados: una línea `Detected login:` por cada login hallado fuera de los perfiles (ver `i` más abajo).
 - Sin perfiles: `no profiles yet: press n to create one`.
 
 | Tecla | Acción |
