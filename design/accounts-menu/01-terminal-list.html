@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Terminal list (demo)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0}
+body{background:#060407;color:#F6EFF3;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh;display:grid;place-items:center;padding:32px}
+.wrap{width:min(780px,100%)}
+.intro{color:#A78E9B;font-size:13px;margin-bottom:12px}
+.intro kbd{border:1px solid #563040;border-radius:3px;padding:0 5px;color:#F6EFF3;font:inherit}
+#menu{border:1px solid #563040;border-radius:8px;background:#100A0F;outline:none}
+#menu:focus-visible{outline:2px solid #FFB1DD;outline-offset:3px}
+header{padding:12px 20px;border-bottom:1px solid #563040;display:flex;justify-content:space-between;gap:12px}
+h1{font-size:15px;font-weight:600;color:#F095C8}
+.dim{color:#A78E9B}.faint{color:#76616B}.ok{color:#B4E7C7}.warn{color:#F2B86D}.acc{color:#F095C8}.err{color:#FF718F}
+ul{list-style:none;padding:8px}
+li.p{display:grid;grid-template-columns:20px 20px 150px 24px minmax(0,1fr) auto;gap:6px;padding:4px 12px;border-radius:4px;cursor:pointer}
+li.p.sel{background:#28121E}
+li.p.sel .name{color:#F095C8;font-weight:700}
+li.p:not(.sel):not(.on) .name{color:#A78E9B}
+ul.prov{list-style:none;padding:2px 0 6px 44px}
+li.r{display:grid;grid-template-columns:20px 20px 190px minmax(0,1fr);gap:6px;padding:2px 12px;border-radius:4px;cursor:pointer}
+li.r.sel{background:#28121E}
+li.r.sel .lbl{color:#F095C8}
+.fb{padding:6px 20px;min-height:32px;border-top:1px solid #563040;font-size:13px}
+footer{padding:10px 20px;border-top:1px solid #563040;color:#A78E9B;font-size:13px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<div class="wrap">
+<p class="intro">Demo: click the menu, then use <kbd>↑</kbd><kbd>↓</kbd> profiles · <kbd>→</kbd> open providers · <kbd>←</kbd> close · <kbd>Enter</kbd> switch / log in · <kbd>s</kbd> session · <kbd>e</kbd> show/hide email · <kbd>n</kbd> <kbd>d</kbd> <kbd>o</kbd> on a logged-in provider (simulated)</p>
+<main id="menu" tabindex="0" aria-label="Accounts menu demo">
+<header><h1>gentle-accounts · accounts</h1><span class="dim" id="mode"></span></header>
+<ul id="list" aria-label="Profiles"></ul>
+<div class="fb" id="fb" role="status" aria-live="polite"></div>
+<footer id="hints"></footer>
+</main>
+</div>
+<script>
+const P=[
+ {n:"work",email:"mari****@company.com",full:"maria.lopez@company.com",pr:[["Claude",1],["Codex",1],["Anthropic",0]]},
+ {n:"personal",email:"fede****@gmail.com",full:"federico@gmail.com",pr:[["Claude",1],["Codex",1],["Anthropic",1]]},
+ {n:"client-acme",email:"",full:"",pr:[["Claude",0],["Codex",0],["Anthropic",0]]}
+];
+let sel=0,row=0,active=0,startup=1,showEmail=false,fb="";
+const $=s=>document.querySelector(s);
+const esc=t=>t.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function render(){
+  $("#mode").textContent="mode: global · email: "+(showEmail?"shown":"hidden");
+  let h="";
+  P.forEach((p,i)=>{
+    const s=i===sel,logged=p.pr.filter(x=>x[1]).map(x=>x[0]);
+    const ptr=s?(row===0?"▸":"▾"):"";
+    h+=`<li class="p${s?" sel":""}${i===active?" on":""}" data-i="${i}" aria-selected="${s}">`+
+      `<span class="acc">${ptr}</span><span class="${i===active?"ok":"faint"}">${i===active?"●":"○"}</span>`+
+      `<span class="name">${esc(p.n)}</span><span class="warn">${i===startup?"★":""}</span>`+
+      `<span class="${logged.length?"dim":"warn"}">${logged.length?logged.join(" · "):"not logged in"}</span>`+
+      `<span class="ok">${i===active?"active":""}</span></li>`;
+    if(s&&row>0){
+      h+='<ul class="prov">';
+      p.pr.forEach((x,k)=>{
+        const mail=showEmail&&x[1]&&p.full?" · "+esc(p.full):"";
+        h+=`<li class="r${row===k+1?" sel":""}" data-i="${i}" data-r="${k+1}"><span class="acc">${row===k+1?"▸":""}</span>`+
+          `<span class="${x[1]?"ok":"faint"}">${x[1]?"●":"○"}</span><span class="lbl">${x[0]}</span>`+
+          `<span class="${x[1]?"ok":"dim"}">${x[1]?"logged in"+mail:"not logged in"}</span></li>`;
+      });
+      h+="</ul>";
+    }
+  });
+  $("#list").innerHTML=h;
+  const x=sel===sel&&row>0?P[sel].pr[row-1]:null;
+  $("#hints").textContent="↑↓ profile · →← providers · enter select · n new · d delete · s set session · e email"+(x&&x[1]?" · o open in tab":"")+" · esc close";
+  $("#fb").innerHTML=fb||'<span class="faint">enter: switch on a profile, log in on a provider (→ opens its providers)</span>';
+}
+function say(t,c){fb=`<span class="${c||"ok"}">${esc(t)}</span>`}
+function act(key){
+  const p=P[sel];
+  if(key==="down"||key==="up"){
+    const d=key==="down"?1:-1;
+    if(row===0)sel=(sel+d+P.length)%P.length;else row=Math.min(Math.max(1,row+d),p.pr.length);
+    fb="";
+  }else if(key==="right"){ if(row===0)row=1; fb=""}
+  else if(key==="left"){ row=0; fb=""}
+  else if(key==="enter"){
+    if(row===0){active=sel;say(`Switched to profile "${p.n}".`)}
+    else{const x=p.pr[row-1];say(x[1]?`${x[0]} is already logged in. Re-running login…`:`Logging "${p.n}" into ${x[0]}…`,"warn")}
+  }else if(key==="s"){startup=startup===sel?-1:sel;say(startup===sel?`Session profile set to "${p.n}".`:"Session profile cleared.")}
+  else if(key==="e"){showEmail=!showEmail;say(`Email display set to ${showEmail?"shown":"hidden"}.`)}
+  else if(key==="n")say("Demo: this would ask for a new profile name.","dim");
+  else if(key==="d")say(`Demo: this would ask to delete "${p.n}".`,"err");
+  else if(key==="o"){const x=row>0?p.pr[row-1]:null;if(x&&x[1])say(`Demo: would open this project with "${p.n}" in a new tab.`,"dim");else return}
+  else if(key==="escape"){row=0;say("Demo: Esc closes the menu.","dim")}
+  render();
+}
+const MAP={ArrowDown:"down",j:"down",ArrowUp:"up",k:"up",ArrowRight:"right",l:"right",ArrowLeft:"left",h:"left",Enter:"enter",Escape:"escape",s:"s",e:"e",n:"n",d:"d",o:"o"};
+$("#menu").addEventListener("keydown",ev=>{
+  if(ev.ctrlKey||ev.metaKey||ev.altKey)return;
+  const k=MAP[ev.key]||MAP[ev.key.toLowerCase()];
+  if(k){ev.preventDefault();act(k)}
+});
+$("#list").addEventListener("click",ev=>{
+  const li=ev.target.closest("li[data-i]");if(!li)return;
+  $("#menu").focus();
+  sel=+li.dataset.i;row=li.dataset.r?+li.dataset.r:0;fb="";render();
+});
+render();
+</script>
+</html>
