@@ -60,6 +60,11 @@ export interface BuildMenuOptions {
   feedback?: Feedback;
 }
 
+/** Logged-in providers first; the sort is stable, so each group keeps its order (Claude first). */
+function loggedInFirst(rows: ProviderState[]): ProviderState[] {
+  return [...rows].sort((x, y) => Number(y.loggedIn) - Number(x.loggedIn));
+}
+
 function safeAuth(path: string): AuthData {
   try {
     return readAuthFile(path);
@@ -86,7 +91,7 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
         ? options.activeClaude
         : readClaudeAccount(store.claudeConfigEnv(name) ?? join(homeDir, ".claude"), homeDir);
     const auth = safeAuth(active ? options.liveAuthPath : store.authPath(name));
-    return { name, active, startup: name === startup, providers: providerStates(claude, auth, { showEmail: options.showEmail, providers, labels }) };
+    return { name, active, startup: name === startup, providers: loggedInFirst(providerStates(claude, auth, { showEmail: options.showEmail, providers, labels })) };
   });
   const wanted = options.selectedName ?? current;
   const selected = Math.max(0, profiles.findIndex((p) => p.name === wanted));

@@ -50,14 +50,15 @@ test("S31 view: global model has one entry per profile with active, startup and 
   assert.equal(m.selected, 1, "opens on the active profile");
   assert.equal(m.row, 0);
   const [personal, work] = m.profiles;
+  // Logged-in providers come first, each group in its usual order.
   assert.deepEqual(personal.providers, [
     { provider: "claude", label: "Claude Bridge", loggedIn: true },
-    { provider: "openai-codex", label: "Codex", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: true },
+    { provider: "openai-codex", label: "Codex", loggedIn: false },
   ]);
   assert.deepEqual(work.providers, [
-    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "openai-codex", label: "Codex", loggedIn: true },
+    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: false },
   ]);
 });
@@ -66,18 +67,18 @@ test("S31 view: the active profile reuses the cached Claude answer (null = logge
   const { agentDir, store, liveAuthPath } = globalSetup();
   writeAccount(store.claudeDir("work"), "file@x.io");
   const base = { store, liveAuthPath, showEmail: true, homeDir: agentDir };
-  assert.equal(buildMenuModel({ ...base, activeClaude: { email: "cached@x.io" } }).profiles[1].providers[0].email, "cached@x.io");
-  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[1].providers[0].loggedIn, false);
-  assert.equal(buildMenuModel(base).profiles[1].providers[0].email, "file@x.io", "no cache: file read");
+  assert.equal(buildMenuModel({ ...base, activeClaude: { email: "cached@x.io" } }).profiles[1].providers.find((p) => p.provider === "claude")!.email, "cached@x.io");
+  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[1].providers.find((p) => p.provider === "claude")!.loggedIn, false);
+  assert.equal(buildMenuModel(base).profiles[1].providers.find((p) => p.provider === "claude")!.email, "file@x.io", "no cache: file read");
   // Another profile never uses the cache.
-  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[0].providers[0].email, EMAIL);
+  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[0].providers.find((p) => p.provider === "claude")!.email, EMAIL);
 });
 
 test("S31 view: email hidden by default, full only when shown; never a token anywhere", () => {
   const hidden = model();
   const shown = model({ showEmail: true });
   assert.equal(shown.showEmail, true);
-  assert.equal(shown.profiles[0].providers[0].email, EMAIL);
+  assert.equal(shown.profiles[0].providers.find((p) => p.provider === "claude")!.email, EMAIL);
   const hiddenText = JSON.stringify(hidden) + WIDTHS.flatMap((w) => renderMenu({ ...hidden, selected: 0, row: 1 }, w, identityTheme)).join("\n");
   assert.doesNotMatch(hiddenText, /maria\.lopez/);
   assert.doesNotMatch(hiddenText, new RegExp(TOKEN));
@@ -102,7 +103,7 @@ test("S31 view: session mode reads the shared store, the session current and H/a
   writeFileSync(ctx.store.currentPath, "work\n");
   const m = buildMenuModel({ store: ctx.store, liveAuthPath: ctx.liveAuthPath, showEmail: false, homeDir: agentDir });
   assert.deepEqual(m.profiles.map((p) => [p.name, p.active]), [["personal", false], ["work", true]]);
-  assert.deepEqual(m.profiles[1].providers.map((p) => p.loggedIn), [false, true, false]);
+  assert.deepEqual(m.profiles[1].providers.map((p) => p.loggedIn), [true, false, false]);
   assert.doesNotMatch(renderMenu(m, 100).join("\n"), /mode:/, "the header does not show the mode");
 });
 
@@ -151,10 +152,10 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   assert.match(text, /n new {2}r rename {2}d delete {2}s set session/);
   assert.match(text, /e email {2}esc close/);
   assert.doesNotMatch(text, /o open/, "open is offered only on a logged-in provider row");
-  const open = renderMenu({ ...m, row: 2 }, 100).join("\n");
+  const open = renderMenu({ ...m, row: 3 }, 100).join("\n");
   assert.match(open, /▾ ○ personal/);
   assert.match(open, /● Claude Bridge {2}logged in\s*│/, "no email while the display is hidden");
-  assert.doesNotMatch(open, /o open/, "row 2 (Codex) is not logged in");
+  assert.doesNotMatch(open, /o open/, "row 3 (Codex) is not logged in");
   const onLogged = renderMenu({ ...m, row: 1 }, 200).join("\n");
   assert.match(onLogged, /e email {2}o open in tab {2}esc close/);
   const shownEmail = renderMenu({ ...model({ showEmail: true }), selected: 0, row: 1 }, 100).join("\n");
@@ -239,8 +240,8 @@ test("S35 hits: one entry per rendered line, profiles at row 0 and the open prof
   const at = (re: RegExp) => hits[lines.findIndex((l) => re.test(l))];
   assert.deepEqual(at(/[●○] personal/), { profile: 0, row: 0 });
   assert.deepEqual(at(/Claude Bridge {2}logged in/), { profile: 0, row: 1 });
-  assert.deepEqual(at(/Codex/), { profile: 0, row: 2 });
-  assert.deepEqual(at(/Anthropic {6}logged in/), { profile: 0, row: 3 });
+  assert.deepEqual(at(/Anthropic {6}logged in/), { profile: 0, row: 2 });
+  assert.deepEqual(at(/Codex/), { profile: 0, row: 3 });
   assert.deepEqual(hits.filter((h) => h).length, 1 + 3 + 1, "personal + its 3 providers + work");
   assert.deepEqual(menuHits(m, 3), []);
 });
@@ -352,7 +353,7 @@ test("every profile lists the providers logged in anywhere, logged out where it 
     assert.ok(row, `${p.name} lists it`);
     assert.equal(row.loggedIn, p.active, `${p.name}: logged in only where the entry exists`);
   }
-  assert.deepEqual(m.profiles[0].providers.map((x) => x.provider), m.profiles[1].providers.map((x) => x.provider), "same rows, same order");
+  assert.deepEqual(m.profiles[0].providers.map((x) => x.provider).sort(), m.profiles[1].providers.map((x) => x.provider).sort(), "same rows in every profile");
 });
 
 test("the providers /login offers are listed for every profile, logged in or not, with pi's names", () => {
@@ -363,5 +364,15 @@ test("the providers /login offers are listed for every profile, logged in or not
     const copilot = p.providers.find((x) => x.provider === "github-copilot");
     assert.deepEqual(copilot && [copilot.label, copilot.loggedIn], ["GitHub Copilot", false], `${p.name}: offered, not logged in`);
     assert.equal(p.providers.find((x) => x.provider === "openai-codex")?.label, "Codex", "known labels are kept");
+  }
+});
+
+test("the providers with a login come first in every profile, then the ones without", () => {
+  const { agentDir, store, liveAuthPath } = globalSetup();
+  const loginProviders = [{ id: "github-copilot", name: "GitHub Copilot" }];
+  const m = buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir, loginProviders });
+  for (const p of m.profiles) {
+    const flags = p.providers.map((x) => x.loggedIn);
+    assert.deepEqual(flags, [...flags].sort((a, b) => Number(b) - Number(a)), `${p.name}: logged in first`);
   }
 });
