@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 const LOCK_ERRORS = new Set(["EPERM", "EACCES", "EBUSY"]);
 
@@ -44,11 +44,11 @@ export const INVALID_NAME_MESSAGE = (name: string): string =>
 
 export const MISSING_PROFILE_MESSAGE = (name: string): string => `Profile "${name}" does not exist.`;
 
-export const STARTUP_DELETE_MESSAGE = (name: string): string =>
-  `Cannot delete the startup profile "${name}". Set another one or clear it with "startup last" first.`;
+export const SESSION_PROFILE_DELETE_MESSAGE = (name: string): string =>
+  `Cannot delete the session profile "${name}". Set another one or clear it with "session last" first.`;
 
 /** Subcommands of `/gentle:accounts` and the CLI: a profile with one of these names could never be switched to by name. */
-export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "startup", "email", "help"];
+export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "rename", "session", "startup", "email", "help"];
 
 export const RESERVED_NAME_MESSAGE = (name: string): string =>
   `"${name}" is a reserved word (it is a subcommand). Pick another profile name.`;
@@ -195,8 +195,77 @@ export class ProfileStore {
     if (this.current() === name) {
       throw new Error(`Cannot delete the active profile "${name}". Switch to another profile first.`);
     }
-    if (this.startup() === name) throw new Error(STARTUP_DELETE_MESSAGE(name));
+    if (this.startup() === name) throw new Error(SESSION_PROFILE_DELETE_MESSAGE(name));
     rmSync(this.profileDir(name), { recursive: true, force: true });
+  }
+
+  /**
+   * Renames a profile. The folder `profiles/<from>/` moves to `profiles/<to>/` in one atomic step (same filesystem),
+   * so credentials and the Claude login are never copied or half-written. Then the pointers that named the old
+   * profile follow it: the current file (the session's own and the shared one) and the session profile file, and a
+   * `claude-dir` override that pointed inside the old folder is rewritten. Every refusal happens before anything is
+   * touched; a failure after the move puts the folder and the pointers back.
+   *
+   * It does not know who else uses the profile: the caller refuses a profile that a running launcher session holds.
+   */
+  /** Every refusal of `rename`, without touching anything: callers run it before checking who else uses the profile. */
+  assertCanRename(from: string, to: string): void {
+    this.assertExists(from);
+    if (from === to) throw new Error("The new name is the same as the current one.");
+    const invalid = validateNewProfileName(to);
+    if (invalid) throw new Error(invalid);
+    // A leftover folder without auth.json is not a profile, but the move would still collide with it.
+    if (existsSync(this.profileDir(to))) throw alreadyExists(to);
+  }
+
+  rename(from: string, to: string): void {
+    this.assertCanRename(from, to);
+    const oldDir = this.profileDir(from);
+    const newDir = this.profileDir(to);
+    renameWithRetry(renameSync, oldDir, newDir);
+
+    const retargeted: string[] = [];
+    let overridePath: string | undefined;
+    let overrideBefore: string | undefined;
+    try {
+      for (const pointer of new Set([this.currentPath, join(this.profilesDir, "current"), this.startupPath])) {
+        if (existsSync(pointer) && readFileSync(pointer, "utf8").trim() === from) {
+          writeFileAtomic(pointer, `${to}\n`);
+          retargeted.push(pointer);
+        }
+      }
+      const override = join(newDir, "claude-dir");
+      if (existsSync(override)) {
+        const value = readFileSync(override, "utf8").trim();
+        if (value === oldDir || value.startsWith(oldDir + sep)) {
+          overridePath = override;
+          overrideBefore = readFileSync(override, "utf8");
+          writeFileAtomic(override, `${newDir}${value.slice(oldDir.length)}\n`);
+        }
+      }
+    } catch (error) {
+      // Best effort, in reverse: the override, the pointers already moved, then the folder itself.
+      if (overridePath !== undefined && overrideBefore !== undefined) {
+        try {
+          writeFileAtomic(overridePath, overrideBefore);
+        } catch {
+          /* the folder moves back with whatever the file holds */
+        }
+      }
+      for (const pointer of retargeted) {
+        try {
+          writeFileAtomic(pointer, `${from}\n`);
+        } catch {
+          /* leave it: a pointer to a missing profile reads as unset */
+        }
+      }
+      try {
+        renameWithRetry(renameSync, newDir, oldDir);
+      } catch {
+        /* nothing more can be done: the original error is the one to report */
+      }
+      throw error;
+    }
   }
 
   assertExists(name: string): void {
@@ -218,17 +287,17 @@ export function runStartupCommand(store: ProfileStore, arg: string): { ok: boole
     return {
       ok: true,
       message: startup
-        ? `Startup profile: ${startup}`
-        : `Startup profile: none (new sessions start on the last used profile: ${store.current() ?? "none"})`,
+        ? `Session profile: ${startup}`
+        : `Session profile: none (new sessions start on the last used profile: ${store.current() ?? "none"})`,
     };
   }
   if (arg === "last") {
     store.clearStartup();
-    return { ok: true, message: "Startup profile cleared. New sessions start on the last used profile." };
+    return { ok: true, message: "Session profile cleared. New sessions start on the last used profile." };
   }
   const invalid = validateProfileName(arg);
   if (invalid) return { ok: false, message: invalid };
   if (!store.exists(arg)) return { ok: false, message: MISSING_PROFILE_MESSAGE(arg) };
   store.setStartup(arg);
-  return { ok: true, message: `Startup profile set to "${arg}". New sessions start on it.` };
+  return { ok: true, message: `Session profile set to "${arg}". New sessions start on it.` };
 }

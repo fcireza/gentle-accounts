@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "01-terminal-list.html",
+  "handoffs": {
+    "01-terminal-list.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-20T01:26:17.376Z",
+      "startedAt": "2026-11-20T01:26:30.621Z",
+      "implementedAt": "2026-11-20T01:37:55.002Z",
+      "note": "Menu list, hidden email (menu and status bar), contextual `o open in tab`, and startup->session (startup kept as alias) implemented. TUI overlay: no preview URL."
+    }
+  }
+}

@@ -268,21 +268,21 @@ test("S16: login for the system-default profile runs claude auth login without C
   assert.equal("CLAUDE_CONFIG_DIR" in spawns[0].env, false);
 });
 
-test("S27: gentle-accounts startup shows, sets and clears the startup profile", () => {
+test("S27: gentle-accounts startup shows, sets and clears the session profile", () => {
   const { store, out, err, spawns, deps } = setup();
   assert.equal(runCli(["startup"], deps), 0);
-  assert.deepEqual(out.splice(0), ["Startup profile: none (new sessions start on the last used profile: none)"]);
+  assert.deepEqual(out.splice(0), ["Session profile: none (new sessions start on the last used profile: none)"]);
   store.create("work");
   store.setCurrent("work");
   assert.equal(runCli(["startup"], deps), 0);
-  assert.deepEqual(out.splice(0), ["Startup profile: none (new sessions start on the last used profile: work)"]);
+  assert.deepEqual(out.splice(0), ["Session profile: none (new sessions start on the last used profile: work)"]);
   assert.equal(runCli(["startup", "work"], deps), 0);
-  assert.deepEqual(out.splice(0), ['Startup profile set to "work". New sessions start on it.']);
+  assert.deepEqual(out.splice(0), ['Session profile set to "work". New sessions start on it.']);
   assert.equal(store.startup(), "work");
   assert.equal(runCli(["startup"], deps), 0);
-  assert.deepEqual(out.splice(0), ["Startup profile: work"]);
+  assert.deepEqual(out.splice(0), ["Session profile: work"]);
   assert.equal(runCli(["startup", "last"], deps), 0);
-  assert.deepEqual(out.splice(0), ["Startup profile cleared. New sessions start on the last used profile."]);
+  assert.deepEqual(out.splice(0), ["Session profile cleared. New sessions start on the last used profile."]);
   assert.equal(store.startup(), null);
   assert.deepEqual(err, []);
   assert.deepEqual(spawns, []);
@@ -302,10 +302,23 @@ test("S27: gentle-accounts startup rejects invalid and unknown names with exit 1
   assert.equal(store.startup(), "work");
 });
 
+test("session and its alias startup give identical output and effect in the CLI", () => {
+  const run = (word: string) => {
+    const { out, err, store, deps } = setup();
+    store.create("work");
+    const log: unknown[] = [];
+    for (const args of [[word], [word, "work"], [word], [word, "last"], [word], [word, "ghost"]]) {
+      log.push(runCli(args, deps), out.splice(0), err.splice(0), store.startup());
+    }
+    return log;
+  };
+  assert.deepEqual(run("startup"), run("session"));
+});
+
 test("S27: usage lists the startup command", () => {
   const { out, deps } = setup();
   assert.equal(runCli(["--help"], deps), 0);
-  assert.match(out.join("\n"), /gentle-accounts startup \[<name>\|last\] +/);
+  assert.match(out.join("\n"), /gentle-accounts session \[<name>\|last\] +.*\(alias: startup\)/);
 });
 
 test("S27: the <name> launch exports GENTLE_ACCOUNTS_LAUNCH_PROFILE; login, list and startup do not", async () => {
@@ -333,10 +346,10 @@ test("S29: gentle-accounts email shows, sets and rejects with exit codes", () =>
   assert.equal(runCli(["email"], deps), 0);
   assert.equal(runCli(["email", "hide"], deps), 0);
   assert.deepEqual(out, [
-    "Email display: hidden (masked in the status bar)",
+    "Email display: hidden (not shown in the status bar)",
     "Email display set to shown. The status bar shows the full email.",
     "Email display: shown (full email in the status bar)",
-    "Email display set to hidden. The status bar shows a masked email.",
+    "Email display set to hidden. The status bar does not show the email.",
   ]);
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { showEmail: false });
   assert.deepEqual(err, []);
@@ -438,4 +451,67 @@ test("T22: a corrupt profile auth.json at launch is reported with the gentle-acc
 
 test("T22 win32: windowsShellArgs doubles a trailing backslash of a quoted argument and quotes an empty one", () => {
   assert.deepEqual(windowsShellArgs(["C:\\a b\\", "C:\\a b\\\\", "C:\\ab\\", ""]), ['"C:\\a b\\\\"', '"C:\\a b\\\\\\\\"', "C:\\ab\\", '""']);
+});
+
+// -- rename --------------------------------------------------------------------------------------------------
+
+test("S1/S8 cli rename: renames a profile and prints the message", () => {
+  const { store, deps, out, err } = setup();
+  store.create("work");
+  assert.equal(runCli(["rename", "work", "office"], deps), 0);
+  assert.deepEqual(out, ['Renamed profile "work" to "office".']);
+  assert.deepEqual(err, []);
+  assert.deepEqual(store.list(), ["office"]);
+});
+
+test("S8 cli rename: the current profile follows and the message warns about other sessions", () => {
+  const { store, deps, out } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  store.setStartup("work");
+  assert.equal(runCli(["rename", "work", "office"], deps), 0);
+  assert.equal(out[0], 'Renamed profile "work" to "office". Other open sessions that use it keep the old path until they switch or restart.');
+  assert.equal(store.current(), "office");
+  assert.equal(store.startup(), "office");
+});
+
+test("S6 cli rename: a refusal goes to stderr with exit code 1 and changes nothing", () => {
+  const { store, deps, out, err } = setup();
+  store.create("work");
+  store.create("other");
+  for (const [args, message] of [
+    [["rename", "ghost", "office"], 'Profile "ghost" does not exist.'],
+    [["rename", "work", "work"], "The new name is the same as the current one."],
+    [["rename", "work", "Office"], 'Invalid profile name "Office": use lowercase letters, digits, "-" or "_" (max 32 chars).'],
+    [["rename", "work", "other"], 'Profile "other" already exists.'],
+    [["rename", "work", "rename"], '"rename" is a reserved word (it is a subcommand). Pick another profile name.'],
+  ] as const) {
+    err.length = 0;
+    assert.equal(runCli([...args], deps), 1, args.join(" "));
+    assert.deepEqual(err, [message]);
+  }
+  assert.deepEqual(out, []);
+  assert.deepEqual(store.list(), ["other", "work"]);
+});
+
+test("S5 cli rename: a profile held by a live session is refused", () => {
+  const { store, agentDir, deps, err } = setup();
+  store.create("work");
+  buildSessionHome({ sharedAgentDir: realpathSync(agentDir), profile: "work", baseDir: deps.sessionBaseDir! });
+  assert.equal(runCli(["rename", "work", "office"], { ...deps, isAlive: () => true }), 1);
+  assert.deepEqual(err, ['Cannot rename profile "work": a session started with gentle-accounts is using it. Close it first.']);
+  assert.deepEqual(store.list(), ["work"]);
+});
+
+test("S1 cli rename: missing or extra words print the usage and exit 1; the help lists the command", () => {
+  const { store, deps, err, out } = setup();
+  store.create("work");
+  for (const args of [["rename"], ["rename", "work"], ["rename", "work", "office", "extra"]]) {
+    err.length = 0;
+    assert.equal(runCli(args, deps), 1, args.join(" "));
+    assert.match(err[0], /^Usage:/);
+  }
+  assert.equal(runCli(["--help"], deps), 0);
+  assert.match(out.at(-1)!, /^  gentle-accounts rename <old> <new> +rename a profile \(its logins move with it\)$/m);
+  assert.deepEqual(store.list(), ["work"]);
 });

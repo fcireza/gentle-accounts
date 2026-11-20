@@ -14,7 +14,7 @@ What you will find here: how to choose between Gentle Shell and plain pi, the re
 
 With Gentle Shell, everything after `--` goes to pi, which clones the package into the agent dir and adds it to that dir's `settings.json`. Gentle Shell options such as `--home <path>` go before the `--`. Restart Gentle Shell or pi and `/gentle:accounts` is available.
 
-The extension always uses the agent dir that pi resolves for the running session. The launcher (`gentle-accounts`) resolves it on its own: `PI_CODING_AGENT_DIR`, then `GENTLE_SHELL_HOME`, then `~/.gentle-shell/agent`. With plain pi, set `PI_CODING_AGENT_DIR` to `~/.pi/agent` before using the launcher, otherwise it reads the Gentle Shell folder. The launcher's `gentle-accounts <name>` always starts `gentle-shell`; with plain pi only `list`, `current`, `create`, `login` and `startup` are useful.
+The extension always uses the agent dir that pi resolves for the running session. The launcher (`gentle-accounts`) resolves it on its own: `PI_CODING_AGENT_DIR`, then `GENTLE_SHELL_HOME`, then `~/.gentle-shell/agent`. With plain pi, set `PI_CODING_AGENT_DIR` to `~/.pi/agent` before using the launcher, otherwise it reads the Gentle Shell folder. The launcher's `gentle-accounts <name>` always starts `gentle-shell`; with plain pi only `list`, `current`, `create`, `login` and `session` are useful.
 
 ## Requirements
 

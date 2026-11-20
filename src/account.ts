@@ -41,29 +41,21 @@ export function readClaudeAccount(claudeDir: string, homeDir: string): ClaudeAcc
   }
 }
 
-/** Keeps the first min(4, max(1, local - 3)) chars of the local part, then `****`, then `@domain`. */
-export function maskEmail(email: string): string {
-  const at = email.lastIndexOf("@");
-  if (at < 0) return "****";
-  const local = email.slice(0, at);
-  const keep = Math.min(4, Math.max(1, local.length - 3));
-  return `${local.slice(0, keep)}****${email.slice(at)}`;
-}
-
 export interface StatusTextOptions {
-  /** Print the full email instead of the masked one (S29); default false. */
+  /** Print the full email instead of hiding it (S29); default false. */
   showEmail?: boolean;
 }
 
 export function statusText(profile: string, account: { email: string } | null, options: StatusTextOptions = {}): string {
   const icon = account ? "👤" : "🔒";
-  const shown = account ? (options.showEmail === true ? account.email : maskEmail(account.email)) : "not logged in";
-  return `${icon} ${PLUGIN_LABEL}: ${profile} · ${shown}`;
+  const base = `${icon} ${PLUGIN_LABEL}: ${profile}`;
+  if (!account) return `${base} · not logged in`;
+  return options.showEmail === true ? `${base} · ${account.email}` : base;
 }
 
 /** Menu labels of the providers a profile covers (S31); unknown covered providers show their id. */
 export const PROVIDER_LABELS: Record<string, string> = {
-  claude: "Claude (claude-bridge)",
+  claude: "Claude Bridge",
   "openai-codex": "Codex",
   anthropic: "Anthropic",
 };
@@ -73,7 +65,7 @@ export interface ProviderState {
   provider: string;
   label: string;
   loggedIn: boolean;
-  /** Masked email, or the full one only when the S29 setting shows it; absent when not logged in or unknown. */
+  /** Full email, only when the S29 setting shows it; absent when not logged in or unknown. */
   email?: string;
 }
 
@@ -85,7 +77,7 @@ export interface ProviderState {
 export function providerStates(claude: ClaudeAccount | null, auth: AuthData, options: StatusTextOptions = {}): ProviderState[] {
   const rows: ProviderState[] = [
     claude
-      ? { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: true, email: options.showEmail === true ? claude.email : maskEmail(claude.email) }
+      ? { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: true, ...(options.showEmail === true ? { email: claude.email } : {}) }
       : { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: false },
   ];
   for (const provider of coveredProviders(auth)) {

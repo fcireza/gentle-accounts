@@ -14,7 +14,7 @@ Qué encontrará aquí: cómo elegir entre Gentle Shell y pi, los requisitos, un
 
 Con Gentle Shell, todo lo que va después de `--` se pasa a pi, que clona el paquete en la carpeta del agente y lo agrega al `settings.json` de esa carpeta. Las opciones de Gentle Shell, como `--home <path>`, van antes del `--`. Reinicie Gentle Shell o pi y `/gentle:accounts` queda disponible.
 
-La extensión siempre usa la carpeta del agente que pi resuelve para la sesión en curso. El launcher (`gentle-accounts`) la resuelve por su cuenta: `PI_CODING_AGENT_DIR`, luego `GENTLE_SHELL_HOME`, luego `~/.gentle-shell/agent`. Con pi sin Gentle Shell, defina `PI_CODING_AGENT_DIR` como `~/.pi/agent` antes de usar el launcher; de lo contrario lee la carpeta de Gentle Shell. `gentle-accounts <name>` siempre inicia `gentle-shell`; con pi solo son útiles `list`, `current`, `create`, `login` y `startup`.
+La extensión siempre usa la carpeta del agente que pi resuelve para la sesión en curso. El launcher (`gentle-accounts`) la resuelve por su cuenta: `PI_CODING_AGENT_DIR`, luego `GENTLE_SHELL_HOME`, luego `~/.gentle-shell/agent`. Con pi sin Gentle Shell, defina `PI_CODING_AGENT_DIR` como `~/.pi/agent` antes de usar el launcher; de lo contrario lee la carpeta de Gentle Shell. `gentle-accounts <name>` siempre inicia `gentle-shell`; con pi solo son útiles `list`, `current`, `create`, `login` y `session`.
 
 ## Requisitos
 

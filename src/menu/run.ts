@@ -18,6 +18,7 @@ export interface MenuFlows {
   switchTo: (ctx: ExtensionCommandContext, store: ProfileStore, liveAuthPath: string, target: string, report: Report) => Promise<void>;
   create: (store: ProfileStore, name: string) => Feedback;
   remove: (ctx: ExtensionCommandContext, store: ProfileStore, name: string) => Promise<Feedback>;
+  rename: (store: ProfileStore, from: string, to: string) => Feedback;
 }
 
 /** The custom overlay needs the interactive TUI; RPC, print and json modes keep the select picker. */
@@ -52,7 +53,55 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export const OVERLAY_OPTIONS = { anchor: "center", width: "100%", maxHeight: "100%", margin: 0 } as const;
+/**
+ * The panel: centered, about 60% of the available width (the chat column when the sidebar paints), at most 90% of
+ * the height, one cell of margin. `minWidth` (columns) keeps it readable before the compact layout takes over.
+ */
+export const OVERLAY_OPTIONS = { anchor: "center", width: "60%", minWidth: 60, maxHeight: "90%", margin: 1 } as const;
+
+/**
+ * Where Gentle Shell publishes its fullscreen sidebar state on the terminal. This is the contract its own overlays
+ * read (gentle-pi `lib/shell-sidebar.ts`, `SidebarState`: `active`, `ownsHost()`, `railColumns`). It is experimental
+ * and not ours: when it is missing or changes shape the margin falls back to 0 and the panel centers on the terminal.
+ */
+const SIDEBAR_STATE = Symbol.for("gentle-pi.experimental-sidebar.state");
+const SIDEBAR_PADDING = 1;
+
+/**
+ * Right margin that keeps the panel inside the chat column: the columns the Gentle Shell sidebar rail reserves
+ * (`railColumns`, rail plus gap) plus one of padding while the rail paints. It is 0 without the sidebar and for
+ * any absent, malformed or non-owning state; it never throws, so the menu always opens.
+ */
+export function sidebarRightMargin(terminal: unknown): number {
+  if (typeof terminal !== "object" || terminal === null) return 0;
+  const state = (terminal as Record<symbol, unknown>)[SIDEBAR_STATE] as { active?: unknown; ownsHost?: () => unknown; railColumns?: unknown } | undefined;
+  if (typeof state !== "object" || state === null) return 0;
+  if (state.active !== true || typeof state.ownsHost !== "function") return 0;
+  const rail = state.railColumns;
+  if (typeof rail !== "number" || !Number.isInteger(rail) || rail <= 0) return 0;
+  try {
+    return state.ownsHost() === true ? rail + SIDEBAR_PADDING : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * The overlay options with a live right margin: pi-tui re-reads `margin` on every layout, so the panel follows the
+ * sidebar when the terminal is resized across its breakpoint while the menu stays open.
+ */
+export function menuOverlayOptions(getTerminal: () => unknown) {
+  return {
+    ...OVERLAY_OPTIONS,
+    // Read at use time, so the first layout never sees a stale value (the terminal may not exist yet when pi resolves
+    // the options) and a resize across the sidebar breakpoint is followed while the menu stays open.
+    get margin() {
+      const right = sidebarRightMargin(getTerminal());
+      return right > 0 ? { top: 1, right, bottom: 1, left: 1 } : OVERLAY_OPTIONS.margin;
+    },
+    visible: () => true,
+  };
+}
 
 /**
  * Caller loop: opens the panel, executes the tagged action with the existing store functions and reopens
@@ -67,12 +116,11 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
   const loginHere = deps.loginHere ?? defaultLoginHere(platform);
   const cwd = deps.cwd ?? (ctx as { cwd?: string }).cwd ?? process.cwd();
   for (;;) {
-    const { store: s, liveAuthPath, session, sharedDir } = deps.context();
+    const { store: s, liveAuthPath, sharedDir } = deps.context();
     const path = settingsPath(sharedDir);
     const model = buildMenuModel({
       store: s,
       liveAuthPath,
-      session: session !== null,
       showEmail: getShowEmail(path),
       homeDir: deps.homeDir ?? homedir(),
       activeClaude: deps.activeClaude(s),
@@ -80,10 +128,13 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
       row,
       feedback,
     });
+    let tuiRef: { terminal?: unknown } | undefined;
     const action = await ctx.ui.custom<MenuAction>(
-      (tui, theme, _keybindings, done) =>
-        new AccountsMenuPanel(model, theme, done, { requestRender: () => (tui as { requestRender?: () => void } | undefined)?.requestRender?.() }),
-      { overlay: true, overlayOptions: { ...OVERLAY_OPTIONS } },
+      (tui, theme, _keybindings, done) => {
+        tuiRef = tui as { terminal?: unknown } | undefined;
+        return new AccountsMenuPanel(model, theme, done, { requestRender: () => (tui as { requestRender?: () => void } | undefined)?.requestRender?.() });
+      },
+      { overlay: true, overlayOptions: () => menuOverlayOptions(() => tuiRef?.terminal) },
     );
     if (!action || action.type === "close") return;
     selectedName = action.profile ?? selectedName;
@@ -110,6 +161,17 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
         case "delete":
           feedback = await deps.flows.remove(ctx, s, action.profile);
           break;
+        case "rename": {
+          // The old name is prefilled: an empty, unchanged or cancelled answer is not a rename.
+          const name = (await ctx.ui.input(`Rename profile "${action.profile}" to`, action.profile))?.trim();
+          if (!name || name === action.profile) break;
+          feedback = deps.flows.rename(s, action.profile, name);
+          if (feedback.type === "info") {
+            selectedName = name;
+            await deps.refreshStatus(ctx, s);
+          }
+          break;
+        }
         case "startup": {
           const result = runStartupCommand(s, s.startup() === action.profile ? "last" : action.profile);
           set(result.message, result.ok ? "info" : "error");

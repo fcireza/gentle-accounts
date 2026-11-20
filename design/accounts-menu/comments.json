@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "zvtib6xv",
+      "file": "01-terminal-list.html",
+      "selector": "body > main > footer",
+      "excerpt": "↑↓ move · Enter switch · n new profile · l login · e show email",
+      "comment": "La opcion de show email, debe ocultar todo el email, quita esta visualizacion",
+      "createdAt": "2026-11-20T01:08:12.399Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:08:12.441Z",
+      "resolvedAt": "2026-11-20T01:08:16.607Z"
+    },
+    {
+      "id": "yxky11yr",
+      "file": "01-terminal-list.html",
+      "selector": "body > main > ul > li:nth-of-type(1) > button > span:nth-of-type(4)",
+      "excerpt": "active",
+      "comment": "Esta por afuera del contendor",
+      "createdAt": "2026-11-20T01:08:53.664Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:08:53.709Z",
+      "resolvedAt": "2026-11-20T01:08:56.939Z"
+    },
+    {
+      "id": "h3gb0nnt",
+      "file": "01-terminal-list.html",
+      "selector": "body > main > header",
+      "excerpt": "/gentle:accounts 3 profiles",
+      "comment": "Los colores del theme",
+      "createdAt": "2026-11-20T01:09:11.329Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:09:22.635Z",
+      "resolvedAt": "2026-11-20T01:09:38.067Z"
+    },
+    {
+      "id": "prnw6bdw",
+      "file": "02-provider-cards.html",
+      "selector": "body",
+      "excerpt": "Accounts Active profile: work work personal client-acme + New Claude Logged in mari****@company.com Log out Codex Logged in mari****@company.com Log out Anthropic Not logged in Uses pi's /login Log in",
+      "comment": "borralo",
+      "createdAt": "2026-11-20T01:09:46.129Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:09:55.810Z",
+      "resolvedAt": "2026-11-20T01:10:00.918Z"
+    },
+    {
+      "id": "9nefkvml",
+      "file": "03-status-first.html",
+      "selector": "body",
+      "excerpt": "👤 gentle-accounts: work · mari****@company.com Active account work work personal client-acme Providers Provider Account Status Claude mari****@company.com ✔ logged in Codex mari****@company.com ✔ logged in Anthropic — 🔒 not logged in",
+      "comment": "borralo",
+      "createdAt": "2026-11-20T01:09:51.510Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:09:55.810Z",
+      "resolvedAt": "2026-11-20T01:10:00.918Z"
+    },
+    {
+      "id": "cy9zt2r7",
+      "file": "01-terminal-list.html",
+      "selector": "#menu > footer",
+      "excerpt": "↑↓ profile · →← providers · enter select · n new · d delete · s startup · e email · o open · esc close",
+      "comment": "Que es Open? y Startup?",
+      "createdAt": "2026-11-20T01:22:48.478Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:23:41.757Z",
+      "resolvedAt": "2026-11-20T01:23:51.253Z"
+    },
+    {
+      "id": "wtxtkcnj",
+      "file": "01-terminal-list.html",
+      "selector": "#list > ul > li:nth-of-type(1) > span:nth-of-type(4)",
+      "excerpt": "logged in · fede****@gmail.com",
+      "comment": "email hide = no muestra",
+      "createdAt": "2026-11-20T01:23:40.145Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:23:41.757Z",
+      "resolvedAt": "2026-11-20T01:23:51.253Z"
+    },
+    {
+      "id": "kgsnv1cw",
+      "file": "01-terminal-list.html",
+      "selector": "#menu > div:nth-of-type(2)",
+      "excerpt": "★ startup = the profile new sessions start on (s sets or clears it). open = o opens this project with the selected profile in a new terminal tab.",
+      "comment": "Quitalo",
+      "createdAt": "2026-11-20T01:24:46.496Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:25:31.072Z",
+      "resolvedAt": "2026-11-20T01:25:43.736Z"
+    },
+    {
+      "id": "b572qmgb",
+      "file": "01-terminal-list.html",
+      "selector": "#menu > footer",
+      "excerpt": "↑↓ profile · →← providers · enter select · n new · d delete · s set startup · e email · o open in tab · esc close",
+      "comment": "cambia startup por session",
+      "createdAt": "2026-11-20T01:25:10.211Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:25:31.072Z",
+      "resolvedAt": "2026-11-20T01:25:43.736Z"
+    },
+    {
+      "id": "7jde5bjv",
+      "file": "01-terminal-list.html",
+      "selector": "#menu > footer",
+      "excerpt": "↑↓ profile · →← providers · enter select · n new · d delete · s set startup · e email · o open in tab · esc close",
+      "comment": "open debe figurar al dar en logged in",
+      "createdAt": "2026-11-20T01:25:29.494Z",
+      "status": "resolved",
+      "sentAt": "2026-11-20T01:25:31.072Z",
+      "resolvedAt": "2026-11-20T01:25:43.736Z"
+    }
+  ]
+}

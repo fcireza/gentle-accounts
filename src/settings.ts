@@ -44,7 +44,7 @@ export interface EmailCommandResult {
 export function runEmailCommand(arg: string, path: string, usagePrefix: string): EmailCommandResult {
   if (!arg) {
     return {
-      message: getShowEmail(path) ? "Email display: shown (full email in the status bar)" : "Email display: hidden (masked in the status bar)",
+      message: getShowEmail(path) ? "Email display: shown (full email in the status bar)" : "Email display: hidden (not shown in the status bar)",
       type: "info",
       changed: false,
     };
@@ -58,7 +58,7 @@ export function runEmailCommand(arg: string, path: string, usagePrefix: string):
     }
     return arg === "show"
       ? { message: "Email display set to shown. The status bar shows the full email.", type: "info", changed: true }
-      : { message: "Email display set to hidden. The status bar shows a masked email.", type: "info", changed: true };
+      : { message: "Email display set to hidden. The status bar does not show the email.", type: "info", changed: true };
   }
   return { message: `Usage: ${usagePrefix} email [show|hide]`, type: "warning", changed: false };
 }

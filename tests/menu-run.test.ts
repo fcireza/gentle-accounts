@@ -9,7 +9,7 @@ import { resolveContext } from "../src/session-home.ts";
 import { settingsPath } from "../src/settings.ts";
 import { claudeLoginCommand, loginHint } from "../src/login.ts";
 import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
-import { OVERLAY_OPTIONS, menuAvailable, runAccountsMenu } from "../src/menu/run.ts";
+import { OVERLAY_OPTIONS, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
 import type { AccountsMenuPanel, MenuAction } from "../src/menu/panel.ts";
 import { identityTheme } from "../src/menu/view.ts";
 import type { OpenTabResult, TabCommand } from "../src/terminal.ts";
@@ -27,13 +27,14 @@ function setup() {
 }
 
 /** Fake `ctx.ui.custom`: renders each opened panel and returns the next scripted action (or undefined). */
-function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string } = {}) {
+function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string; terminal?: unknown } = {}) {
   const frames: string[] = [];
   const notes: { message: string; type?: string }[] = [];
   const options: unknown[] = [];
   let editor: string | undefined;
   let refreshed = 0;
   const selects: { title: string; options: string[] }[] = [];
+  const prompts: { title: string; placeholder?: string }[] = [];
   const ctx = {
     hasUI: o.hasUI ?? true,
     mode: o.mode ?? "tui",
@@ -42,19 +43,19 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
     ui: {
       notify: (message: string, type?: string) => notes.push({ message, type }),
       confirm: async () => o.confirm ?? false,
-      input: async () => o.input,
+      input: async (title: string, placeholder?: string) => (prompts.push({ title, placeholder }), o.input),
       select: async (title: string, options: string[]) => (selects.push({ title, options }), o.select),
       setEditorText: (t: string) => void (editor = t),
       custom: async (factory: (tui: unknown, theme: unknown, kb: unknown, done: (a: MenuAction) => void) => AccountsMenuPanel, opts: unknown) => {
         options.push(opts);
         let result: MenuAction | undefined;
-        const panel = factory({ requestRender() {} }, identityTheme, {}, (a) => (result = a));
+        const panel = factory({ requestRender() {}, terminal: o.terminal }, identityTheme, {}, (a) => (result = a));
         frames.push(panel.render(120).join("\n"));
         return script.length ? script.shift() : result;
       },
     },
   } as unknown as ExtensionCommandContext;
-  return { ctx, frames, notes, options, editor: () => editor, refreshed: () => refreshed, selects: () => selects };
+  return { ctx, frames, notes, options, editor: () => editor, refreshed: () => refreshed, selects: () => selects, prompts };
 }
 
 function deps(agentDir: string, statusLog: string[] = []) {
@@ -74,14 +75,19 @@ function deps(agentDir: string, statusLog: string[] = []) {
 
 const feedbackOf = (frame: string) => frame.split("\n").filter((l) => !/[╭╰]/.test(l)).map((l) => l.slice(2, -2).trimEnd()).join("\n");
 
-test("S31 run: menu opens as a centered full overlay and ends on close", async () => {
+test("S36 run: menu opens as a centered panel of about 60% of the terminal and ends on close", async () => {
   const { agentDir } = setup();
   const c = fakeCtx([{ type: "close" }]);
   await runAccountsMenu(c.ctx, deps(agentDir));
   assert.equal(c.frames.length, 1);
-  assert.deepEqual(c.options, [{ overlay: true, overlayOptions: { ...OVERLAY_OPTIONS } }]);
-  assert.deepEqual(OVERLAY_OPTIONS, { anchor: "center", width: "100%", maxHeight: "100%", margin: 0 });
-  assert.match(c.frames[0], /\[◉ work\]/);
+  assert.equal(c.options.length, 1);
+  const opened = c.options[0] as { overlay: boolean; overlayOptions: () => ReturnType<typeof menuOverlayOptions> };
+  assert.equal(opened.overlay, true);
+  assert.equal(typeof opened.overlayOptions, "function", "options are resolved at show time so the margin can follow the sidebar");
+  const resolved = opened.overlayOptions();
+  assert.deepEqual({ anchor: resolved.anchor, width: resolved.width, minWidth: resolved.minWidth, maxHeight: resolved.maxHeight, margin: resolved.margin }, OVERLAY_OPTIONS);
+  assert.deepEqual(OVERLAY_OPTIONS, { anchor: "center", width: "60%", minWidth: 60, maxHeight: "90%", margin: 1 });
+  assert.match(c.frames[0], /▸ ● work/);
   const undef = fakeCtx([undefined]);
   await runAccountsMenu(undef.ctx, deps(agentDir));
   assert.equal(undef.frames.length, 1, "no custom result also ends the loop");
@@ -115,7 +121,7 @@ test("S31 run: create valid, invalid, duplicate and cancelled", async () => {
   await runAccountsMenu(ok.ctx, deps(agentDir));
   assert.ok(store.exists("side"));
   assert.match(feedbackOf(ok.frames[1]), /Created profile "side"\. Switch with \/gentle:accounts side/);
-  assert.match(ok.frames[1], /\[side\]/, "selects the new profile");
+  assert.match(ok.frames[1], /▸ ○ side/, "selects the new profile");
   const bad = fakeCtx([{ type: "create", row: 0 }, { type: "close" }], { input: "Bad Name" });
   await runAccountsMenu(bad.ctx, deps(agentDir));
   assert.match(feedbackOf(bad.frames[1]), /Invalid profile name "Bad Name": use lowercase letters/);
@@ -137,7 +143,7 @@ test("S31 run: delete confirm yes/no and the active and startup refusals", async
   const c = fakeCtx([{ type: "delete", profile: "work", row: 0 }, { type: "delete", profile: "personal", row: 0 }, { type: "delete", profile: "old", row: 0 }, { type: "close" }], { confirm: false });
   await runAccountsMenu(c.ctx, deps(agentDir));
   assert.match(feedbackOf(c.frames[1]), /Cannot delete the active profile "work"\. Switch to another profile first\./);
-  assert.match(feedbackOf(c.frames[2]), /Cannot delete the startup profile "personal"/);
+  assert.match(feedbackOf(c.frames[2]), /Cannot delete the session profile "personal"/);
   assert.match(feedbackOf(c.frames[3]), /Delete cancelled\./);
   assert.ok(store.exists("old"));
   const yes = fakeCtx([{ type: "delete", profile: "old", row: 0 }, { type: "close" }], { confirm: true });
@@ -151,9 +157,9 @@ test("S31 run: startup toggles set and clear; email toggles and refreshes the st
   const log: string[] = [];
   const c = fakeCtx([{ type: "startup", profile: "personal", row: 0 }, { type: "startup", profile: "personal", row: 0 }, { type: "email", row: 0 }, { type: "email", row: 0 }, { type: "close" }]);
   await runAccountsMenu(c.ctx, deps(agentDir, log));
-  assert.match(feedbackOf(c.frames[1]), /Startup profile set to "personal"\. New sessions start on it\./);
+  assert.match(feedbackOf(c.frames[1]), /Session profile set to "personal"\. New sessions start on it\./);
   assert.match(c.frames[1], /personal ★/);
-  assert.match(feedbackOf(c.frames[2]), /Startup profile cleared\. New sessions start on the last used profile\./);
+  assert.match(feedbackOf(c.frames[2]), /Session profile cleared\. New sessions start on the last used profile\./);
   assert.equal(store.startup(), null);
   assert.match(feedbackOf(c.frames[3]), /Email display set to shown\. The status bar shows the full email\./);
   assert.match(c.frames[3], /email: shown/);
@@ -288,4 +294,107 @@ test("S31 run: the menu is available only with UI in tui mode", () => {
   assert.equal(menuAvailable({ hasUI: false, mode: "tui" }), false);
   assert.equal(menuAvailable({ hasUI: true, mode: "rpc" }), false);
   assert.equal(menuAvailable({ hasUI: true }), false);
+});
+
+// -- S39: centered on the chat column when the Gentle Shell sidebar is painting ---------------------------------
+
+const SIDEBAR = Symbol.for("gentle-pi.experimental-sidebar.state");
+const withSidebar = (state: unknown) => ({ [SIDEBAR]: state }) as object;
+const owning = { active: true, ownsHost: () => true, railColumns: 53 };
+
+test("S39 margin: the sidebar rail plus one column of padding, 0 for anything else", () => {
+  assert.equal(sidebarRightMargin(withSidebar(owning)), 54);
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, railColumns: 20 })), 21);
+  for (const bad of [undefined, null, "terminal", 5, {}, withSidebar(undefined), withSidebar(null), withSidebar("x")]) assert.equal(sidebarRightMargin(bad), 0, JSON.stringify(bad));
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, active: false })), 0, "not painting");
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, ownsHost: () => false })), 0, "the sidebar does not own this host");
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, ownsHost: undefined })), 0);
+  for (const rail of [0, -3, 1.5, "53", undefined, NaN]) assert.equal(sidebarRightMargin(withSidebar({ ...owning, railColumns: rail })), 0, String(rail));
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, ownsHost: () => { throw new Error("boom"); } })), 0, "never throws");
+});
+
+test("S39 margin: the overlay margin is live, so the panel follows the sidebar while the menu stays open", () => {
+  let terminal: unknown = undefined;
+  const options = menuOverlayOptions(() => terminal);
+  assert.equal(options.margin, 1, "no sidebar: the plain margin");
+  terminal = withSidebar(owning);
+  assert.equal(options.visible(), true);
+  assert.deepEqual(options.margin, { top: 1, right: 54, bottom: 1, left: 1 }, "confined to the chat column");
+  terminal = withSidebar({ ...owning, active: false });
+  options.visible();
+  assert.equal(options.margin, 1, "the sidebar went away (a resize across its breakpoint)");
+  assert.equal(options.width, "60%");
+  assert.equal(options.anchor, "center");
+});
+
+test("S39 run: the menu hands pi the terminal it is shown on, so the margin reads the real sidebar", async () => {
+  const { agentDir } = setup();
+  const c = fakeCtx([{ type: "close" }], { terminal: withSidebar(owning) });
+  await runAccountsMenu(c.ctx, deps(agentDir));
+  const opened = c.options[0] as { overlayOptions: () => ReturnType<typeof menuOverlayOptions> };
+  assert.deepEqual(opened.overlayOptions().margin, { top: 1, right: 54, bottom: 1, left: 1 });
+  const plain = fakeCtx([{ type: "close" }]);
+  await runAccountsMenu(plain.ctx, deps(agentDir));
+  assert.equal((plain.options[0] as { overlayOptions: () => ReturnType<typeof menuOverlayOptions> }).overlayOptions().margin, 1);
+});
+
+test("S42 margin: it is read when the layout asks, so the first layout never sees a stale value", () => {
+  let terminal: unknown = undefined; // pi may resolve the options before the terminal exists
+  const options = menuOverlayOptions(() => terminal);
+  const first = options.margin;
+  terminal = withSidebar(owning);
+  assert.equal(first, 1);
+  assert.deepEqual(options.margin, { top: 1, right: 54, bottom: 1, left: 1 }, "no visible() call needed in between");
+});
+
+// -- S10: rename from the menu ----------------------------------------------------------------------------------
+
+test("S10 run: r prompts with the old name prefilled, renames, reselects the new name and refreshes the status", async () => {
+  const { agentDir, store } = setup();
+  const log: string[] = [];
+  const c = fakeCtx([{ type: "rename", profile: "work", row: 0 }, { type: "close" }], { input: "  office  " });
+  await runAccountsMenu(c.ctx, deps(agentDir, log));
+  assert.deepEqual(c.prompts, [{ title: 'Rename profile "work" to', placeholder: "work" }]);
+  assert.deepEqual(store.list(), ["office", "personal"]);
+  assert.match(feedbackOf(c.frames[1]), /Renamed profile "work" to "office"\. Other open sessions that use it keep the old path until they switch or restart\./);
+  assert.match(c.frames[1], /▸ ● office/, "the renamed profile stays selected and active");
+  assert.ok(log.includes("office"), "the status bar was refreshed after the rename");
+});
+
+test("S10 run: an empty, unchanged or cancelled answer does nothing and never calls the flow", async () => {
+  const { agentDir, store } = setup();
+  let calls = 0;
+  const spy = { ...deps(agentDir), flows: { ...deps(agentDir).flows, rename: () => (calls++, { message: "x", type: "info" as const }) } };
+  for (const input of ["", "   ", "work", undefined]) {
+    const c = fakeCtx([{ type: "rename", profile: "work", row: 0 }, { type: "close" }], { input });
+    await runAccountsMenu(c.ctx, spy);
+    assert.doesNotMatch(c.frames[1], /Renamed|x$/m, JSON.stringify(input));
+  }
+  assert.equal(calls, 0);
+  assert.deepEqual(store.list(), ["personal", "work"]);
+});
+
+test("S10 run: a refusal is shown as feedback and the selection stays on the old name", async () => {
+  const { agentDir, store } = setup();
+  const log: string[] = [];
+  for (const [input, message] of [
+    ["personal", /Profile "personal" already exists\./],
+    ["Bad Name", /Invalid profile name "Bad Name": use lowercase letters/],
+    ["rename", /"rename" is a reserved word/],
+  ] as const) {
+    const c = fakeCtx([{ type: "rename", profile: "work", row: 0 }, { type: "close" }], { input });
+    await runAccountsMenu(c.ctx, deps(agentDir, log));
+    assert.match(feedbackOf(c.frames[1]), message, input);
+    assert.match(c.frames[1], /▸ ● work/, input);
+  }
+  assert.deepEqual(store.list(), ["personal", "work"]);
+  assert.equal(log.length, 0, "no status refresh for a rename that did not happen");
+});
+
+test("S10 run: a profile that is not the current one gets the plain message", async () => {
+  const { agentDir, store } = setup();
+  const c = fakeCtx([{ type: "rename", profile: "personal", row: 0 }, { type: "close" }], { input: "home" });
+  await runAccountsMenu(c.ctx, deps(agentDir));
+  assert.match(feedbackOf(c.frames[1]), /^Renamed profile "personal" to "home"\.$/m);
+  assert.deepEqual(store.list(), ["home", "work"]);
 });

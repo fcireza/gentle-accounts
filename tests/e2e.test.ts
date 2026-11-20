@@ -292,9 +292,9 @@ test("launcher e2e (S27): startup sets the file, shows it, and an explicit launc
   assert.equal(run("create", "personal").code, 0);
   const s = run("startup", "work");
   assert.equal(s.code, 0, s.err);
-  assert.equal(s.out, 'Startup profile set to "work". New sessions start on it.\n');
+  assert.equal(s.out, 'Session profile set to "work". New sessions start on it.\n');
   assert.equal(readFileSync(join(agentDir, "profiles", "startup"), "utf8"), "work\n");
-  assert.equal(run("startup").out, "Startup profile: work\n");
+  assert.equal(run("startup").out, "Session profile: work\n");
   const p = run("personal");
   assert.equal(p.code, 0, p.err);
   assert.match(p.out, /GS args=--home \S+ dir=.*personal.claude/);
@@ -319,7 +319,7 @@ test("launcher e2e (S29): email is hidden by default, show persists it, list ign
   const { agentDir, run } = sandbox();
   const h = run("email");
   assert.equal(h.code, 0, h.err);
-  assert.equal(h.out, "Email display: hidden (masked in the status bar)\n");
+  assert.equal(h.out, "Email display: hidden (not shown in the status bar)\n");
   const s = run("email", "show");
   assert.equal(s.code, 0, s.err);
   assert.equal(s.out, "Email display set to shown. The status bar shows the full email.\n");
@@ -429,4 +429,58 @@ test("launcher e2e (S30): invalid JSON in the shared settings.json fails before 
   assert.deepEqual(homes(), []);
   assert.equal(run("current").out, before);
   assert.equal(readFileSync(join(agentDir, "settings.json"), "utf8"), "{bad");
+});
+
+test("rename e2e (S3-S6): the real binary moves the profile with its files and pointers, refuses the rest and leaves the disk alone", () => {
+  const { agentDir, run } = sandbox();
+  assert.equal(run("create", "work").code, 0);
+  assert.equal(run("create", "personal").code, 0);
+  const profiles = join(agentDir, "profiles");
+  writeFileSync(join(profiles, "work", "auth.json"), '{"anthropic":{"type":"oauth","access":"SECRET"}}\n');
+  writeFileSync(join(profiles, "work", "claude", ".claude.json"), '{"oauthAccount":{"emailAddress":"a@b.c"}}');
+  writeFileSync(join(profiles, "current"), "work\n");
+  assert.equal(run("session", "work").code, 0);
+
+  const done = run("rename", "work", "office");
+  assert.equal(done.code, 0);
+  assert.equal(done.out.trim(), 'Renamed profile "work" to "office". Other open sessions that use it keep the old path until they switch or restart.');
+  assert.equal(existsSync(join(profiles, "work")), false, "the old folder is gone");
+  assert.match(readFileSync(join(profiles, "office", "auth.json"), "utf8"), /SECRET/, "credentials moved with it");
+  assert.match(readFileSync(join(profiles, "office", "claude", ".claude.json"), "utf8"), /a@b\.c/, "so did the Claude login");
+  assert.equal(readFileSync(join(profiles, "current"), "utf8"), "office\n");
+  assert.equal(readFileSync(join(profiles, "startup"), "utf8"), "office\n");
+  assert.equal(run("list").out, "* office\n  personal\n");
+
+  const refuse = (args: string[], message: string | RegExp) => {
+    const r = run(...args);
+    assert.equal(r.code, 1, args.join(" "));
+    assert.equal(r.out, "", args.join(" "));
+    assert.match(r.err, message instanceof RegExp ? message : new RegExp(`^${message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"), args.join(" "));
+  };
+  refuse(["rename", "ghost", "x"], 'Profile "ghost" does not exist.');
+  refuse(["rename", "office", "office"], "The new name is the same as the current one.");
+  refuse(["rename", "office", "personal"], 'Profile "personal" already exists.');
+  refuse(["rename", "office", "rename"], /reserved word/);
+  refuse(["rename", "office"], /^Usage:/);
+  assert.equal(run("list").out, "* office\n  personal\n", "no refusal changed anything");
+});
+
+test("rename e2e (S5): a launcher session that is alive blocks the rename until its launcher is gone", () => {
+  const { agentDir, run, homesDir } = sandbox();
+  assert.equal(run("create", "work").code, 0);
+  const { home } = buildSessionHome({ sharedAgentDir: realpathSync(agentDir), profile: "work", baseDir: homesDir, pid: process.pid });
+  const blocked = run("rename", "work", "office");
+  assert.equal(blocked.code, 1);
+  assert.match(blocked.err, /^Cannot rename profile "work": a session started with gentle-accounts is using it\. Close it first\.$/m);
+  assert.equal(existsSync(join(agentDir, "profiles", "work")), true);
+  assert.equal(existsSync(home), true, "the live session's home is untouched");
+
+  // The launcher is gone: point the marker at a pid that does not exist, as `kill -9` would leave it.
+  const markerPath = join(home, ".gentle-accounts-session.json");
+  const marker = JSON.parse(readFileSync(markerPath, "utf8"));
+  writeFileSync(markerPath, JSON.stringify({ ...marker, pid: 2_147_483_646, childPid: undefined }));
+  const done = run("rename", "work", "office");
+  assert.equal(done.code, 0, done.err);
+  assert.equal(existsSync(home), false, "the dead session was finished and removed first");
+  assert.equal(existsSync(join(agentDir, "profiles", "office")), true);
 });

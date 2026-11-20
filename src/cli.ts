@@ -1,5 +1,6 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, type Env } from "./auth-sync.ts";
+import { renameProfile } from "./rename.ts";
 import { runEmailCommand } from "./settings.ts";
 import { assertSharedSettingsReadable, buildSessionHome, ensureBaseDir, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
 import { realpathSync } from "node:fs";
@@ -15,7 +16,8 @@ export const USAGE = [
   "  gentle-accounts current                         print the active profile",
   "  gentle-accounts create <name>                   create an empty profile",
   "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
-  "  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on",
+  "  gentle-accounts rename <old> <new>              rename a profile (its logins move with it)",
+  "  gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)",
   "  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email",
   "  gentle-accounts --help                          show this help",
 ].join("\n");
@@ -103,7 +105,18 @@ export function runCli(argv: string[], deps: CliDeps): number | Promise<number> 
       return 1;
     }
   }
-  if (first === "startup") {
+  if (first === "rename") {
+    const [third, ...extra] = rest;
+    if (!second || !third || extra.length) {
+      stderr(USAGE);
+      return 1;
+    }
+    // No `env`: this is its own process, there is no session whose CLAUDE_CONFIG_DIR has to follow the folder.
+    const result = renameProfile(store, second, third, { baseDir: deps.sessionBaseDir, isAlive: deps.isAlive });
+    (result.ok ? stdout : stderr)(result.message);
+    return result.ok ? 0 : 1;
+  }
+  if (first === "session" || first === "startup") {
     const result = runStartupCommand(store, second ?? "");
     (result.ok ? stdout : stderr)(result.message);
     return result.ok ? 0 : 1;

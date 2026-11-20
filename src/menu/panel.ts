@@ -1,5 +1,5 @@
 import { decodeKey } from "./keys.ts";
-import { renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
+import { canOpenProject, menuHits, renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
 
 /** Tagged result of one panel opening; `profile`/`row` let the caller reopen on the same selection. */
 export type MenuAction =
@@ -7,18 +7,38 @@ export type MenuAction =
   | { type: "login"; profile: string; provider: string; row: number }
   | { type: "create"; profile?: string; row: number }
   | { type: "delete"; profile: string; row: number }
+  | { type: "rename"; profile: string; row: number }
   | { type: "startup"; profile: string; row: number }
   | { type: "email"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
   | { type: "close" };
+
+/**
+ * The part of pi-tui's `TuiMouseEvent` the panel reads (declared here because pi-tui is not resolvable from this
+ * package under tests). pi only delivers mouse events in fullscreen mode; coordinates are local to the panel.
+ */
+export interface PanelMouseEvent {
+  type: string;
+  button: string;
+  x: number;
+  y: number;
+  width: number;
+  wheelDelta?: number;
+  clickCount?: number;
+}
+
+export interface PanelMouseResult {
+  handled?: boolean;
+  render?: boolean;
+}
 
 export interface PanelOptions {
   requestRender?: () => void;
 }
 
 /**
- * Overlay component of the accounts menu. Tabs (profiles) wrap around; rows (profile row, then providers)
- * clamp at both ends; switching tab keeps the row when the new profile has it. Every action ends the panel
+ * Overlay component of the accounts menu. The profile list wraps around with up/down; right expands the
+ * selected profile's providers (rows 1..n, clamped), left collapses back to the profile row (0). Every action ends the panel
  * through `done` exactly once; the caller loop executes it and reopens the panel.
  */
 export class AccountsMenuPanel {
@@ -62,15 +82,58 @@ export class AccountsMenuPanel {
     this.done(action);
   }
 
-  private moveTab(delta: number): void {
+  /** Up or down: profiles on the profile row, providers while they are open. */
+  private step(delta: number): void {
+    if (this.row === 0) this.moveProfile(delta);
+    else this.moveRow(delta);
+  }
+
+  /** Enter: switch on a profile, log in on a provider. */
+  private activate(): void {
+    const profile = this.model.profiles[this.selected];
+    if (!profile) return;
+    if (this.row === 0) return this.finish({ type: "switch", profile: profile.name, row: this.row });
+    return this.finish({ type: "login", profile: profile.name, provider: profile.providers[this.row - 1].provider, row: this.row });
+  }
+
+  /**
+   * Fullscreen mouse: a left click selects the profile or provider under the pointer, a double click acts like
+   * Enter, the wheel moves like up and down. Anything else on the panel is swallowed; the keyboard keeps working.
+   */
+  handleMouse(event: PanelMouseEvent): PanelMouseResult | undefined {
+    if (this.finished) return undefined;
+    if (event.type === "wheel") {
+      if (!event.wheelDelta) return undefined;
+      this.step(event.wheelDelta < 0 ? -1 : 1);
+      this.invalidate();
+      return { handled: true };
+    }
+    // pi only synthesizes the click on release when the press was handled by the same component: an unhandled
+    // press starts a text selection in the chat instead, and no click ever arrives.
+    if (event.type === "press" && event.button === "left") return { handled: true, render: false };
+    if (event.type !== "click" || event.button !== "left") return undefined;
+    // The frame and its padding (two cells on each side) are not rows: swallow the click without selecting.
+    if (event.x < 2 || event.x > event.width - 3) return { handled: true };
+    const hit = menuHits({ ...this.model, selected: this.selected, row: this.row }, event.width)[event.y];
+    if (!hit) return { handled: true };
+    // A double click acts only on what the first click already selected. The first click can move the layout (it
+    // closes the providers of the previously selected profile), so the same cell may now be another row: select it.
+    const sameRow = hit.profile === this.selected && hit.row === this.row;
+    this.selected = hit.profile;
+    this.row = hit.row;
+    this.invalidate();
+    if ((event.clickCount ?? 1) >= 2 && sameRow) this.activate();
+    return { handled: true };
+  }
+
+  private moveProfile(delta: number): void {
     const count = this.model.profiles.length;
     if (count < 2) return;
     this.selected = (this.selected + delta + count) % count;
-    this.row = Math.min(this.row, this.rowCount() - 1);
   }
 
   private moveRow(delta: number): void {
-    this.row = Math.min(Math.max(0, this.row + delta), this.rowCount() - 1);
+    this.row = Math.min(Math.max(1, this.row + delta), this.rowCount() - 1);
   }
 
   handleInput(data: string): void {
@@ -86,24 +149,24 @@ export class AccountsMenuPanel {
         return this.finish({ type: "close" });
       case "left":
       case "char:h":
-        this.moveTab(-1);
+        if (this.row === 0) return;
+        this.row = 0;
         break;
       case "right":
       case "char:l":
-        this.moveTab(1);
+        if (this.row > 0 || !profile?.providers.length) return;
+        this.row = 1;
         break;
       case "up":
       case "char:k":
-        this.moveRow(-1);
+        this.step(-1);
         break;
       case "down":
       case "char:j":
-        this.moveRow(1);
+        this.step(1);
         break;
       case "enter":
-        if (!profile || !name) return;
-        if (row === 0) return this.finish({ type: "switch", profile: name, row });
-        return this.finish({ type: "login", profile: name, provider: profile.providers[row - 1].provider, row });
+        return this.activate();
       case "char:n":
         return this.finish(name ? { type: "create", profile: name, row } : { type: "create", row });
       case "char:e":
@@ -114,8 +177,12 @@ export class AccountsMenuPanel {
       case "char:s":
         if (name) return this.finish({ type: "startup", profile: name, row });
         return;
+      case "char:r":
+        if (name) return this.finish({ type: "rename", profile: name, row });
+        return;
       case "char:o":
-        if (name) return this.finish({ type: "open", profile: name, row });
+        // Only on a logged-in provider row, as the key hint says.
+        if (name && canOpenProject({ profiles: this.model.profiles, selected: this.selected, row })) return this.finish({ type: "open", profile: name, row });
         return;
       default:
         return;
