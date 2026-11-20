@@ -144,7 +144,7 @@ test("S16: a legacy claude-dir equal to <home>/.claude is treated as the system 
   }
 });
 
-test("S27: startup profile get/set/clear under <profilesDir>/startup", () => {
+test("S27: session profile get/set/clear under <profilesDir>/startup", () => {
   const { store, agentDir } = tempStore();
   assert.equal(store.startupPath, join(agentDir, "profiles", "startup"));
   assert.equal(store.startup(), null);
@@ -174,7 +174,7 @@ test("S27: startup() is null for empty, invalid or deleted-profile content", () 
   }
 });
 
-test("S27: delete refuses the startup profile after the missing and active checks", () => {
+test("S27: delete refuses the session profile after the missing and active checks", () => {
   const { store } = tempStore();
   store.create("work");
   store.create("personal");
@@ -184,7 +184,7 @@ test("S27: delete refuses the startup profile after the missing and active check
   assert.throws(() => store.delete("work"), { message: 'Cannot delete the active profile "work". Switch to another profile first.' });
   store.setCurrent("personal");
   assert.throws(() => store.delete("work"), {
-    message: 'Cannot delete the startup profile "work". Set another one or clear it with "startup last" first.',
+    message: 'Cannot delete the session profile "work". Set another one or clear it with "session last" first.',
   });
   assert.deepEqual(store.list(), ["personal", "work"]);
   store.clearStartup();
@@ -264,7 +264,7 @@ test("S30: create reports an existing profile created by another session in betw
 
 test("T22: create refuses subcommand names with the reserved-word message and creates nothing", () => {
   const store = new ProfileStore(mkdtempSync(join(tmpdir(), "gentle-accounts-store-")));
-  for (const name of ["menu", "list", "current", "create", "delete", "login", "startup", "email", "help"]) {
+  for (const name of ["menu", "list", "current", "create", "delete", "login", "session", "startup", "email", "help"]) {
     assert.throws(() => store.create(name), { message: `"${name}" is a reserved word (it is a subcommand). Pick another profile name.` });
     assert.equal(existsSync(store.profileDir(name)), false);
   }

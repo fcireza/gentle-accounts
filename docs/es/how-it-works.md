@@ -23,7 +23,7 @@ profiles/
 ```
 
 - `profiles/current` guarda el nombre del perfil activo. Un nombre que no corresponde a un perfil existente equivale a no tener perfil activo.
-- `profiles/startup` guarda el nombre del perfil de inicio; lo escribe `startup <name>` y lo borra `startup last`. Si no existe, o nombra un perfil que ya no existe, las sesiones nuevas empiezan en el último perfil usado.
+- `profiles/startup` guarda el nombre del perfil de sesión; lo escribe `session <name>` y lo borra `session last`. Si no existe, o nombra un perfil que ya no existe, las sesiones nuevas empiezan en el último perfil usado.
 - `<name>/claude/` es el `CLAUDE_CONFIG_DIR` del perfil, la carpeta donde Claude Code guarda el inicio de sesión de ese perfil. pi-claude-bridge lee `CLAUDE_CONFIG_DIR` del entorno del proceso.
 - `<name>/auth.json` guarda las entradas cubiertas del perfil, con el formato del `auth.json` de pi. Cubiertas son `openai-codex`, `anthropic` y cualquier otro proveedor cuya entrada sea `"type": "oauth"`; los proveedores con clave de API (como `google`) quedan globales y nunca se mueven. Una carpeta sin `auth.json` no es un perfil.
 - `claude-default` es un marcador vacío: el perfil usa la carpeta predeterminada de Claude Code y `CLAUDE_CONFIG_DIR` debe quedar sin definir.
@@ -31,11 +31,11 @@ profiles/
 
 Todas las rutas se construyen con las funciones de `path` de Node, así que la misma estructura funciona en Linux, macOS y Windows.
 
-## El perfil de inicio al iniciar la sesión
+## El perfil de sesión al iniciar la sesión
 
-Al iniciar la sesión, la extensión primero crea `default` si no hay un perfil activo, o aplica el `CLAUDE_CONFIG_DIR` del perfil activo. Luego, si hay un perfil de inicio definido y no es el activo, cambia a él con el mismo cambio seguro que `/gentle:accounts <name>`: lee todos los archivos antes de escribir alguno, guarda las credenciales cubiertas del perfil que deja y define o elimina `CLAUDE_CONFIG_DIR` (eliminado para `default`). Después muestra `Started on profile "<name>" (startup profile).`. Si el perfil de inicio ya es el activo, nada cambia. Si no puede leer un archivo, muestra `gentle-accounts: <message>` (error), nada cambia y la sesión sigue funcionando con el último perfil usado.
+Al iniciar la sesión, la extensión primero crea `default` si no hay un perfil activo, o aplica el `CLAUDE_CONFIG_DIR` del perfil activo. Luego, si hay un perfil de sesión definido y no es el activo, cambia a él con el mismo cambio seguro que `/gentle:accounts <name>`: lee todos los archivos antes de escribir alguno, guarda las credenciales cubiertas del perfil que deja y define o elimina `CLAUDE_CONFIG_DIR` (eliminado para `default`). Después muestra `Started on profile "<name>" (session profile).`. Si el perfil de sesión ya es el activo, nada cambia. Si no puede leer un archivo, muestra `gentle-accounts: <message>` (error), nada cambia y la sesión sigue funcionando con el último perfil usado.
 
-El cambio al perfil de inicio se omite si `GENTLE_ACCOUNTS_LAUNCH_PROFILE` está definida (no vacía): el launcher la define al iniciar gentle-shell con `gentle-accounts <name>`, que ya cambió a `<name>`. Si `profiles/startup` nombra un perfil que ya no existe, al iniciar la sesión se muestra `Startup profile "<name>" does not exist; starting on the last used profile.` (advertencia) y nada cambia. El cambio al perfil de inicio solo ocurre cuando pi arranca. No se ejecuta en `/new`, `/resume`, `/fork` ni `/reload`, así que un perfil al que cambió a mano sigue activo.
+El cambio al perfil de sesión se omite si `GENTLE_ACCOUNTS_LAUNCH_PROFILE` está definida (no vacía): el launcher la define al iniciar gentle-shell con `gentle-accounts <name>`, que ya cambió a `<name>`. Si `profiles/startup` nombra un perfil que ya no existe, al iniciar la sesión se muestra `Session profile "<name>" does not exist; starting on the last used profile.` (advertencia) y nada cambia. El cambio al perfil de sesión solo ocurre cuando pi arranca. No se ejecuta en `/new`, `/resume`, `/fork` ni `/reload`, así que un perfil al que cambió a mano sigue activo.
 
 ### Una cuenta distinta en cada sesión
 
@@ -49,7 +49,7 @@ Una sesión iniciada con `gentle-accounts <name>` recibe en cambio su propia car
 4. Ejecuta `gentle-shell --home <home>` con `GENTLE_SHELL_NO_AUTO_SETUP=1`, `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` y el `CLAUDE_CONFIG_DIR` del perfil.
 5. Cuando gentle-shell termina (con cualquier código, con Ctrl+C o con una señal de cierre), el launcher copia las entradas cubiertas de la sesión de vuelta al perfil y elimina la carpeta sin seguir enlaces. El siguiente inicio también limpia las carpetas cuyos procesos del launcher y de gentle-shell ya no existen.
 
-Dentro de esa sesión, la extensión lee los perfiles de la carpeta del agente compartida, pero las credenciales vivas son el `auth.json` de la carpeta privada y el perfil actual de la sesión se guarda en ella (`.gentle-accounts-current`), nunca en `profiles/current`. Un cambio de perfil dentro de la sesión solo afecta a esa sesión. El perfil de inicio no se aplica allí; el menú muestra el modo `session home`.
+Dentro de esa sesión, la extensión lee los perfiles de la carpeta del agente compartida, pero las credenciales vivas son el `auth.json` de la carpeta privada y el perfil actual de la sesión se guarda en ella (`.gentle-accounts-current`), nunca en `profiles/current`. Un cambio de perfil dentro de la sesión solo afecta a esa sesión. El perfil de sesión no se aplica allí; el menú muestra el modo `session home`.
 
 Al copiar las credenciales de vuelta, o al guardarlas en un cambio de perfil, gana el inicio de sesión más reciente de cada proveedor: se conserva la entrada OAuth que vence más tarde, así que una sesión que termina después nunca sobrescribe un token que otra sesión renovó.
 
@@ -90,20 +90,13 @@ Así que `default` recibe el marcador `claude-default` y la variable se elimina 
 
 La extensión muestra la cuenta con `setStatus` de pi, bajo la clave `gentle-accounts`. Gentle Shell la muestra en su barra de estado y en la barra lateral.
 
-- Con sesión: `👤 gentle-accounts: <profile> · <masked email>`, por ejemplo `👤 gentle-accounts: work · mari****@company.com`. De forma predeterminada el correo está oculto (enmascarado); con `/gentle:accounts email show` la dirección completa aparece en el mismo lugar, por ejemplo `👤 gentle-accounts: work · maria.lopez@company.com`.
+- Con sesión: `👤 gentle-accounts: <profile>`, por ejemplo `👤 gentle-accounts: work`. De forma predeterminada el correo está oculto y no se muestra en absoluto; con `/gentle:accounts email show` la dirección completa aparece después del perfil, por ejemplo `👤 gentle-accounts: work · maria.lopez@company.com`.
 - Sin sesión: `🔒 gentle-accounts: <profile> · not logged in`, por ejemplo `🔒 gentle-accounts: work · not logged in`.
 
 El ícono distingue los dos estados de un vistazo: `👤` indica que se detectó un inicio de sesión de Claude para el perfil y `🔒` que no se detectó.
 - Sin perfil activo: el estado se borra.
 
-Máscara del correo: se conservan los primeros `min(4, max(1, len-3))` caracteres de la parte anterior a `@`, luego `****`, luego el `@domain` sin cambios. Ejemplos calculados con `maskEmail`:
-
-| Correo | Se muestra como |
-| --- | --- |
-| `maria.lopez@company.com` | `mari****@company.com` |
-| `ab@x.com` | `a****@x.com` |
-| `abcde@x.com` | `ab****@x.com` |
-| `no-at-sign` | `****` |
+Visualización del correo: mientras está oculto no aparece ningún correo en ninguna parte, ni siquiera enmascarado; solo `showEmail` en `true` muestra la dirección completa.
 
 Detección:
 
@@ -120,7 +113,7 @@ Codex no muestra correo, porque pi solo guarda un identificador de cuenta opaco 
 
 ## Seguridad
 
-- Los tokens nunca se imprimen: el estado y las notificaciones solo usan el nombre del perfil y el correo enmascarado; el correo completo aparece solo en la barra de estado, y solo después de `/gentle:accounts email show`. Si está visible, cualquier persona que vea su pantalla puede leerlo.
+- Los tokens nunca se imprimen: el estado y las notificaciones solo usan el nombre del perfil; el correo completo aparece solo en la barra de estado, y solo después de `/gentle:accounts email show`. Si está visible, cualquier persona que vea su pantalla puede leerlo.
 - `profiles/settings.json` se escribe con permisos `0600`.
 - Los archivos de credenciales, `profiles/current` y `profiles/startup` se escriben con permisos `0600`.
 - Nada sale de su equipo: el paquete solo lee y escribe archivos locales y ejecuta la CLI `claude` local. No hace solicitudes de red propias; `claude auth login` y el `/login` de pi hablan con sus proveedores como siempre.

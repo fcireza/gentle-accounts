@@ -8,7 +8,7 @@ Several Claude, Codex and Anthropic accounts in Gentle Shell and pi, with one co
 
 > **Formerly gentle-profiles.** The `/profile` command is now `/gentle:accounts`.
 
-![Gentle Shell status bar showing the active profile and its masked account](assets/hero-status-bar.svg)
+![Gentle Shell status bar showing the active profile and its profile](assets/hero-status-bar.svg)
 
 The images are illustrations built from the program's real messages, not screenshots.
 
@@ -36,9 +36,9 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 1. Create a profile: `/gentle:accounts create work`
 2. Switch to it: `/gentle:accounts work`
-3. Log in: open the menu with `/gentle:accounts`, pick the provider row and press Enter. Claude logs in in a new terminal tab, in the same terminal, or by showing the command; Codex and Anthropic use pi's `/login`.
-4. Check the account: `/gentle:accounts current`. The status bar shows `👤 gentle-accounts: work · mari****@company.com` (`🔒` and `not logged in` when there is no login). The email is masked by default; `/gentle:accounts email show` shows it in full (visible to anyone who sees your screen).
-5. Optional: `/gentle:accounts startup work` makes new sessions start on `work`; `/gentle:accounts startup last` goes back to the last used profile.
+3. Log in: open the menu with `/gentle:accounts`, pick the profile, press `→` to open its providers, choose the provider row and press Enter. Claude logs in in a new terminal tab, in the same terminal, or by showing the command; Codex and Anthropic use pi's `/login`.
+4. Check the account: `/gentle:accounts current`. The status bar shows `👤 gentle-accounts: work` (`🔒` and `not logged in` when there is no login). The email is hidden by default and shown nowhere; `/gentle:accounts email show` shows it in full (visible to anyone who sees your screen).
+5. Optional: `/gentle:accounts session work` makes new sessions start on `work`; `/gentle:accounts session last` goes back to the last used profile.
 
 ![Listing profiles and switching with /gentle:accounts](assets/workflow-switch.svg)
 
@@ -48,7 +48,7 @@ From a terminal, `gentle-accounts login <profile>` runs the Claude login directl
 
 ## Accounts menu
 
-`/gentle:accounts menu` (or just `/gentle:accounts`) opens a panel with one tab per profile: `◉` active in this session, `★` startup profile, and `●`/`○` per provider. Keys: `←` `→` profile, `↑` `↓` row, `Enter` switch or log in, `n` new, `d` delete, `s` startup, `e` email, `o` open the project with that profile in a new tab, `Esc` close.
+`/gentle:accounts menu` (or just `/gentle:accounts`) opens a panel that lists the profiles: `●` active in this session, `○` the others, `★` session profile. Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `d` delete, `s` session, `e` email, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close.
 
 ## A different account per session
 
@@ -118,7 +118,7 @@ For details, updating, removing or dropping the old package, see [Installation](
 | `/gentle:accounts create <name>` | Creates an empty profile. |
 | `/gentle:accounts delete <name>` | Deletes a profile after confirmation. |
 | `/gentle:accounts login claude` | Shows the Claude login command for the active profile. |
-| `/gentle:accounts startup [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
+| `/gentle:accounts session [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
 | `/gentle:accounts email [show\|hide]` | Shows or sets whether the status bar shows the full email. |
 | `/gentle:accounts help` | Shows the command list. |
 
@@ -129,7 +129,7 @@ For details, updating, removing or dropping the old package, see [Installation](
 | `gentle-accounts current` | Shows the active profile. |
 | `gentle-accounts create <name>` | Creates an empty profile. |
 | `gentle-accounts login <name>` | Runs `claude auth login` for that profile. |
-| `gentle-accounts startup [<name>\|last]` | Same as `/gentle:accounts startup`. |
+| `gentle-accounts session [<name>\|last]` | Same as `/gentle:accounts session`. |
 | `gentle-accounts email [show\|hide]` | Same as `/gentle:accounts email`. |
 | `gentle-accounts --help` | Shows the command list. |
 

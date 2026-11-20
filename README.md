@@ -10,7 +10,7 @@ Varias cuentas de Claude, Codex y Anthropic en Gentle Shell y pi, con un solo co
 
 > **Antes se llamaba gentle-profiles.** El comando `/profile` ahora es `/gentle:accounts`.
 
-![Barra de estado de Gentle Shell con el perfil activo y su cuenta enmascarada](assets/hero-status-bar.svg)
+![Barra de estado de Gentle Shell con el perfil activo y su perfil](assets/hero-status-bar.svg)
 
 Las imágenes son ilustraciones construidas con los mensajes reales del programa, no capturas de pantalla.
 
@@ -38,9 +38,9 @@ gentle-shell -- install git:github.com/fcireza/gentle-accounts
 
 1. Crear un perfil: `/gentle:accounts create work`
 2. Cambiar a ese perfil: `/gentle:accounts work`
-3. Iniciar sesión: abrir el menú con `/gentle:accounts`, elegir la fila del proveedor y presionar Enter. Claude inicia sesión en una pestaña nueva de la terminal, en la misma terminal o mostrando el comando; Codex y Anthropic usan el `/login` de pi.
-4. Comprobar la cuenta: `/gentle:accounts current`. La barra de estado muestra `👤 gentle-accounts: work · mari****@company.com` (`🔒` y `not logged in` si no hay sesión). El correo aparece enmascarado de forma predeterminada; `/gentle:accounts email show` lo muestra completo (visible para cualquiera que vea su pantalla).
-5. Opcional: `/gentle:accounts startup work` hace que las sesiones nuevas empiecen en `work`; `/gentle:accounts startup last` vuelve al último perfil usado.
+3. Iniciar sesión: abrir el menú con `/gentle:accounts`, elegir el perfil, presionar `→` para abrir sus proveedores, elegir la fila del proveedor y presionar Enter. Claude inicia sesión en una pestaña nueva de la terminal, en la misma terminal o mostrando el comando; Codex y Anthropic usan el `/login` de pi.
+4. Comprobar la cuenta: `/gentle:accounts current`. La barra de estado muestra `👤 gentle-accounts: work` (`🔒` y `not logged in` si no hay sesión). El correo está oculto de forma predeterminada y no se muestra en ninguna parte; `/gentle:accounts email show` lo muestra completo (visible para cualquiera que vea su pantalla).
+5. Opcional: `/gentle:accounts session work` hace que las sesiones nuevas empiecen en `work`; `/gentle:accounts session last` vuelve al último perfil usado.
 
 ![Listar perfiles y cambiar de perfil con /gentle:accounts](assets/workflow-switch.svg)
 
@@ -50,7 +50,7 @@ Desde una terminal, `gentle-accounts login <profile>` ejecuta directamente el in
 
 ## Menú de cuentas
 
-`/gentle:accounts menu` (o simplemente `/gentle:accounts`) abre un panel con una pestaña por perfil: `◉` activo en esta sesión, `★` perfil de inicio y `●`/`○` por proveedor. Teclas: `←` `→` perfil, `↑` `↓` fila, `Enter` cambiar o iniciar sesión, `n` nuevo, `d` borrar, `s` inicio, `e` correo, `o` abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar.
+`/gentle:accounts menu` (o simplemente `/gentle:accounts`) abre un panel que lista los perfiles: `●` activo en esta sesión, `○` los demás y `★` perfil de sesión. Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `d` borrar, `s` inicio, `e` correo, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar.
 
 ## Una cuenta distinta en cada sesión
 
@@ -120,7 +120,7 @@ Para más detalles, actualizar, desinstalar o quitar el paquete anterior, consul
 | `/gentle:accounts create <name>` | Crea un perfil vacío. |
 | `/gentle:accounts delete <name>` | Elimina un perfil, previa confirmación. |
 | `/gentle:accounts login claude` | Muestra el comando de inicio de sesión en Claude del perfil activo. |
-| `/gentle:accounts startup [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
+| `/gentle:accounts session [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
 | `/gentle:accounts email [show\|hide]` | Muestra o define si la barra de estado muestra el correo completo. |
 | `/gentle:accounts help` | Muestra la lista de comandos. |
 
@@ -131,7 +131,7 @@ Para más detalles, actualizar, desinstalar o quitar el paquete anterior, consul
 | `gentle-accounts current` | Muestra el perfil activo. |
 | `gentle-accounts create <name>` | Crea un perfil vacío. |
 | `gentle-accounts login <name>` | Ejecuta `claude auth login` para ese perfil. |
-| `gentle-accounts startup [<name>\|last]` | Igual que `/gentle:accounts startup`. |
+| `gentle-accounts session [<name>\|last]` | Igual que `/gentle:accounts session`. |
 | `gentle-accounts email [show\|hide]` | Igual que `/gentle:accounts email`. |
 | `gentle-accounts --help` | Muestra la lista de comandos. |
 

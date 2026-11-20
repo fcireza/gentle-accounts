@@ -58,11 +58,11 @@ test("S29: set creates the folder, preserves other keys, writes atomically with 
 
 test("S29: runEmailCommand shows, sets and rejects with the exact messages", () => {
   const { path } = tmp();
-  assert.deepEqual(runEmailCommand("", path, "/gentle:accounts"), { message: "Email display: hidden (masked in the status bar)", type: "info", changed: false });
+  assert.deepEqual(runEmailCommand("", path, "/gentle:accounts"), { message: "Email display: hidden (not shown in the status bar)", type: "info", changed: false });
   assert.equal(existsSync(path), false);
   assert.deepEqual(runEmailCommand("show", path, "/gentle:accounts"), { message: "Email display set to shown. The status bar shows the full email.", type: "info", changed: true });
   assert.deepEqual(runEmailCommand("", path, "/gentle:accounts"), { message: "Email display: shown (full email in the status bar)", type: "info", changed: false });
-  assert.deepEqual(runEmailCommand("hide", path, "/gentle:accounts"), { message: "Email display set to hidden. The status bar shows a masked email.", type: "info", changed: true });
+  assert.deepEqual(runEmailCommand("hide", path, "/gentle:accounts"), { message: "Email display set to hidden. The status bar does not show the email.", type: "info", changed: true });
   assert.equal(getShowEmail(path), false);
   const before = readFileSync(path, "utf8");
   assert.deepEqual(runEmailCommand("maybe", path, "/gentle:accounts"), { message: "Usage: /gentle:accounts email [show|hide]", type: "warning", changed: false });

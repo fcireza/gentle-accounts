@@ -31,9 +31,9 @@ export interface MenuModel {
   mode: "session home" | "global";
   showEmail: boolean;
   profiles: MenuProfile[];
-  /** Index of the selected profile tab (0 when there are no profiles). */
+  /** Index of the selected profile in the list (0 when there are no profiles). */
   selected: number;
-  /** 0 is the profile row ("switch"); 1..n are the provider rows. */
+  /** 0 is the profile row ("switch", providers collapsed); 1..n are the provider rows of the expanded profile. */
   row: number;
   feedback?: Feedback;
 }
@@ -191,44 +191,40 @@ function bold(theme: MenuTheme, text: string): string {
   return theme.bold ? theme.bold(text) : text;
 }
 
-function tabLabel(p: MenuProfile, compact: boolean): string {
-  const name = truncateToWidth(p.name, compact ? 12 : 18);
-  return `${p.active ? "◉ " : ""}${name}${p.startup ? " ★" : ""}`;
-}
-
-/** One line of tabs that always shows the selected one, with `‹`/`›` when tabs are hidden on a side. */
-function tabStrip(model: MenuModel, inner: number, theme: MenuTheme, compact: boolean): string {
-  if (!model.profiles.length) return theme.fg("muted", "no profiles yet: press n to create one");
-  const labels = model.profiles.map((p, i) => (i === model.selected ? `[${tabLabel(p, compact)}]` : ` ${tabLabel(p, compact)} `));
-  const widths = labels.map(visibleWidth);
-  const gap = 1;
-  let start = model.selected;
-  let end = model.selected + 1;
-  const used = () => widths.slice(start, end).reduce((a, b) => a + b, 0) + (end - start - 1) * gap + (start > 0 ? 2 : 0) + (end < labels.length ? 2 : 0);
-  for (;;) {
-    let grew = false;
-    if (end < labels.length) {
-      end += 1;
-      if (used() <= inner) grew = true;
-      else end -= 1;
-    }
-    if (start > 0) {
-      start -= 1;
-      if (used() <= inner) grew = true;
-      else start += 1;
-    }
-    if (!grew) break;
-  }
-  const parts = labels.slice(start, end).map((label, k) => {
-    const i = start + k;
-    if (i === model.selected) return theme.fg("accent", bold(theme, label));
-    return theme.fg(model.profiles[i].active ? "text" : "muted", label);
-  });
-  return `${start > 0 ? theme.fg("dim", "‹ ") : ""}${parts.join(" ")}${end < labels.length ? theme.fg("dim", " ›") : ""}`;
-}
-
 function shortLabel(label: string): string {
   return label.replace(/ \(claude-bridge\)$/, "");
+}
+
+/** Profiles listed at once; the list scrolls around the selected one beyond this. */
+const MAX_LISTED = 8;
+
+/** One profile row of the list: pointer, active dot, name, startup star and a summary of its logged-in providers. */
+function profileLine(model: MenuModel, index: number, nameWidth: number, theme: MenuTheme): string {
+  const p = model.profiles[index];
+  const selected = index === model.selected;
+  const pointer = selected ? theme.fg("accent", model.row === 0 ? "▸ " : "▾ ") : "  ";
+  const dot = p.active ? theme.fg("success", "●") : theme.fg("dim", "○");
+  const name = fit(truncateToWidth(p.name, nameWidth), nameWidth);
+  const nameColor = selected ? "accent" : p.active ? "text" : "muted";
+  const star = p.startup ? theme.fg("warning", "★") : " ";
+  const logged = p.providers.filter((x) => x.loggedIn).map((x) => shortLabel(x.label));
+  const summary = logged.length ? theme.fg("muted", logged.join(" · ")) : theme.fg("warning", "not logged in");
+  const active = p.active ? `  ${theme.fg("success", "active")}` : "";
+  return `${pointer}${dot} ${selected ? theme.fg(nameColor, bold(theme, name)) : theme.fg(nameColor, name)} ${star}  ${summary}${active}`;
+}
+
+/** The provider rows shown under the expanded profile: log in on Enter. */
+function providerLines(model: MenuModel, compact: boolean, theme: MenuTheme): string[] {
+  const profile = model.profiles[model.selected];
+  const labelWidth = compact ? 0 : Math.max(...profile.providers.map((p) => visibleWidth(p.label))) + 2;
+  return profile.providers.map((p, k) => {
+    const row = k + 1;
+    const pointer = row === model.row ? theme.fg("accent", "▸ ") : "  ";
+    const dot = p.loggedIn ? theme.fg("success", "●") : theme.fg("dim", "○");
+    const state = p.loggedIn ? `logged in${model.showEmail && p.email ? ` · ${clean(p.email)}` : ""}` : "not logged in";
+    const label = compact ? shortLabel(p.label) : p.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(p.label)));
+    return `    ${pointer}${dot} ${theme.fg(row === model.row ? "accent" : "text", label)}${compact ? " " : ""}${theme.fg(p.loggedIn ? "success" : "muted", state)}`;
+  });
 }
 
 function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): string[] {
@@ -239,34 +235,33 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): string[] 
     : `${model.title} · accounts   mode: ${model.mode} · email: ${model.showEmail ? "shown" : "hidden"}`;
   lines.push(theme.fg("accent", bold(theme, header)));
   if (compact) lines.push(theme.fg("muted", `email: ${model.showEmail ? "shown" : "hidden"}`));
-  lines.push(tabStrip(model, inner, theme, compact));
   lines.push(theme.fg("border", "─".repeat(inner)));
-  const profile = model.profiles[model.selected];
-  if (profile) {
-    const pointer = (row: number) => (row === model.row ? theme.fg("accent", "▸ ") : "  ");
-    const markers = [profile.active ? "◉ active" : "", profile.startup ? "★ startup" : ""].filter(Boolean).join(" · ");
-    const switchText = profile.active ? `Profile "${profile.name}"` : `Switch to "${profile.name}"`;
-    lines.push(`${pointer(0)}${theme.fg(model.row === 0 ? "accent" : "text", switchText)}${markers ? theme.fg("muted", ` (${markers})`) : ""}`);
-    const labelWidth = compact ? 0 : Math.max(...profile.providers.map((p) => visibleWidth(p.label))) + 2;
-    profile.providers.forEach((p, k) => {
-      const row = k + 1;
-      const dot = p.loggedIn ? theme.fg("success", "●") : theme.fg("dim", "○");
-      const state = p.loggedIn ? `logged in${p.email ? ` · ${clean(p.email)}` : ""}` : "not logged in";
-      const label = compact ? shortLabel(p.label) : p.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(p.label)));
-      const text = `${dot} ${theme.fg(row === model.row ? "accent" : "text", label)}${compact ? " " : ""}${theme.fg(p.loggedIn ? "success" : "muted", state)}`;
-      lines.push(`${pointer(row)}${text}`);
-    });
+  if (!model.profiles.length) {
+    lines.push(theme.fg("muted", "no profiles yet: press n to create one"));
+  } else {
+    const count = model.profiles.length;
+    const start = Math.min(Math.max(0, model.selected - Math.floor(MAX_LISTED / 2)), Math.max(0, count - MAX_LISTED));
+    const end = Math.min(count, start + MAX_LISTED);
+    const nameWidth = Math.min(compact ? 12 : 18, Math.max(...model.profiles.map((p) => visibleWidth(p.name))));
+    if (start > 0) lines.push(theme.fg("dim", `  ↑ ${start} more`));
+    for (let i = start; i < end; i++) {
+      lines.push(profileLine(model, i, nameWidth, theme));
+      if (i === model.selected && model.row > 0) lines.push(...providerLines(model, compact, theme));
+    }
+    if (end < count) lines.push(theme.fg("dim", `  ↓ ${count - end} more`));
   }
   lines.push("");
   if (model.feedback) {
     const tone = model.feedback.type === "error" ? "error" : model.feedback.type === "warning" ? "warning" : "success";
     for (const line of clean(model.feedback.message.replace(/\r/g, "")).split("\n")) lines.push(theme.fg(tone, line));
   } else {
-    lines.push(theme.fg("dim", compact ? "enter: switch or log in" : "enter: switch on the profile row, log in on a provider row"));
+    lines.push(theme.fg("dim", compact ? "enter: switch or log in" : "enter: switch on a profile, log in on a provider (→ opens its providers)"));
   }
+  // `o` opens the project with the selected profile, so it is offered only on a logged-in provider row.
+  const canOpen = model.row > 0 && model.profiles[model.selected]?.providers[model.row - 1]?.loggedIn === true;
   const hints = compact
-    ? ["←→ profile ↑↓ row ⏎ ok", "n new d del s startup", "e email o open esc close"]
-    : ["←→ profile  ↑↓ row  enter select  n new  d delete  s startup  e email  o open  esc close"];
+    ? ["↑↓ profile →← providers ⏎ ok", "n new d del s session", `e email ${canOpen ? "o open " : ""}esc close`]
+    : ["↑↓ profile  →← providers  enter select  n new  d delete", `s set session  e email${canOpen ? "  o open in tab" : ""}  esc close`];
   for (const hint of hints) lines.push(theme.fg("dim", hint));
   return lines;
 }

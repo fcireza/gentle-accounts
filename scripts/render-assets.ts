@@ -71,20 +71,16 @@ function windowFrame(x: number, y: number, w: number, h: number, title: string):
 
 /** Status/footer bar at the bottom of a window with the real status text, profile part in accent. */
 function statusBar(x: number, y: number, w: number, size: number): string {
-  const status = statusText("work", { email: EXAMPLE_EMAIL });
-  const [label, rest] = status.split(": ");
-  const [profile, account] = rest.split(" · ");
+  const status = statusText("work", { email: "unused@example.com" });
+  const [label, profile] = status.split(": ");
   return [
     `<rect x="${x}" y="${y}" width="${w}" height="${size * 2.4}" fill="${C.base}" stroke="${C.border}" stroke-width="2"/>`,
     line(x + 16, y + size * 1.6, [
       { text: `${label}: `, color: C.muted },
       { text: profile, color: C.accent, bold: true },
-      { text: ` · ${account}`, color: C.text },
     ], size),
   ].join("\n");
 }
-
-const EXAMPLE_EMAIL = "maria.lopez@company.com";
 
 /** Bust glyph: head circle plus closed shoulders (flat bottom, rounded top corners). */
 function bust(cx: number, top: number, attrs: string): string {
@@ -144,7 +140,7 @@ function hero(): string {
   }
   body.push(statusBar(x, y + wh - 52, ww, 20));
   body.push(`<text x="${w / 2}" y="${h - 28}" text-anchor="middle" font-family="${SANS}" font-size="16" fill="${C.muted}">Illustration based on real messages, not a screenshot.</text>`);
-  return svg(w, h, "gentle-accounts status bar in Gentle Shell", `A Gentle Shell style terminal whose footer shows the active profile and the masked account. ${NOT_SCREENSHOT}`, body);
+  return svg(w, h, "gentle-accounts status bar in Gentle Shell", `A Gentle Shell style terminal whose footer shows the active profile and the active profile name only. ${NOT_SCREENSHOT}`, body);
 }
 
 function workflowSwitch(): string {

@@ -23,7 +23,7 @@ profiles/
 ```
 
 - `profiles/current` holds the name of the active profile. A name that does not match an existing profile counts as no active profile.
-- `profiles/startup` holds the startup profile name, written by `startup <name>` and removed by `startup last`. When it is absent, or names a profile that no longer exists, new sessions start on the last used profile.
+- `profiles/startup` holds the session profile name, written by `session <name>` and removed by `session last`. When it is absent, or names a profile that no longer exists, new sessions start on the last used profile.
 - `<name>/claude/` is the profile's `CLAUDE_CONFIG_DIR`, the folder where Claude Code keeps that profile's login. pi-claude-bridge reads `CLAUDE_CONFIG_DIR` from the process environment.
 - `<name>/auth.json` holds the profile's covered entries, in pi's `auth.json` format. Covered means `openai-codex`, `anthropic` and every other provider whose entry is `"type": "oauth"`; API-key providers (such as `google`) stay global and are never moved. A folder without `auth.json` is not a profile.
 - `claude-default` is an empty marker: the profile uses Claude Code's built-in default folder and `CLAUDE_CONFIG_DIR` must be unset.
@@ -31,11 +31,11 @@ profiles/
 
 All paths are built with Node's `path` functions, so the same layout works on Linux, macOS and Windows.
 
-## The startup profile at session start
+## The session profile at session start
 
-At session start the extension first creates `default` when no profile is active, or applies the active profile's `CLAUDE_CONFIG_DIR`. Then, if a startup profile is set and is not the active one, it switches to it with the same safe switch as `/gentle:accounts <name>`: every file is read before any is written, the outgoing profile's covered credentials are saved, and `CLAUDE_CONFIG_DIR` is set or removed (removed for `default`). It then shows `Started on profile "<name>" (startup profile).`. When the startup profile is already active nothing changes. If a file cannot be read, it shows `gentle-accounts: <message>` (error), nothing changes and the session keeps working on the last used profile.
+At session start the extension first creates `default` when no profile is active, or applies the active profile's `CLAUDE_CONFIG_DIR`. Then, if a session profile is set and is not the active one, it switches to it with the same safe switch as `/gentle:accounts <name>`: every file is read before any is written, the outgoing profile's covered credentials are saved, and `CLAUDE_CONFIG_DIR` is set or removed (removed for `default`). It then shows `Started on profile "<name>" (session profile).`. When the session profile is already active nothing changes. If a file cannot be read, it shows `gentle-accounts: <message>` (error), nothing changes and the session keeps working on the last used profile.
 
-The startup switch is skipped when `GENTLE_ACCOUNTS_LAUNCH_PROFILE` is set (not empty): the launcher sets it when it starts gentle-shell with `gentle-accounts <name>`, which already switched to `<name>`. If `profiles/startup` names a profile that no longer exists, session start shows `Startup profile "<name>" does not exist; starting on the last used profile.` (warning) and nothing changes. The startup switch only happens when pi starts. It does not run on `/new`, `/resume`, `/fork` or `/reload`, so a profile you switched to by hand stays active.
+The session profile switch is skipped when `GENTLE_ACCOUNTS_LAUNCH_PROFILE` is set (not empty): the launcher sets it when it starts gentle-shell with `gentle-accounts <name>`, which already switched to `<name>`. If `profiles/startup` names a profile that no longer exists, session start shows `Session profile "<name>" does not exist; starting on the last used profile.` (warning) and nothing changes. The session profile switch only happens when pi starts. It does not run on `/new`, `/resume`, `/fork` or `/reload`, so a profile you switched to by hand stays active.
 
 ### A different account per session
 
@@ -49,7 +49,7 @@ A session started with `gentle-accounts <name>` gets its own private agent home 
 4. It runs `gentle-shell --home <home>` with `GENTLE_SHELL_NO_AUTO_SETUP=1`, `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` and the profile's `CLAUDE_CONFIG_DIR`.
 5. When gentle-shell exits (any exit code, Ctrl+C or a kill signal), the launcher copies the session's covered entries back into the profile and removes the home without following links. The next launch also cleans up homes whose launcher and gentle-shell processes are gone.
 
-Inside such a session the extension reads profiles from the shared agent dir, but the live credentials are the home's `auth.json` and the session's current profile is stored in the home (`.gentle-accounts-current`), never in `profiles/current`. A switch inside the session only changes that session. The startup profile is not applied there; the menu shows the mode `session home`.
+Inside such a session the extension reads profiles from the shared agent dir, but the live credentials are the home's `auth.json` and the session's current profile is stored in the home (`.gentle-accounts-current`), never in `profiles/current`. A switch inside the session only changes that session. The session profile is not applied there; the menu shows the mode `session home`.
 
 When copying credentials back, or saving them on a switch, the freshest login wins per provider: the OAuth entry with the later expiry is kept, so a session that ends later never overwrites a token that another session refreshed.
 
@@ -90,20 +90,13 @@ So `default` gets the `claude-default` marker and the variable is removed while 
 
 The extension shows the account with pi's `setStatus`, under the key `gentle-accounts`. Gentle Shell shows it in its status bar and sidebar.
 
-- Logged in: `👤 gentle-accounts: <profile> · <masked email>`, for example `👤 gentle-accounts: work · mari****@company.com`. The email is hidden (masked) by default; with `/gentle:accounts email show` the full address appears in the same place, for example `👤 gentle-accounts: work · maria.lopez@company.com`.
+- Logged in: `👤 gentle-accounts: <profile>`, for example `👤 gentle-accounts: work`. The email is hidden by default and not shown at all; with `/gentle:accounts email show` the full address appears after the profile, for example `👤 gentle-accounts: work · maria.lopez@company.com`.
 - Not logged in: `🔒 gentle-accounts: <profile> · not logged in`, for example `🔒 gentle-accounts: work · not logged in`.
 
 The icon tells the two states apart at a glance: `👤` means a Claude login was detected for the profile, `🔒` means it was not.
 - No active profile: the status is cleared.
 
-Email mask: keep the first `min(4, max(1, len-3))` characters of the part before `@`, then `****`, then the untouched `@domain`. Examples computed with `maskEmail`:
-
-| Email | Shown as |
-| --- | --- |
-| `maria.lopez@company.com` | `mari****@company.com` |
-| `ab@x.com` | `a****@x.com` |
-| `abcde@x.com` | `ab****@x.com` |
-| `no-at-sign` | `****` |
+Email display: while hidden, no email appears anywhere, not even masked; only `showEmail` set to `true` shows the full address.
 
 Detection:
 
@@ -120,7 +113,7 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 
 ## Security
 
-- Tokens are never printed: the status and notifications only use the profile name and the masked email; the full email appears only in the status bar, and only after `/gentle:accounts email show`. With it shown, anyone who sees your screen can read it.
+- Tokens are never printed: the status and notifications only use the profile name; the full email appears only in the status bar, and only after `/gentle:accounts email show`. With it shown, anyone who sees your screen can read it.
 - `profiles/settings.json` is written with `0600` permissions.
 - Credentials files, `profiles/current` and `profiles/startup` are written with `0600` permissions.
 - Nothing leaves your machine: the package only reads and writes local files and runs the local `claude` CLI. It makes no network requests of its own; `claude auth login` and pi's `/login` talk to their providers as usual.

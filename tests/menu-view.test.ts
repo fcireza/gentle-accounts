@@ -9,7 +9,7 @@ import { buildSessionHome, resolveContext } from "../src/session-home.ts";
 import { COMPACT_WIDTH, buildMenuModel, identityTheme, renderMenu, truncateToWidth, visibleWidth, type MenuModel, type MenuTheme } from "../src/menu/view.ts";
 
 const EMAIL = "maria.lopez@company.com";
-const MASKED = "mari****@company.com";
+
 const TOKEN = "sk-secret-token-123";
 const WIDTHS = [30, 40, 60, 100, 200];
 
@@ -52,7 +52,7 @@ test("S31 view: global model has one entry per profile with active, startup and 
   assert.equal(m.row, 0);
   const [personal, work] = m.profiles;
   assert.deepEqual(personal.providers, [
-    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true, email: MASKED },
+    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true },
     { provider: "openai-codex", label: "Codex", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: true },
   ]);
@@ -74,16 +74,18 @@ test("S31 view: the active profile reuses the cached Claude answer (null = logge
   assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[0].providers[0].email, EMAIL);
 });
 
-test("S31 view: email masked by default, full only when shown; never a token anywhere", () => {
+test("S31 view: email hidden by default, full only when shown; never a token anywhere", () => {
   const hidden = model();
   const shown = model({ showEmail: true });
   assert.equal(shown.showEmail, true);
   assert.equal(shown.profiles[0].providers[0].email, EMAIL);
-  const hiddenText = JSON.stringify(hidden) + WIDTHS.flatMap((w) => renderMenu({ ...hidden, selected: 0 }, w, identityTheme)).join("\n");
+  const hiddenText = JSON.stringify(hidden) + WIDTHS.flatMap((w) => renderMenu({ ...hidden, selected: 0, row: 1 }, w, identityTheme)).join("\n");
   assert.doesNotMatch(hiddenText, /maria\.lopez/);
   assert.doesNotMatch(hiddenText, new RegExp(TOKEN));
-  assert.match(renderMenu({ ...hidden, selected: 0 }, 100).join("\n"), new RegExp(MASKED.replace(/\*/g, "\\*")));
-  const shownText = JSON.stringify(shown) + renderMenu({ ...shown, selected: 0 }, 100).join("\n");
+  const hiddenRender = renderMenu({ ...hidden, selected: 0, row: 1 }, 100).join("\n");
+  assert.match(hiddenRender, /● Claude \(claude-bridge\) {2}logged in\s*│/, "email hidden: nothing after logged in");
+  assert.doesNotMatch(hiddenRender, /mari\*\*\*\*|@company/, "no email at all");
+  const shownText = JSON.stringify(shown) + renderMenu({ ...shown, selected: 0, row: 1 }, 100).join("\n");
   assert.match(shownText, /maria\.lopez@company\.com/);
   assert.doesNotMatch(shownText, new RegExp(TOKEN));
 });
@@ -134,26 +136,35 @@ test("S31 render: every width keeps lines inside the frame with identity and tag
   }
 });
 
-test("S31 render: wide layout shows the title, mode, markers, provider rows, feedback and key hints", () => {
+test("S31 render: wide layout lists the profiles, expands the selected one and shows feedback and key hints", () => {
   const m = { ...model({ showEmail: false }), selected: 0, feedback: { message: "Delete cancelled.", type: "info" as const } };
   const text = renderMenu(m, 100).join("\n");
   assert.match(text, /╭─ gentle-accounts ─/);
   assert.match(text, /gentle-accounts · accounts {3}mode: global · email: hidden/);
-  assert.match(text, /\[personal ★\] {2}◉ work /);
-  assert.match(text, /▸ Switch to "personal" \(★ startup\)/);
-  assert.match(text, /● Claude \(claude-bridge\) {2}logged in · mari\*\*\*\*@company\.com/);
-  assert.match(text, /○ Codex {19}not logged in/);
-  assert.match(text, /● Anthropic {15}logged in/);
+  assert.match(text, /▸ ○ personal ★ {2}Claude · Anthropic/);
+  assert.match(text, /\s{2}● work {4,}Codex {2}active/);
+  assert.doesNotMatch(text, /logged in/, "providers stay collapsed on the profile row");
+  assert.doesNotMatch(text, /mari\*\*\*\*/, "no email on the list");
   assert.match(text, /Delete cancelled\./);
-  assert.match(text, /←→ profile {2}↑↓ row {2}enter select {2}n new {2}d delete {2}s startup {2}e email {2}o open {2}esc close/);
-  const active = renderMenu({ ...m, selected: 1, row: 2 }, 100).join("\n");
-  assert.match(active, /\[◉ work\]/);
-  assert.match(active, /Profile "work" \(◉ active\)/);
-  assert.match(active, /▸ ● Codex/);
+  assert.match(text, /↑↓ profile {2}→← providers {2}enter select {2}n new {2}d delete/);
+  assert.match(text, /s set session {2}e email {2}esc close/);
+  assert.doesNotMatch(text, /o open/, "open is offered only on a logged-in provider row");
+  const open = renderMenu({ ...m, row: 2 }, 100).join("\n");
+  assert.match(open, /▾ ○ personal/);
+  assert.match(open, /● Claude \(claude-bridge\) {2}logged in\s*│/, "no email while the display is hidden");
+  assert.doesNotMatch(open, /o open/, "row 2 (Codex) is not logged in");
+  const onLogged = renderMenu({ ...m, row: 1 }, 100).join("\n");
+  assert.match(onLogged, /s set session {2}e email {2}o open in tab {2}esc close/);
+  const shownEmail = renderMenu({ ...model({ showEmail: true }), selected: 0, row: 1 }, 100).join("\n");
+  assert.match(shownEmail, /logged in · maria\.lopez@company\.com/);
+  assert.match(open, /▸ ○ Codex {19}not logged in/);
+  assert.match(open, /● Anthropic {15}logged in/);
+  const active = renderMenu({ ...m, selected: 1 }, 100).join("\n");
+  assert.match(active, /▸ ● work/);
 });
 
 test("S31 render: compact layout under 50 columns", () => {
-  const m = { ...model(), selected: 0 };
+  const m = { ...model(), selected: 0, row: 1 };
   for (const width of [30, 40, COMPACT_WIDTH - 1]) {
     const text = check(m, width, identityTheme).join("\n");
     assert.match(text, /gentle-accounts · global/);
@@ -164,7 +175,7 @@ test("S31 render: compact layout under 50 columns", () => {
   assert.match(renderMenu(m, COMPACT_WIDTH).join("\n"), /Claude \(claude-bridge\)/);
 });
 
-test("S31 render: many profiles truncate the tab strip and always show the selected tab", () => {
+test("S31 render: many profiles scroll the list and always show the selected one", () => {
   const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-menu-view-many-"));
   const store = new ProfileStore(agentDir);
   for (let i = 0; i < 20; i++) store.create(`profile-${String(i).padStart(2, "0")}`);
@@ -172,10 +183,14 @@ test("S31 render: many profiles truncate the tab strip and always show the selec
   const base = buildMenuModel({ store, liveAuthPath: join(agentDir, "auth.json"), session: false, showEmail: false, homeDir: agentDir });
   for (const width of WIDTHS) {
     for (const selected of [0, 10, 19]) {
-      const plain = check({ ...base, selected }, width, identityTheme);
-      const tabs = plain.find((l) => l.includes("[")) ?? "";
-      assert.ok(tabs.includes(`profile-${String(selected).padStart(2, "0")}`), `width ${width} selected ${selected}: ${tabs}`);
-      if (width < 200 || selected > 0) assert.match(tabs, /›|‹/);
+      for (const row of [0, 2]) {
+        const plain = check({ ...base, selected, row }, width, identityTheme);
+        const name = `profile-${String(selected).padStart(2, "0")}`;
+        assert.ok(plain.some((l) => l.includes(name) && /[▸▾]/.test(l)), `width ${width} selected ${selected}: selected profile is listed`);
+        assert.ok(plain.filter((l) => /profile-\d\d/.test(l)).length <= 8, "at most 8 profiles at once");
+        if (selected > 0) assert.ok(plain.some((l) => /↑ \d+ more/.test(l)), "hint for hidden profiles above");
+        if (selected < 19) assert.ok(plain.some((l) => /↓ \d+ more/.test(l)), "hint for hidden profiles below");
+      }
     }
   }
 });
@@ -195,7 +210,7 @@ test("S31 render: long names, wide characters, an empty list and a single profil
     const text = check({ ...single, feedback: { message: "日本語のフィードバック🙂".repeat(10), type: "warning" } }, width, taggedTheme).join("\n");
     assert.match(text, /a-very-long/);
   }
-  assert.match(renderMenu(single, 200).join("\n"), /名前名前名前@例え\.jp/);
+  assert.match(renderMenu({ ...single, row: 1 }, 200).join("\n"), /名前名前名前@例え\.jp/);
 });
 
 test("S31 render: width helpers count wide characters and ANSI correctly", () => {

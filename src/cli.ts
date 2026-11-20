@@ -15,7 +15,7 @@ export const USAGE = [
   "  gentle-accounts current                         print the active profile",
   "  gentle-accounts create <name>                   create an empty profile",
   "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
-  "  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on",
+  "  gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)",
   "  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email",
   "  gentle-accounts --help                          show this help",
 ].join("\n");
@@ -103,7 +103,7 @@ export function runCli(argv: string[], deps: CliDeps): number | Promise<number> 
       return 1;
     }
   }
-  if (first === "startup") {
+  if (first === "session" || first === "startup") {
     const result = runStartupCommand(store, second ?? "");
     (result.ok ? stdout : stderr)(result.message);
     return result.ok ? 0 : 1;

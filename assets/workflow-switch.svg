@@ -16,5 +16,5 @@
 <text x="64" y="330" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#a78e9b">&gt; </tspan><tspan fill="#ff76c3" font-weight="700">/gentle:accounts current</tspan></text>
 <text x="84" y="360" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="18"><tspan fill="#f6eff3">Active profile: work (CLAUDE_CONFIG_DIR=~/.gentle-shell/agent/profiles/work/claude)</tspan></text>
 <rect x="40" y="556" width="1120" height="48" fill="#1a1218" stroke="#342230" stroke-width="2"/>
-<text x="56" y="588" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="20"><tspan fill="#a78e9b">👤 gentle-accounts: </tspan><tspan fill="#ff76c3" font-weight="700">work</tspan><tspan fill="#f6eff3"> · mari****@company.com</tspan></text>
+<text x="56" y="588" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="20"><tspan fill="#a78e9b">👤 gentle-accounts: </tspan><tspan fill="#ff76c3" font-weight="700">work</tspan></text>
 </svg>

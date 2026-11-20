@@ -18,11 +18,11 @@ const USAGE = [
   "/gentle:accounts create <name>   create an empty profile",
   "/gentle:accounts delete <name>   delete a profile (asks for confirmation)",
   "/gentle:accounts login claude    show the command that logs the active profile into Claude Code",
-  "/gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on",
+  "/gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)",
   "/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email",
 ].join("\n");
 
-const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "login", "startup", "email"];
+const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "login", "session", "startup", "email"];
 
 function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "warning" | "error" = "info"): void {
   ctx.ui.notify(message, type);
@@ -129,7 +129,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   let lastAccount: { store: string; profile: string; account: ClaudeAccount | null } | undefined;
 
   /**
-   * Shows `gentle-accounts: <profile> · <masked email>`; never throws. A refresh for the profile
+   * Shows `gentle-accounts: <profile>` (plus ` · <email>` only when shown); never throws. A refresh for the profile
    * already being computed is skipped, and a result for an older request is dropped.
    */
   async function updateStatus(ctx: StatusCtx, s: ProfileStore): Promise<void> {
@@ -177,9 +177,9 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       if (!session && !process.env[LAUNCH_PROFILE_ENV] && (reason === undefined || reason === "startup")) {
         // The env of the last used profile is already applied; a switch replaces it (set or delete).
         const started = applyStartupProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env });
-        if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (startup profile).`, "info");
+        if (started.status === "switched") ctx.ui.notify(`Started on profile "${started.to}" (session profile).`, "info");
         if (started.status === "missing") {
-          ctx.ui.notify(`Startup profile "${started.to}" does not exist; starting on the last used profile.`, "warning");
+          ctx.ui.notify(`Session profile "${started.to}" does not exist; starting on the last used profile.`, "warning");
         }
       }
     } catch (error) {
@@ -244,7 +244,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         notify(ctx, loginHint(current, claudeLoginCommand(s.claudeConfigEnv(current))));
         return;
       }
-      if (sub === "startup") {
+      if (sub === "session" || sub === "startup") {
         const result = runStartupCommand(s, arg);
         return notify(ctx, result.message, result.ok ? "info" : "error");
       }

@@ -53,13 +53,13 @@ test("committed assets equal a fresh render", () => {
   }
 });
 
-test("hero shows the real masked status text", () => {
+test("hero shows the real hidden status text", () => {
   const svg = renderAssets()["hero-status-bar.svg"];
   const status = statusText("work", { email: "maria.lopez@company.com" });
   const plain = svg.replace(/<[^>]+>/g, "");
+  assert.equal(status, "👤 gentle-accounts: work");
   assert.ok(plain.includes(status), "status text missing");
-  assert.ok(plain.includes("mari****@company.com"), "expected the masked example address");
-  assert.ok(plain.includes("👤 gentle-accounts: work · mari****@company.com"), "S28: status icon missing in the hero");
+  assert.ok(plain.includes("👤 gentle-accounts: work"), "S28: status icon missing in the hero");
   assert.ok(renderAssets()["workflow-switch.svg"].replace(/<[^>]+>/g, "").includes("👤 gentle-accounts: work"), "S28: status icon missing in the switch image");
   for (const [name, text] of Object.entries(renderAssets())) assert.ok(!text.includes("maria.lopez@company.com"), `${name} leaks the email`);
 });

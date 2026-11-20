@@ -45,10 +45,10 @@ export const INVALID_NAME_MESSAGE = (name: string): string =>
 export const MISSING_PROFILE_MESSAGE = (name: string): string => `Profile "${name}" does not exist.`;
 
 export const STARTUP_DELETE_MESSAGE = (name: string): string =>
-  `Cannot delete the startup profile "${name}". Set another one or clear it with "startup last" first.`;
+  `Cannot delete the session profile "${name}". Set another one or clear it with "session last" first.`;
 
 /** Subcommands of `/gentle:accounts` and the CLI: a profile with one of these names could never be switched to by name. */
-export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "startup", "email", "help"];
+export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "session", "startup", "email", "help"];
 
 export const RESERVED_NAME_MESSAGE = (name: string): string =>
   `"${name}" is a reserved word (it is a subcommand). Pick another profile name.`;
@@ -218,17 +218,17 @@ export function runStartupCommand(store: ProfileStore, arg: string): { ok: boole
     return {
       ok: true,
       message: startup
-        ? `Startup profile: ${startup}`
-        : `Startup profile: none (new sessions start on the last used profile: ${store.current() ?? "none"})`,
+        ? `Session profile: ${startup}`
+        : `Session profile: none (new sessions start on the last used profile: ${store.current() ?? "none"})`,
     };
   }
   if (arg === "last") {
     store.clearStartup();
-    return { ok: true, message: "Startup profile cleared. New sessions start on the last used profile." };
+    return { ok: true, message: "Session profile cleared. New sessions start on the last used profile." };
   }
   const invalid = validateProfileName(arg);
   if (invalid) return { ok: false, message: invalid };
   if (!store.exists(arg)) return { ok: false, message: MISSING_PROFILE_MESSAGE(arg) };
   store.setStartup(arg);
-  return { ok: true, message: `Startup profile set to "${arg}". New sessions start on it.` };
+  return { ok: true, message: `Session profile set to "${arg}". New sessions start on it.` };
 }

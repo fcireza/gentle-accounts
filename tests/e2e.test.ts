@@ -292,9 +292,9 @@ test("launcher e2e (S27): startup sets the file, shows it, and an explicit launc
   assert.equal(run("create", "personal").code, 0);
   const s = run("startup", "work");
   assert.equal(s.code, 0, s.err);
-  assert.equal(s.out, 'Startup profile set to "work". New sessions start on it.\n');
+  assert.equal(s.out, 'Session profile set to "work". New sessions start on it.\n');
   assert.equal(readFileSync(join(agentDir, "profiles", "startup"), "utf8"), "work\n");
-  assert.equal(run("startup").out, "Startup profile: work\n");
+  assert.equal(run("startup").out, "Session profile: work\n");
   const p = run("personal");
   assert.equal(p.code, 0, p.err);
   assert.match(p.out, /GS args=--home \S+ dir=.*personal.claude/);
@@ -319,7 +319,7 @@ test("launcher e2e (S29): email is hidden by default, show persists it, list ign
   const { agentDir, run } = sandbox();
   const h = run("email");
   assert.equal(h.code, 0, h.err);
-  assert.equal(h.out, "Email display: hidden (masked in the status bar)\n");
+  assert.equal(h.out, "Email display: hidden (not shown in the status bar)\n");
   const s = run("email", "show");
   assert.equal(s.code, 0, s.err);
   assert.equal(s.out, "Email display set to shown. The status bar shows the full email.\n");

@@ -4,7 +4,7 @@
 
 Qué encontrará aquí: escenarios completos desde el primer inicio hasta borrar un perfil, con los mensajes que verá.
 
-![Barra de estado con el perfil activo y su cuenta enmascarada](../../assets/hero-status-bar.svg)
+![Barra de estado con el perfil activo y su perfil](../../assets/hero-status-bar.svg)
 
 ## 1. Primer inicio y el perfil `default`
 
@@ -88,7 +88,7 @@ Cuando termine el flujo del navegador, compruebe la cuenta:
 /gentle:accounts current
 ```
 
-La barra de estado muestra entonces `👤 gentle-accounts: work · mari****@company.com`.
+La barra de estado muestra entonces `👤 gentle-accounts: work`.
 
 ### Otras formas de iniciar sesión
 
@@ -131,7 +131,7 @@ Switched to profile "default". Claude Code dir: (unset: Claude Code default)
 
 Cambiar al perfil que ya está activo solo indica `Already on profile "default".`. El cambio espera al agente: mientras hay un turno en curso aparece `Wait for the current turn to finish before switching profiles.`
 
-Cómo leer la barra de estado: `👤 gentle-accounts: <profile> · <masked email>` cuando se detecta el inicio de sesión de Claude del perfil, `🔒 gentle-accounts: <profile> · not logged in` en caso contrario. El ícono muestra el estado de un vistazo: `👤` con sesión, `🔒` sin sesión. De forma predeterminada el correo aparece enmascarado, por ejemplo `mari****@company.com`; consulte la sección 7 para mostrarlo completo. El estado se actualiza al iniciar, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos.
+Cómo leer la barra de estado: `👤 gentle-accounts: <profile>` cuando se detecta el inicio de sesión de Claude del perfil, `🔒 gentle-accounts: <profile> · not logged in` en caso contrario. El ícono muestra el estado de un vistazo: `👤` con sesión, `🔒` sin sesión. De forma predeterminada el correo está oculto y no se muestra en absoluto; consulte la sección 7 para mostrarlo completo. El estado se actualiza al iniciar, después de un cambio, con `/gentle:accounts current`, después de cada turno del agente y cada 60 segundos.
 
 ## 5. Iniciar una sesión en un perfil
 
@@ -145,31 +145,31 @@ El launcher no cambia el perfil global. Le da a la sesión una carpeta del agent
 
 ## 6. Elegir el perfil con el que empiezan las sesiones nuevas
 
-De forma predeterminada, una sesión nueva empieza en el último perfil usado. Para empezar siempre en `work`, defínalo como perfil de inicio:
+De forma predeterminada, una sesión nueva empieza en el último perfil usado. Para empezar siempre en `work`, defínalo como perfil de sesión:
 
 ```
-/gentle:accounts startup work
-```
-
-```
-Startup profile set to "work". New sessions start on it.
-```
-
-Reinicie Gentle Shell o pi. Si había otro perfil activo, la sesión cambia a `work` al iniciar y muestra `Started on profile "work" (startup profile).`. Para volver al último perfil usado:
-
-```
-/gentle:accounts startup last
+/gentle:accounts session work
 ```
 
 ```
-Startup profile cleared. New sessions start on the last used profile.
+Session profile set to "work". New sessions start on it.
 ```
 
-El perfil de inicio es compartido por todas las sesiones de la misma carpeta del agente; para dar a cada sesión su propia cuenta consulte [Una cuenta distinta en cada sesión](how-it-works.md).
+Reinicie Gentle Shell o pi. Si había otro perfil activo, la sesión cambia a `work` al iniciar y muestra `Started on profile "work" (session profile).`. Para volver al último perfil usado:
+
+```
+/gentle:accounts session last
+```
+
+```
+Session profile cleared. New sessions start on the last used profile.
+```
+
+El perfil de sesión es compartido por todas las sesiones de la misma carpeta del agente; para dar a cada sesión su propia cuenta consulte [Una cuenta distinta en cada sesión](how-it-works.md).
 
 ## 7. Mostrar el correo completo en la barra de estado
 
-De forma predeterminada la barra de estado muestra un correo enmascarado, `👤 gentle-accounts: work · mari****@company.com`. Para ver la dirección completa:
+De forma predeterminada la barra de estado muestra solo el nombre del perfil, `👤 gentle-accounts: work`. Para ver la dirección completa:
 
 ```
 /gentle:accounts email show
@@ -179,21 +179,21 @@ De forma predeterminada la barra de estado muestra un correo enmascarado, `👤 
 Email display set to shown. The status bar shows the full email.
 ```
 
-La barra de estado se actualiza de inmediato y muestra `👤 gentle-accounts: work · maria.lopez@company.com`. Para volver a enmascararlo:
+La barra de estado se actualiza de inmediato y muestra `👤 gentle-accounts: work · maria.lopez@company.com`. Para volver a ocultarlo:
 
 ```
 /gentle:accounts email hide
 ```
 
 ```
-Email display set to hidden. The status bar shows a masked email.
+Email display set to hidden. The status bar does not show the email.
 ```
 
 Advertencia de privacidad: con `show`, cualquier persona que vea su pantalla puede leer la dirección, incluso al compartir pantalla, en capturas de pantalla y en grabaciones. Oculte el correo antes de compartir su pantalla. La opción se aplica a todas las sesiones de la misma carpeta del agente.
 
 ## 8. Borrar un perfil
 
-No se puede borrar el perfil activo ni el perfil de inicio, así que primero cambie a otro (o ejecute `startup last`):
+No se puede borrar el perfil activo ni el perfil de sesión, así que primero cambie a otro (o ejecute `session last`):
 
 ```
 /gentle:accounts default
@@ -210,7 +210,7 @@ Abra el menú (o ejecute `/gentle:accounts` sin argumentos):
 /gentle:accounts menu
 ```
 
-Hay una pestaña por perfil: `◉` marca el perfil activo en esta sesión y `★` el perfil de inicio. Cada pestaña muestra una fila por proveedor con `●` si hay sesión iniciada u `○` si no, y el correo enmascarado. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en la fila del perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `d` para borrar, `s` para el perfil de inicio, `e` para la visualización del correo, `o` para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
+El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión. Presione `→` sobre un perfil para abrir una fila por proveedor con `●` si hay sesión iniciada u `○` si no, y el correo cuando se muestra el correo; `←` las cierra. Muévase con las flechas (o `h` `j` `k` `l`), presione `Enter` en un perfil para cambiar a él o en una fila de proveedor para iniciar sesión, `n` para crear, `d` para borrar, `s` para el perfil de sesión, `e` para la visualización del correo, `o` (en una fila de proveedor con sesión) para abrir este proyecto con el perfil seleccionado en una pestaña nueva de la terminal y `Esc` para cerrar. Todas las teclas y mensajes están en [Comandos](commands.md).
 
 Iniciar sesión desde una fila de proveedor:
 

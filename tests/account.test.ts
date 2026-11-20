@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PLUGIN_LABEL, maskEmail, providerStates, queryClaudeAccount, readClaudeAccount, statusText } from "../src/account.ts";
+import { PLUGIN_LABEL, providerStates, queryClaudeAccount, readClaudeAccount, statusText } from "../src/account.ts";
 
 function dirs() {
   const home = mkdtempSync(join(tmpdir(), "gentle-accounts-acct-"));
@@ -52,23 +52,11 @@ test("falls back to <home>/.claude.json only for the <home>/.claude dir", () => 
   assert.deepEqual(readClaudeAccount(homeClaude, home), { email: "dir@x.y" });
 });
 
-test("S28: statusText is `👤 gentle-accounts: <profile> · <masked>` or `🔒 ... · not logged in`", () => {
+test("S28: statusText is `👤 gentle-accounts: <profile>` (hidden), `... · <email>` (shown) or `🔒 ... · not logged in`", () => {
   assert.equal(PLUGIN_LABEL, "gentle-accounts");
-  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "👤 gentle-accounts: work · fcir****@gmail.com");
+  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "👤 gentle-accounts: work");
   assert.equal(statusText("work", null), "🔒 gentle-accounts: work · not logged in");
   assert.ok(!statusText("work", { email: "fcireza@gmail.com" }).includes("fcireza@gmail.com"));
-});
-
-test("S17: maskEmail keeps min(4, max(1, local - 3)) chars and the domain", () => {
-  const table: [string, string][] = [
-    ["fcireza@gmail.com", "fcir****@gmail.com"],
-    ["ab@x.com", "a****@x.com"],
-    ["abcde@x.com", "ab****@x.com"],
-    ["a@x.com", "a****@x.com"],
-    ["abcdefghij@x.com", "abcd****@x.com"],
-    ["no-at-sign", "****"],
-  ];
-  for (const [input, expected] of table) assert.equal(maskEmail(input), expected, input);
 });
 
 test("S18: queryClaudeAccount uses `claude auth status` JSON first", async () => {
@@ -139,8 +127,8 @@ test("S18: the <home>/.claude.json fallback applies only to the system-default p
 
 test("S29: statusText hides by default and prints the full email only when shown", () => {
   const a = { email: "fcireza@gmail.com" };
-  assert.equal(statusText("work", a, {}), "👤 gentle-accounts: work · fcir****@gmail.com");
-  assert.equal(statusText("work", a, { showEmail: false }), "👤 gentle-accounts: work · fcir****@gmail.com");
+  assert.equal(statusText("work", a, {}), "👤 gentle-accounts: work");
+  assert.equal(statusText("work", a, { showEmail: false }), "👤 gentle-accounts: work");
   assert.equal(statusText("work", a, { showEmail: true }), "👤 gentle-accounts: work · fcireza@gmail.com");
   assert.equal(statusText("work", null, { showEmail: true }), "🔒 gentle-accounts: work · not logged in");
   assert.equal(statusText("work", null, { showEmail: false }), "🔒 gentle-accounts: work · not logged in");
@@ -172,4 +160,15 @@ test("S34: providerStates with base providers only is unchanged (api key anthrop
     { provider: "openai-codex", label: "Codex", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: true },
   ]);
+});
+
+test("S2: providerStates Claude row has the full email only when showEmail is true", () => {
+  const claude = { email: "fcireza@gmail.com" };
+  assert.deepEqual(providerStates(claude, {})[0], { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true });
+  assert.deepEqual(providerStates(claude, {}, { showEmail: false })[0], { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true });
+  assert.deepEqual(providerStates(claude, {}, { showEmail: true })[0], { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true, email: "fcireza@gmail.com" });
+});
+
+test("S1: logged in + hidden shows only the profile, no separator and no email", () => {
+  assert.equal(statusText("work", { email: "fcireza@gmail.com" }), "👤 gentle-accounts: work");
 });

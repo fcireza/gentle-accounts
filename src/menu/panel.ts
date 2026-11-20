@@ -17,8 +17,8 @@ export interface PanelOptions {
 }
 
 /**
- * Overlay component of the accounts menu. Tabs (profiles) wrap around; rows (profile row, then providers)
- * clamp at both ends; switching tab keeps the row when the new profile has it. Every action ends the panel
+ * Overlay component of the accounts menu. The profile list wraps around with up/down; right expands the
+ * selected profile's providers (rows 1..n, clamped), left collapses back to the profile row (0). Every action ends the panel
  * through `done` exactly once; the caller loop executes it and reopens the panel.
  */
 export class AccountsMenuPanel {
@@ -62,15 +62,14 @@ export class AccountsMenuPanel {
     this.done(action);
   }
 
-  private moveTab(delta: number): void {
+  private moveProfile(delta: number): void {
     const count = this.model.profiles.length;
     if (count < 2) return;
     this.selected = (this.selected + delta + count) % count;
-    this.row = Math.min(this.row, this.rowCount() - 1);
   }
 
   private moveRow(delta: number): void {
-    this.row = Math.min(Math.max(0, this.row + delta), this.rowCount() - 1);
+    this.row = Math.min(Math.max(1, this.row + delta), this.rowCount() - 1);
   }
 
   handleInput(data: string): void {
@@ -86,19 +85,23 @@ export class AccountsMenuPanel {
         return this.finish({ type: "close" });
       case "left":
       case "char:h":
-        this.moveTab(-1);
+        if (this.row === 0) return;
+        this.row = 0;
         break;
       case "right":
       case "char:l":
-        this.moveTab(1);
+        if (this.row > 0 || !profile?.providers.length) return;
+        this.row = 1;
         break;
       case "up":
       case "char:k":
-        this.moveRow(-1);
+        if (this.row === 0) this.moveProfile(-1);
+        else this.moveRow(-1);
         break;
       case "down":
       case "char:j":
-        this.moveRow(1);
+        if (this.row === 0) this.moveProfile(1);
+        else this.moveRow(1);
         break;
       case "enter":
         if (!profile || !name) return;
@@ -115,7 +118,8 @@ export class AccountsMenuPanel {
         if (name) return this.finish({ type: "startup", profile: name, row });
         return;
       case "char:o":
-        if (name) return this.finish({ type: "open", profile: name, row });
+        // Only on a logged-in provider row, as the key hint says.
+        if (name && row > 0 && profile?.providers[row - 1]?.loggedIn) return this.finish({ type: "open", profile: name, row });
         return;
       default:
         return;

@@ -4,7 +4,7 @@
 
 What you will find here: worked scenarios from the first start to deleting a profile, with the messages you will see.
 
-![Status bar showing the active profile and its masked account](../../assets/hero-status-bar.svg)
+![Status bar showing the active profile and its profile](../../assets/hero-status-bar.svg)
 
 ## 1. First start and the `default` profile
 
@@ -88,7 +88,7 @@ When the browser flow ends, check the account:
 /gentle:accounts current
 ```
 
-The status bar then reads `👤 gentle-accounts: work · mari****@company.com`.
+The status bar then reads `👤 gentle-accounts: work`.
 
 ### Other ways to log in
 
@@ -131,7 +131,7 @@ Switched to profile "default". Claude Code dir: (unset: Claude Code default)
 
 Switching to the profile that is already active only says `Already on profile "default".`. Switching waits for the agent: while a turn is running you get `Wait for the current turn to finish before switching profiles.`
 
-Reading the status bar: `👤 gentle-accounts: <profile> · <masked email>` when the profile's Claude login is detected, `🔒 gentle-accounts: <profile> · not logged in` otherwise. The icon shows the state at a glance: `👤` logged in, `🔒` not logged in. By default the email is masked, for example `mari****@company.com`; see section 7 to show it in full. The status refreshes on start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds.
+Reading the status bar: `👤 gentle-accounts: <profile>` when the profile's Claude login is detected, `🔒 gentle-accounts: <profile> · not logged in` otherwise. The icon shows the state at a glance: `👤` logged in, `🔒` not logged in. By default the email is hidden and not shown at all; see section 7 to show it in full. The status refreshes on start, after a switch, on `/gentle:accounts current`, after every agent turn and every 60 seconds.
 
 ## 5. Starting a session on a profile
 
@@ -145,31 +145,31 @@ The launcher does not change the global profile. It gives the session a private 
 
 ## 6. Choose the profile new sessions start on
 
-By default a new session starts on the last used profile. To always start on `work`, set it as the startup profile:
+By default a new session starts on the last used profile. To always start on `work`, set it as the session profile:
 
 ```
-/gentle:accounts startup work
-```
-
-```
-Startup profile set to "work". New sessions start on it.
-```
-
-Restart Gentle Shell or pi. If another profile was active, the session switches to `work` on start and shows `Started on profile "work" (startup profile).`. To go back to the last used profile:
-
-```
-/gentle:accounts startup last
+/gentle:accounts session work
 ```
 
 ```
-Startup profile cleared. New sessions start on the last used profile.
+Session profile set to "work". New sessions start on it.
 ```
 
-The startup profile is shared by every session of the same agent dir; to give each session its own account see [A different account per session](how-it-works.md).
+Restart Gentle Shell or pi. If another profile was active, the session switches to `work` on start and shows `Started on profile "work" (session profile).`. To go back to the last used profile:
+
+```
+/gentle:accounts session last
+```
+
+```
+Session profile cleared. New sessions start on the last used profile.
+```
+
+The session profile is shared by every session of the same agent dir; to give each session its own account see [A different account per session](how-it-works.md).
 
 ## 7. Show the full email in the status bar
 
-By default the status bar shows a masked email, `👤 gentle-accounts: work · mari****@company.com`. To see the full address:
+By default the status bar shows only the profile name, `👤 gentle-accounts: work`. To see the full address:
 
 ```
 /gentle:accounts email show
@@ -179,21 +179,21 @@ By default the status bar shows a masked email, `👤 gentle-accounts: work · m
 Email display set to shown. The status bar shows the full email.
 ```
 
-The status bar refreshes right away and reads `👤 gentle-accounts: work · maria.lopez@company.com`. To mask it again:
+The status bar refreshes right away and reads `👤 gentle-accounts: work · maria.lopez@company.com`. To hide it again:
 
 ```
 /gentle:accounts email hide
 ```
 
 ```
-Email display set to hidden. The status bar shows a masked email.
+Email display set to hidden. The status bar does not show the email.
 ```
 
 Privacy warning: with `show`, anyone who sees your screen can read the address, including screen shares, screenshots and recordings. Hide it before sharing your screen. The setting applies to every session of the same agent dir.
 
 ## 8. Deleting a profile
 
-You cannot delete the active profile or the startup profile, so switch away (or run `startup last`) first:
+You cannot delete the active profile or the session profile, so switch away (or run `session last`) first:
 
 ```
 /gentle:accounts default
@@ -210,7 +210,7 @@ Open the menu (or run `/gentle:accounts` with no argument):
 /gentle:accounts menu
 ```
 
-There is one tab per profile: `◉` marks the profile active in this session and `★` the startup profile. Each tab shows a row per provider with `●` logged in or `○` not logged in, and the masked email. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on the profile row to switch or on a provider row to log in, `n` to create, `d` to delete, `s` for the startup profile, `e` for the email display, `o` to open this project with the selected profile in a new terminal tab, and `Esc` to close. Every key and message is in [Commands](commands.md).
+The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the session profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, and the email when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `d` to delete, `s` for the session profile, `e` for the email display, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, and `Esc` to close. Every key and message is in [Commands](commands.md).
 
 Logging in from a provider row:
 

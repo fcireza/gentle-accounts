@@ -81,7 +81,7 @@ test("S31 run: menu opens as a centered full overlay and ends on close", async (
   assert.equal(c.frames.length, 1);
   assert.deepEqual(c.options, [{ overlay: true, overlayOptions: { ...OVERLAY_OPTIONS } }]);
   assert.deepEqual(OVERLAY_OPTIONS, { anchor: "center", width: "100%", maxHeight: "100%", margin: 0 });
-  assert.match(c.frames[0], /\[◉ work\]/);
+  assert.match(c.frames[0], /▸ ● work/);
   const undef = fakeCtx([undefined]);
   await runAccountsMenu(undef.ctx, deps(agentDir));
   assert.equal(undef.frames.length, 1, "no custom result also ends the loop");
@@ -115,7 +115,7 @@ test("S31 run: create valid, invalid, duplicate and cancelled", async () => {
   await runAccountsMenu(ok.ctx, deps(agentDir));
   assert.ok(store.exists("side"));
   assert.match(feedbackOf(ok.frames[1]), /Created profile "side"\. Switch with \/gentle:accounts side/);
-  assert.match(ok.frames[1], /\[side\]/, "selects the new profile");
+  assert.match(ok.frames[1], /▸ ○ side/, "selects the new profile");
   const bad = fakeCtx([{ type: "create", row: 0 }, { type: "close" }], { input: "Bad Name" });
   await runAccountsMenu(bad.ctx, deps(agentDir));
   assert.match(feedbackOf(bad.frames[1]), /Invalid profile name "Bad Name": use lowercase letters/);
@@ -137,7 +137,7 @@ test("S31 run: delete confirm yes/no and the active and startup refusals", async
   const c = fakeCtx([{ type: "delete", profile: "work", row: 0 }, { type: "delete", profile: "personal", row: 0 }, { type: "delete", profile: "old", row: 0 }, { type: "close" }], { confirm: false });
   await runAccountsMenu(c.ctx, deps(agentDir));
   assert.match(feedbackOf(c.frames[1]), /Cannot delete the active profile "work"\. Switch to another profile first\./);
-  assert.match(feedbackOf(c.frames[2]), /Cannot delete the startup profile "personal"/);
+  assert.match(feedbackOf(c.frames[2]), /Cannot delete the session profile "personal"/);
   assert.match(feedbackOf(c.frames[3]), /Delete cancelled\./);
   assert.ok(store.exists("old"));
   const yes = fakeCtx([{ type: "delete", profile: "old", row: 0 }, { type: "close" }], { confirm: true });
@@ -151,9 +151,9 @@ test("S31 run: startup toggles set and clear; email toggles and refreshes the st
   const log: string[] = [];
   const c = fakeCtx([{ type: "startup", profile: "personal", row: 0 }, { type: "startup", profile: "personal", row: 0 }, { type: "email", row: 0 }, { type: "email", row: 0 }, { type: "close" }]);
   await runAccountsMenu(c.ctx, deps(agentDir, log));
-  assert.match(feedbackOf(c.frames[1]), /Startup profile set to "personal"\. New sessions start on it\./);
+  assert.match(feedbackOf(c.frames[1]), /Session profile set to "personal"\. New sessions start on it\./);
   assert.match(c.frames[1], /personal ★/);
-  assert.match(feedbackOf(c.frames[2]), /Startup profile cleared\. New sessions start on the last used profile\./);
+  assert.match(feedbackOf(c.frames[2]), /Session profile cleared\. New sessions start on the last used profile\./);
   assert.equal(store.startup(), null);
   assert.match(feedbackOf(c.frames[3]), /Email display set to shown\. The status bar shows the full email\./);
   assert.match(c.frames[3], /email: shown/);

@@ -28,20 +28,21 @@ Sin argumentos, abre el menú de cuentas (igual que `/gentle:accounts menu`) cua
 Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:profiles` de Gentle Shell. Sin la TUI interactiva usa el selector `Switch profile`.
 
 - Encabezado: el modo (`session home` cuando la sesión la inició el launcher, `global` en otro caso) y la visualización del correo (`shown` o `hidden`).
-- Una pestaña por perfil: `◉` marca el perfil activo en esta sesión y `★` el perfil de inicio.
-- Filas: la fila del perfil (`Switch to "<name>"`, o `Profile "<name>"` para el activo) y luego una fila por proveedor (Claude, Codex, Anthropic) con `●` si hay sesión iniciada u `○` si no. El correo aparece enmascarado salvo que se muestre el correo completo. Abrir el menú nunca ejecuta `claude auth status` por perfil: reutiliza el resultado de la barra de estado para el perfil activo y lee archivos para los demás.
+- Una fila por perfil: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión, seguidos de los proveedores con sesión iniciada. La lista muestra ocho perfiles a la vez y se desplaza; `↑ N more` y `↓ N more` cuentan los ocultos.
+- Proveedores: `→` sobre el perfil seleccionado abre una fila por proveedor (Claude, Codex, Anthropic) con `●` si hay sesión iniciada u `○` si no, y `←` las cierra. El correo aparece solo en esas filas y solo cuando se muestra el correo; mientras está oculto no aparece nada después de `logged in`. Abrir el menú nunca ejecuta `claude auth status` por perfil: reutiliza el resultado de la barra de estado para el perfil activo y lee archivos para los demás.
 - Sin perfiles: `no profiles yet: press n to create one`.
 
 | Tecla | Acción |
 | --- | --- |
-| `←` `→` o `h` `l` | Perfil anterior o siguiente. |
-| `↑` `↓` o `j` `k` | Fila anterior o siguiente. |
-| `Enter` | En la fila del perfil: cambia a él (mismas reglas y mensajes que `/gentle:accounts <name>`). En una fila de proveedor: inicia sesión en ese proveedor. |
+| `↑` `↓` o `j` `k` | Perfil anterior o siguiente; con los proveedores abiertos, proveedor anterior o siguiente. |
+| `→` o `l` | Abre los proveedores del perfil seleccionado. |
+| `←` o `h` | Cierra los proveedores. |
+| `Enter` | En un perfil: cambia a él (mismas reglas y mensajes que `/gentle:accounts <name>`). En una fila de proveedor: inicia sesión en ese proveedor. |
 | `n` | Perfil nuevo (pide el nombre con `New profile name`; mismos mensajes que `create`). |
 | `d` | Borra el perfil seleccionado (misma confirmación y rechazos que `delete`). |
-| `s` | Define el perfil seleccionado como perfil de inicio, o lo borra si ya lo es. |
+| `s` | Define el perfil seleccionado como perfil de sesión, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
-| `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. |
+| `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
 | `Esc` o `Ctrl+C` | Cierra. |
 
 Los mensajes aparecen dentro del menú, porque las notificaciones quedan ocultas detrás de él.
@@ -91,7 +92,7 @@ Crea un perfil vacío: una carpeta `claude/` y un `auth.json` sin credenciales. 
 - Éxito: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Ya existe: `Profile "<name>" already exists.` (error).
 - Nombre inválido: el mensaje de nombre inválido (error).
-- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector.
+- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector.
 - Sin nombre: el texto de uso (advertencia).
 
 ### `/gentle:accounts delete <name>`
@@ -101,7 +102,7 @@ Borra la carpeta de un perfil después de un diálogo de confirmación titulado 
 - Éxito: `Deleted profile "<name>".`
 - Cancelado: `Delete cancelled.`
 - Perfil activo: `Cannot delete the active profile "<name>". Switch to another profile first.` (error).
-- Perfil de inicio: `Cannot delete the startup profile "<name>". Set another one or clear it with "startup last" first.` (error).
+- Perfil de sesión: `Cannot delete the session profile "<name>". Set another one or clear it with "session last" first.` (error).
 - Perfil inexistente: `Profile "<name>" does not exist.` (error).
 - Sin interfaz interactiva: `Deleting needs a confirmation dialog; run it from the TUI.` (error).
 - Sin nombre: el texto de uso (advertencia).
@@ -124,25 +125,25 @@ El comando es `claude auth login` para un perfil en la carpeta predeterminada de
 - Sin perfil activo: `No active profile.` (error).
 - Cualquier cosa distinta de `claude` después de `login`: el texto de uso (advertencia).
 
-### `/gentle:accounts startup [<name>|last]`
+### `/gentle:accounts session [<name>|last]`
 
-Muestra, define o borra el perfil de inicio: el perfil con el que empiezan las sesiones nuevas. Sin él, las sesiones nuevas empiezan en el último perfil usado. Consulte [Cómo funciona](how-it-works.md).
+Muestra, define o borra el perfil de sesión: el perfil con el que empiezan las sesiones nuevas. Sin él, las sesiones nuevas empiezan en el último perfil usado. Consulte [Cómo funciona](how-it-works.md). `startup` sigue funcionando como alias de `session`, con el mismo comportamiento y salida. «Perfil de sesión» significa el perfil con el que empiezan las sesiones nuevas, no el home privado por sesión que crea el launcher.
 
-- `/gentle:accounts startup`: muestra `Startup profile: <name>`, o `Startup profile: none (new sessions start on the last used profile: <current>)`, donde `<current>` es `none` si no hay un perfil activo.
-- `/gentle:accounts startup <name>`: lo define y muestra `Startup profile set to "<name>". New sessions start on it.`
-- `/gentle:accounts startup last`: lo borra y muestra `Startup profile cleared. New sessions start on the last used profile.`
+- `/gentle:accounts session`: muestra `Session profile: <name>`, o `Session profile: none (new sessions start on the last used profile: <current>)`, donde `<current>` es `none` si no hay un perfil activo.
+- `/gentle:accounts session <name>`: lo define y muestra `Session profile set to "<name>". New sessions start on it.`
+- `/gentle:accounts session last`: lo borra y muestra `Session profile cleared. New sessions start on the last used profile.`
 - Nombre inválido: el mensaje de nombre inválido (error).
 - Perfil inexistente: `Profile "<name>" does not exist.` (error).
 
-Definir el perfil de inicio no cambia el perfil de la sesión en curso. Un inicio explícito con `gentle-accounts <name>` gana para ese inicio: el launcher define `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` para gentle-shell y la extensión omite entonces el perfil de inicio. El perfil de inicio se aplica solo cuando pi arranca, no en `/new`, `/resume`, `/fork` ni `/reload`.
+Definir el perfil de sesión no cambia el perfil de la sesión en curso. Un inicio explícito con `gentle-accounts <name>` gana para ese inicio: el launcher define `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` para gentle-shell y la extensión omite entonces el perfil de sesión. El perfil de sesión se aplica solo cuando pi arranca, no en `/new`, `/resume`, `/fork` ni `/reload`.
 
 ### `/gentle:accounts email [show|hide]`
 
-Muestra o define si la barra de estado muestra el correo completo del perfil activo. De forma predeterminada está oculto y la barra de estado muestra un correo enmascarado.
+Muestra o define si la barra de estado muestra el correo completo del perfil activo. De forma predeterminada está oculto y la barra de estado muestra solo el nombre del perfil.
 
-- `/gentle:accounts email`: muestra `Email display: hidden (masked in the status bar)` o `Email display: shown (full email in the status bar)`.
+- `/gentle:accounts email`: muestra `Email display: hidden (not shown in the status bar)` o `Email display: shown (full email in the status bar)`.
 - `/gentle:accounts email show`: lo define y muestra `Email display set to shown. The status bar shows the full email.`
-- `/gentle:accounts email hide`: lo define y muestra `Email display set to hidden. The status bar shows a masked email.`
+- `/gentle:accounts email hide`: lo define y muestra `Email display set to hidden. The status bar does not show the email.`
 - Cualquier otro argumento, o palabras extra después de `show` o `hide`: `Usage: /gentle:accounts email [show|hide]` (advertencia). Nada cambia.
 - No se puede escribir el archivo de configuración: `Could not save the email display setting (<code>).` (error), donde `<code>` es el código de error del sistema (por ejemplo `EACCES`). Nada cambia.
 
@@ -163,7 +164,7 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 /gentle:accounts create <name>   create an empty profile
 /gentle:accounts delete <name>   delete a profile (asks for confirmation)
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
-/gentle:accounts startup [<name>|last]  show, set or clear the profile new sessions start on
+/gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)
 /gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
 ```
 
@@ -171,7 +172,7 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 
 Además del comando, la extensión registra:
 
-- **Inicio de sesión**: crea `default` si no hay un perfil activo; si lo hay, define `CLAUDE_CONFIG_DIR` para el perfil activo salvo que el entorno ya lo defina; luego, si hay un perfil de inicio definido y no es el activo, cambia a él y muestra `Started on profile "<name>" (startup profile).` (nunca en una sesión iniciada por el launcher); inicia un temporizador de 60 s para actualizar el estado y lo muestra. Si no puede leer un archivo de credenciales muestra `gentle-accounts: <message>` (error) y continúa.
+- **Inicio de sesión**: crea `default` si no hay un perfil activo; si lo hay, define `CLAUDE_CONFIG_DIR` para el perfil activo salvo que el entorno ya lo defina; luego, si hay un perfil de sesión definido y no es el activo, cambia a él y muestra `Started on profile "<name>" (session profile).` (nunca en una sesión iniciada por el launcher); inicia un temporizador de 60 s para actualizar el estado y lo muestra. Si no puede leer un archivo de credenciales muestra `gentle-accounts: <message>` (error) y continúa.
 - **Fin del agente**: actualiza el estado después de cada turno del agente.
 - **Cierre de sesión**: detiene el temporizador de 60 s.
 
@@ -187,7 +188,7 @@ El launcher opcional (`bin/gentle-accounts.mjs`). Necesita Node 22.18 o posterio
 | `gentle-accounts current` | el nombre del perfil activo o `No active profile.` | 0 |
 | `gentle-accounts create <name>` | `Created profile "<name>".` | 0, o 1 si hay error |
 | `gentle-accounts login <name>` | ejecuta `claude auth login` | código de salida de `claude`, o 1 si hay error |
-| `gentle-accounts startup [<name>\|last]` | muestra, define o borra el perfil de inicio | 0, o 1 si hay error |
+| `gentle-accounts session [<name>\|last]` | muestra, define o borra el perfil de sesión | 0, o 1 si hay error |
 | `gentle-accounts email [show\|hide]` | muestra o define la visualización del correo | 0, o 1 si hay error de uso |
 | `gentle-accounts <name> [args...]` | inicia `gentle-shell` | código de salida de `gentle-shell`, o 1 si hay error |
 
@@ -200,7 +201,7 @@ Usage:
   gentle-accounts current                         print the active profile
   gentle-accounts create <name>                   create an empty profile
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
-  gentle-accounts startup [<name>|last]           show, set or clear the profile new sessions start on
+  gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)
   gentle-accounts email [show|hide]               show or set whether the status bar shows the full email
   gentle-accounts --help                          show this help
 ```
@@ -221,14 +222,14 @@ Crea un perfil vacío e imprime `Created profile "<name>".`. Con un nombre invá
 
 Ejecuta `claude auth login` conectado a la terminal, con `CLAUDE_CONFIG_DIR` apuntando a la carpeta de Claude del perfil, o eliminado para un perfil en la carpeta predeterminada de Claude Code. No cambia de perfil. Sin nombre imprime el uso; para un perfil inexistente imprime `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`; ambos terminan con 1. Si no puede iniciar `claude` imprime `Cannot run claude: <error>` y termina con 1.
 
-### `gentle-accounts startup [<name>|last]`
+### `gentle-accounts session [<name>|last]`
 
-Igual que `/gentle:accounts startup`, con los mismos mensajes: sin argumento imprime el perfil de inicio, `last` lo borra y un nombre lo define. Los mensajes van a stdout con código 0; un nombre inválido (`Invalid profile name ...`) o un perfil inexistente (`Profile "<name>" does not exist.`) van a stderr con código 1.
+Igual que `/gentle:accounts session`, con los mismos mensajes: sin argumento imprime el perfil de sesión, `last` lo borra y un nombre lo define. Los mensajes van a stdout con código 0; un nombre inválido (`Invalid profile name ...`) o un perfil inexistente (`Profile "<name>" does not exist.`) van a stderr con código 1.
 
 ```sh
-gentle-accounts startup work   # new sessions start on "work"
-gentle-accounts startup        # show it
-gentle-accounts startup last   # back to the last used profile
+gentle-accounts session work   # new sessions start on "work"
+gentle-accounts session        # show it
+gentle-accounts session last   # back to the last used profile
 ```
 
 ### `gentle-accounts email [show|hide]`
@@ -238,7 +239,7 @@ Igual que `/gentle:accounts email`, con los mismos mensajes, en stdout con códi
 ```sh
 gentle-accounts email show   # full email in the status bar
 gentle-accounts email        # show the current value
-gentle-accounts email hide   # back to the masked email
+gentle-accounts email hide   # back to hiding the email
 ```
 
 ### `gentle-accounts <name> [args...]`
