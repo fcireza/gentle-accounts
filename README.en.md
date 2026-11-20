@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" alt="gentle-accounts" width="520"></p>
+<p align="center"><img src="assets/logo-mark.svg" alt="gentle-accounts" width="100"></p>
 
 [Español](README.md) | English
 
@@ -6,134 +6,11 @@ Several Claude, Codex and Anthropic accounts in Gentle Shell and pi, with one co
 
 [![CI](https://github.com/fcireza/gentle-accounts/actions/workflows/ci.yml/badge.svg)](https://github.com/fcireza/gentle-accounts/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/fcireza/gentle-accounts)](https://github.com/fcireza/gentle-accounts/releases)
 
-> **Formerly gentle-profiles.** The `/profile` command is now `/gentle:accounts`.
+<p align="center"><img src="assets/logo.svg" alt="gentle-accounts" width="350"></p>
 
 ![Gentle Shell status bar showing the active profile and its profile](assets/hero-status-bar.svg)
 
 The images are illustrations built from the program's real messages, not screenshots.
-
-## Objective
-
-Claude Code keeps one login per machine, and pi keeps your Codex and Anthropic credentials in a single `auth.json`. gentle-accounts lets you keep named **profiles**, such as `work` and `personal`, each with its own logins. You switch between them with one command and the status bar always shows which account is active.
-
-## Providers
-
-| Provider | What each profile keeps | How to log in |
-| --- | --- | --- |
-| Claude (via [pi-claude-bridge](https://github.com/elidickinson/pi-claude-bridge)) | its own Claude Code login (a separate `CLAUDE_CONFIG_DIR`) | `/gentle:accounts login claude` or `gentle-accounts login <profile>` |
-| Codex (`openai-codex`) | its own credentials in pi's `auth.json` | pi's `/login` |
-| Anthropic (pi's native provider) | its own credentials in pi's `auth.json` | pi's `/login` |
-
-Providers that use an API key stay global; every account (oauth) provider belongs to the profile.
-
-## Quick start
-
-Install in Gentle Shell and restart it:
-
-```sh
-gentle-shell -- install git:github.com/fcireza/gentle-accounts
-```
-
-1. Create a profile: `/gentle:accounts create work`
-2. Switch to it: `/gentle:accounts work`
-3. Log in: open the menu with `/gentle:accounts`, pick the profile, press `→` to open its providers, choose the provider row and press Enter. Claude logs in in a new terminal tab, in the same terminal, or by showing the command; Codex and Anthropic use pi's `/login`.
-4. Check the account: `/gentle:accounts current`. The status bar shows `👤 gentle-accounts: work` (`🔒` and `not logged in` when there is no login). The email is hidden by default and shown nowhere; `/gentle:accounts email show` shows it in full (visible to anyone who sees your screen).
-5. Optional: `/gentle:accounts session work` makes new sessions start on `work`; `/gentle:accounts session last` goes back to the last used profile.
-
-![Listing profiles and switching with /gentle:accounts](assets/workflow-switch.svg)
-
-![The highlighted Claude login command for macOS, Linux and Windows](assets/workflow-login.svg)
-
-From a terminal, `gentle-accounts login <profile>` runs the Claude login directly.
-
-## Accounts menu
-
-`/gentle:accounts menu` (or just `/gentle:accounts`) opens a panel that lists the profiles: `●` active in this session, `○` the others, `★` session profile. Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `d` delete, `s` session, `e` email, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close.
-
-## A different account per session
-
-`gentle-accounts <profile>` runs each session with a private agent home, so two projects can use two accounts at the same time. Sessions started without the launcher still use the global profile. OAuth refresh tokens rotate: the SAME account in two live sessions can invalidate one of them, so prefer a different account per session.
-
-## Installation
-
-| | Gentle Shell | pi without Gentle Shell |
-| --- | --- | --- |
-| Command | `gentle-shell -- install git:github.com/fcireza/gentle-accounts` | `pi install git:github.com/fcireza/gentle-accounts` |
-| Agent dir | `~/.gentle-shell/agent` (or `GENTLE_SHELL_HOME`) | `~/.pi/agent` (or `PI_CODING_AGENT_DIR`) |
-
-Requirements: Node 22.18 or newer, pi 1.5.1 or newer (or Gentle Shell), the `claude` CLI and pi-claude-bridge for Claude profiles.
-
-### macOS
-
-```sh
-gentle-shell -- install git:github.com/fcireza/gentle-accounts
-pi install git:github.com/fcireza/gentle-accounts
-```
-
-Agent dir: `~/.gentle-shell/agent`. Launcher alias for zsh (`~/.zshrc`) or bash (`~/.bashrc`):
-
-```sh
-alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'
-```
-
-### Linux
-
-```sh
-gentle-shell -- install git:github.com/fcireza/gentle-accounts
-pi install git:github.com/fcireza/gentle-accounts
-```
-
-Agent dir: `~/.gentle-shell/agent`. Launcher alias for bash (`~/.bashrc`) or zsh (`~/.zshrc`):
-
-```sh
-alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'
-```
-
-### Windows (PowerShell)
-
-> **Windows has not been tested on a real machine**, only by automated tests. WSL is recommended.
-
-```powershell
-gentle-shell -- install git:github.com/fcireza/gentle-accounts
-pi install git:github.com/fcireza/gentle-accounts
-```
-
-Agent dir: `%USERPROFILE%\.gentle-shell\agent`. Launcher function for your PowerShell profile (`$PROFILE`):
-
-```powershell
-function gentle-accounts { node "$env:USERPROFILE\.gentle-shell\agent\git\github.com\fcireza\gentle-accounts\bin\gentle-accounts.mjs" @args }
-```
-
-For details, updating, removing or dropping the old package, see [Installation](docs/en/install.md).
-
-## Commands
-
-| Inside Gentle Shell or pi | What it does |
-| --- | --- |
-| `/gentle:accounts` | Opens the accounts menu (a picker without the TUI). |
-| `/gentle:accounts menu` | Opens the accounts menu. |
-| `/gentle:accounts <name>` | Switches to `<name>`. |
-| `/gentle:accounts list` | Lists profiles; `*` marks the active one. |
-| `/gentle:accounts current` | Shows the active profile and refreshes the status bar. |
-| `/gentle:accounts create <name>` | Creates an empty profile. |
-| `/gentle:accounts delete <name>` | Deletes a profile after confirmation. |
-| `/gentle:accounts login claude` | Shows the Claude login command for the active profile. |
-| `/gentle:accounts session [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
-| `/gentle:accounts email [show\|hide]` | Shows or sets whether the status bar shows the full email. |
-| `/gentle:accounts help` | Shows the command list. |
-
-| From a terminal | What it does |
-| --- | --- |
-| `gentle-accounts <name> [args...]` | Starts `gentle-shell` with that profile in a private session home. |
-| `gentle-accounts list` | Lists profiles. |
-| `gentle-accounts current` | Shows the active profile. |
-| `gentle-accounts create <name>` | Creates an empty profile. |
-| `gentle-accounts login <name>` | Runs `claude auth login` for that profile. |
-| `gentle-accounts session [<name>\|last]` | Same as `/gentle:accounts session`. |
-| `gentle-accounts email [show\|hide]` | Same as `/gentle:accounts email`. |
-| `gentle-accounts --help` | Shows the command list. |
-
-The full reference, with every message, is in [Commands](docs/en/commands.md).
 
 ## Documentation
 
@@ -145,6 +22,63 @@ The full reference, with every message, is in [Commands](docs/en/commands.md).
 - [Troubleshooting](docs/en/troubleshooting.md): symptoms, causes and fixes.
 - [Development](docs/en/development.md): tests, CI, Conventional Commits and releases.
 - [Antigravity](docs/en/antigravity.md): plan for several Antigravity (Google) accounts (not implemented).
+
+## Objective
+
+Claude Code keeps one login per machine, and pi keeps your Codex and Anthropic credentials in a single `auth.json`. gentle-accounts lets you keep named **profiles**, such as `work` and `personal`, each with its own logins. You switch between them with one command and the status bar always shows which account is active.
+
+## How it works
+
+- Each profile keeps its own logins: its own Claude Code folder (`CLAUDE_CONFIG_DIR`) and its own set of credentials from pi's `auth.json`.
+- Switching with `/gentle:accounts <name>`, or from the menu, swaps them and refreshes the status bar, which shows the active profile.
+- `gentle-accounts <profile>` starts a session with a private agent home, so two projects can use two accounts at the same time. Avoid the SAME account in two live sessions: OAuth refresh tokens rotate and one of them can be invalidated.
+- Profiles stay on disk under `profiles/` in the agent dir. More in [How it works](docs/en/how-it-works.md).
+
+## Providers
+
+| Provider | What each profile keeps | How to log in |
+| --- | --- | --- |
+| Claude Bridge (via [pi-claude-bridge](https://github.com/elidickinson/pi-claude-bridge)) | its own Claude Code login (a separate `CLAUDE_CONFIG_DIR`) | `/gentle:accounts login claude` or `gentle-accounts login <profile>` |
+| Codex (`openai-codex`) | its own credentials in pi's `auth.json` | pi's `/login` |
+| Anthropic (pi's native provider) | its own credentials in pi's `auth.json` | pi's `/login` |
+
+Providers that use an API key stay global; every account (oauth) provider belongs to the profile.
+
+## Commands
+
+The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `d` delete, `s` session, `e` email, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode you can also click a profile or provider, double-click to switch or log in, and use the wheel.
+
+| Command | What it does |
+| --- | --- |
+| `/gentle:accounts` | Opens the accounts menu. |
+| `/gentle:accounts <name>` | Switches to `<name>`. |
+| `/gentle:accounts list` | Lists profiles. |
+| `/gentle:accounts session [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
+| `/gentle:accounts email [show\|hide]` | Shows or sets whether the status bar shows the full email. |
+| `gentle-accounts <name>` | Starts `gentle-shell` with that profile in a private session home. |
+| `gentle-accounts login <name>` | Runs `claude auth login` for that profile. |
+
+First use: create a profile, switch to it and open the menu to log in.
+
+```sh
+/gentle:accounts create work
+/gentle:accounts work
+/gentle:accounts
+```
+
+The other commands and every message are in [Commands](docs/en/commands.md).
+
+## Install / Uninstall
+
+| | macOS | Linux | Windows (PowerShell) |
+| --- | --- | --- | --- |
+| Install with Gentle Shell | `gentle-shell -- install git:github.com/fcireza/gentle-accounts` | `gentle-shell -- install git:github.com/fcireza/gentle-accounts` | `gentle-shell -- install git:github.com/fcireza/gentle-accounts` |
+| Install with pi | `pi install git:github.com/fcireza/gentle-accounts` | `pi install git:github.com/fcireza/gentle-accounts` | `pi install git:github.com/fcireza/gentle-accounts` |
+| Launcher | `alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'` in `~/.zshrc` or `~/.bashrc` | `alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'` in `~/.bashrc` or `~/.zshrc` | `function gentle-accounts { node "$env:USERPROFILE\.gentle-shell\agent\git\github.com\fcireza\gentle-accounts\bin\gentle-accounts.mjs" @args }` in `$PROFILE` |
+| Uninstall with Gentle Shell | `gentle-shell -- remove git:github.com/fcireza/gentle-accounts` | `gentle-shell -- remove git:github.com/fcireza/gentle-accounts` | `gentle-shell -- remove git:github.com/fcireza/gentle-accounts` |
+| Uninstall with pi | `pi remove git:github.com/fcireza/gentle-accounts` | `pi remove git:github.com/fcireza/gentle-accounts` | `pi remove git:github.com/fcireza/gentle-accounts` |
+
+Requirements: Node 22.18 or newer, pi 1.5.1 or newer (or Gentle Shell), the `claude` CLI and pi-claude-bridge for Claude profiles. Uninstalling keeps your profiles on disk under `profiles/` until you delete that folder. **Windows has not been tested on a real machine**, only by automated tests; WSL is recommended. Details, updating and the old package in [Installation](docs/en/install.md).
 
 ## Gentle Hub
 
