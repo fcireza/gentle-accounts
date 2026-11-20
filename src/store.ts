@@ -208,14 +208,18 @@ export class ProfileStore {
    *
    * It does not know who else uses the profile: the caller refuses a profile that a running launcher session holds.
    */
-  rename(from: string, to: string): void {
+  /** Every refusal of `rename`, without touching anything: callers run it before checking who else uses the profile. */
+  assertCanRename(from: string, to: string): void {
     this.assertExists(from);
     if (from === to) throw new Error("The new name is the same as the current one.");
     const invalid = validateNewProfileName(to);
     if (invalid) throw new Error(invalid);
     // A leftover folder without auth.json is not a profile, but the move would still collide with it.
     if (existsSync(this.profileDir(to))) throw alreadyExists(to);
+  }
 
+  rename(from: string, to: string): void {
+    this.assertCanRename(from, to);
     const oldDir = this.profileDir(from);
     const newDir = this.profileDir(to);
     renameWithRetry(renameSync, oldDir, newDir);

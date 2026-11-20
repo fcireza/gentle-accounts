@@ -328,6 +328,42 @@ export function sweepSessionHomes(
   return swept;
 }
 
+/**
+ * The session homes of live launcher sessions that use `profile` of `sharedAgentDir`: the launcher or its gentle-shell
+ * is alive and the session's own current file (or, without one, its marker) names the profile. Read only: it never
+ * creates the base dir, and a base dir someone else controls is not trusted, so it reports no sessions.
+ */
+export function liveSessionHomesOn(
+  profile: string,
+  sharedAgentDir: string,
+  baseDir: string = sessionBaseDir(),
+  isAlive: (pid: number) => boolean = pidAlive,
+  options: BaseDirOptions = {},
+): string[] {
+  const fs = options.fs ?? nodeFs;
+  if (!fs.existsSync(baseDir)) return [];
+  try {
+    ensureBaseDir(baseDir, options);
+  } catch {
+    return [];
+  }
+  let shared: string;
+  try {
+    shared = fs.realpathSync(sharedAgentDir);
+  } catch {
+    shared = resolve(sharedAgentDir);
+  }
+  const homes: string[] = [];
+  for (const name of fs.readdirSync(baseDir)) {
+    const home = join(baseDir, name);
+    const marker = readSessionMarker(home);
+    if (!marker || marker.sharedAgentDir !== shared) continue;
+    if (!isAlive(marker.pid) && !(typeof marker.childPid === "number" && isAlive(marker.childPid))) continue;
+    if ((readSessionCurrent(home) ?? marker.profile) === profile) homes.push(home);
+  }
+  return homes;
+}
+
 export interface AgentContext {
   /** Shared agent dir: profiles, snapshots, Claude dirs, startup and settings. */
   sharedDir: string;
