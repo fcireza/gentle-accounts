@@ -1,5 +1,5 @@
 import { decodeKey } from "./keys.ts";
-import { renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
+import { menuHits, renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
 
 /** Tagged result of one panel opening; `profile`/`row` let the caller reopen on the same selection. */
 export type MenuAction =
@@ -11,6 +11,25 @@ export type MenuAction =
   | { type: "email"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
   | { type: "close" };
+
+/**
+ * The part of pi-tui's `TuiMouseEvent` the panel reads (declared here because pi-tui is not resolvable from this
+ * package under tests). pi only delivers mouse events in fullscreen mode; coordinates are local to the panel.
+ */
+export interface PanelMouseEvent {
+  type: string;
+  button: string;
+  x: number;
+  y: number;
+  width: number;
+  wheelDelta?: number;
+  clickCount?: number;
+}
+
+export interface PanelMouseResult {
+  handled?: boolean;
+  render?: boolean;
+}
 
 export interface PanelOptions {
   requestRender?: () => void;
@@ -62,6 +81,45 @@ export class AccountsMenuPanel {
     this.done(action);
   }
 
+  /** Up or down: profiles on the profile row, providers while they are open. */
+  private step(delta: number): void {
+    if (this.row === 0) this.moveProfile(delta);
+    else this.moveRow(delta);
+  }
+
+  /** Enter: switch on a profile, log in on a provider. */
+  private activate(): void {
+    const profile = this.model.profiles[this.selected];
+    if (!profile) return;
+    if (this.row === 0) return this.finish({ type: "switch", profile: profile.name, row: this.row });
+    return this.finish({ type: "login", profile: profile.name, provider: profile.providers[this.row - 1].provider, row: this.row });
+  }
+
+  /**
+   * Fullscreen mouse: a left click selects the profile or provider under the pointer, a double click acts like
+   * Enter, the wheel moves like up and down. Anything else on the panel is swallowed; the keyboard keeps working.
+   */
+  handleMouse(event: PanelMouseEvent): PanelMouseResult | undefined {
+    if (this.finished) return undefined;
+    if (event.type === "wheel") {
+      if (!event.wheelDelta) return undefined;
+      this.step(event.wheelDelta < 0 ? -1 : 1);
+      this.invalidate();
+      return { handled: true };
+    }
+    // pi only synthesizes the click on release when the press was handled by the same component: an unhandled
+    // press starts a text selection in the chat instead, and no click ever arrives.
+    if (event.type === "press" && event.button === "left") return { handled: true, render: false };
+    if (event.type !== "click" || event.button !== "left") return undefined;
+    const hit = menuHits({ ...this.model, selected: this.selected, row: this.row }, event.width)[event.y];
+    if (!hit) return { handled: true };
+    this.selected = hit.profile;
+    this.row = hit.row;
+    this.invalidate();
+    if ((event.clickCount ?? 1) >= 2) this.activate();
+    return { handled: true };
+  }
+
   private moveProfile(delta: number): void {
     const count = this.model.profiles.length;
     if (count < 2) return;
@@ -95,18 +153,14 @@ export class AccountsMenuPanel {
         break;
       case "up":
       case "char:k":
-        if (this.row === 0) this.moveProfile(-1);
-        else this.moveRow(-1);
+        this.step(-1);
         break;
       case "down":
       case "char:j":
-        if (this.row === 0) this.moveProfile(1);
-        else this.moveRow(1);
+        this.step(1);
         break;
       case "enter":
-        if (!profile || !name) return;
-        if (row === 0) return this.finish({ type: "switch", profile: name, row });
-        return this.finish({ type: "login", profile: name, provider: profile.providers[row - 1].provider, row });
+        return this.activate();
       case "char:n":
         return this.finish(name ? { type: "create", profile: name, row } : { type: "create", row });
       case "char:e":

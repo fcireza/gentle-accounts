@@ -25,9 +25,9 @@ With no argument, opens the accounts menu (the same as `/gentle:accounts menu`) 
 
 ### `/gentle:accounts menu`
 
-Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:profiles` panel. Without the interactive TUI it falls back to the `Switch profile` picker.
+Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:profiles` panel. It is a panel of about 60% of the chat column, centered in it: when Gentle Shell shows its sidebar the panel stays beside it instead of the full terminal, with the title and `esc` on top and the key hints at the bottom; on narrow terminals it switches to a compact layout. Without the interactive TUI it falls back to the `Switch profile` picker.
 
-- Header: the mode (`session home` when the session was started by the launcher, `global` otherwise) and the email display (`shown` or `hidden`).
+- Header: `Account Default`, the session profile new sessions start on (`none` when it is not set), and the email display (`shown` or `hidden`).
 - One row per profile: `●` marks the profile active in this session, `○` the others, `★` the session profile, followed by the providers it is logged in to. The list shows eight profiles at a time and scrolls; `↑ N more` and `↓ N more` count the hidden ones.
 - Providers: `→` on the selected profile opens one row per provider (Claude, Codex, Anthropic) with `●` logged in or `○` not logged in, and `←` closes them. The email appears only on those rows and only when the email display is shown; while it is hidden nothing follows `logged in`. Opening the menu never runs `claude auth status` per profile: it reuses the status bar result for the active profile and reads files for the others.
 - With no profiles: `no profiles yet: press n to create one`.
@@ -44,6 +44,8 @@ Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:prof
 | `e` | Toggle the email display (same messages as `email show` and `email hide`). |
 | `o` | Open this project with the selected profile in a new terminal tab. Only on a provider row with a login; the key hint `o open in tab` appears only there. |
 | `Esc` or `Ctrl+C` | Close. |
+
+Mouse, in `fullscreen` mode only (in the regular mode the terminal owns the mouse and the keyboard is the only way): a click selects the profile or provider under the pointer, a double click acts like `Enter`, and the wheel moves like `↑` `↓`. Clicks on the frame, the header or the hints do nothing.
 
 Messages appear inside the menu, because notifications are hidden behind it.
 

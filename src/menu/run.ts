@@ -52,7 +52,49 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export const OVERLAY_OPTIONS = { anchor: "center", width: "100%", maxHeight: "100%", margin: 0 } as const;
+/** A centered panel of about 60% of the terminal; `minWidth` keeps it readable before the compact layout takes over. */
+export const OVERLAY_OPTIONS = { anchor: "center", width: "60%", minWidth: 60, maxHeight: "90%", margin: 1 } as const;
+
+/** Where Gentle Shell publishes its fullscreen sidebar state on the terminal (the contract its own overlays read). */
+const SIDEBAR_STATE = Symbol.for("gentle-pi.experimental-sidebar.state");
+const SIDEBAR_PADDING = 1;
+
+/**
+ * Right margin that keeps the panel inside the chat column: the columns the Gentle Shell sidebar rail reserves
+ * (`railColumns`, rail plus gap) plus one of padding while the rail paints. It is 0 without the sidebar and for
+ * any absent, malformed or non-owning state; it never throws, so the menu always opens.
+ */
+export function sidebarRightMargin(terminal: unknown): number {
+  if (typeof terminal !== "object" || terminal === null) return 0;
+  const state = (terminal as Record<symbol, unknown>)[SIDEBAR_STATE] as { active?: unknown; ownsHost?: () => unknown; railColumns?: unknown } | undefined;
+  if (typeof state !== "object" || state === null) return 0;
+  if (state.active !== true || typeof state.ownsHost !== "function") return 0;
+  const rail = state.railColumns;
+  if (typeof rail !== "number" || !Number.isInteger(rail) || rail <= 0) return 0;
+  try {
+    return state.ownsHost() === true ? rail + SIDEBAR_PADDING : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * The overlay options with a live right margin: pi-tui calls `visible()` on every render and re-reads `margin`,
+ * so the panel follows the sidebar when the terminal is resized across its breakpoint while the menu stays open.
+ */
+export function menuOverlayOptions(getTerminal: () => unknown) {
+  let right = sidebarRightMargin(getTerminal());
+  return {
+    ...OVERLAY_OPTIONS,
+    get margin() {
+      return right > 0 ? { top: 1, right, bottom: 1, left: 1 } : OVERLAY_OPTIONS.margin;
+    },
+    visible: () => {
+      right = sidebarRightMargin(getTerminal());
+      return true;
+    },
+  };
+}
 
 /**
  * Caller loop: opens the panel, executes the tagged action with the existing store functions and reopens
@@ -80,10 +122,13 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
       row,
       feedback,
     });
+    let tuiRef: { terminal?: unknown } | undefined;
     const action = await ctx.ui.custom<MenuAction>(
-      (tui, theme, _keybindings, done) =>
-        new AccountsMenuPanel(model, theme, done, { requestRender: () => (tui as { requestRender?: () => void } | undefined)?.requestRender?.() }),
-      { overlay: true, overlayOptions: { ...OVERLAY_OPTIONS } },
+      (tui, theme, _keybindings, done) => {
+        tuiRef = tui as { terminal?: unknown } | undefined;
+        return new AccountsMenuPanel(model, theme, done, { requestRender: () => (tui as { requestRender?: () => void } | undefined)?.requestRender?.() });
+      },
+      { overlay: true, overlayOptions: () => menuOverlayOptions(() => tuiRef?.terminal) },
     );
     if (!action || action.type === "close") return;
     selectedName = action.profile ?? selectedName;

@@ -50,43 +50,64 @@ function providerLines(model: MenuModel, compact: boolean, theme: MenuTheme): st
   });
 }
 
-function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): string[] {
+/** What a click on a rendered line selects: a profile (row 0) or one of its provider rows (1..n). */
+export interface MenuHit {
+  profile: number;
+  row: number;
+}
+
+function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: string[]; hits: (MenuHit | null)[] } {
   const compact = inner + 4 < COMPACT_WIDTH;
   const lines: string[] = [];
-  const header = compact
-    ? `${model.title} · ${model.mode === "session home" ? "session" : "global"}`
-    : `${model.title} · accounts   mode: ${model.mode} · email: ${model.showEmail ? "shown" : "hidden"}`;
-  lines.push(theme.fg("accent", bold(theme, header)));
-  if (compact) lines.push(theme.fg("muted", `email: ${model.showEmail ? "shown" : "hidden"}`));
-  lines.push(theme.fg("border", "─".repeat(inner)));
+  const hits: (MenuHit | null)[] = [];
+  const add = (line: string, hit: MenuHit | null = null): void => {
+    lines.push(line);
+    hits.push(hit);
+  };
+  const title = "Accounts";
+  const esc = "esc";
+  add(`${theme.fg("accent", bold(theme, title))}${" ".repeat(Math.max(1, inner - visibleWidth(title) - visibleWidth(esc)))}${theme.fg("dim", esc)}`);
+  // The default account is the session profile: the one new sessions start on (`★` in the list).
+  const defaultName = model.profiles.find((p) => p.startup)?.name ?? "none";
+  // The labels use the theme's accent, the values the plain text color.
+  const label = (text: string) => theme.fg("accent", text);
+  const emailValue = model.showEmail ? "shown" : "hidden";
+  add(compact ? `${label("Default:")} ${theme.fg("text", defaultName)}` : `${label("Account Default:")} ${theme.fg("text", defaultName)} ${theme.fg("muted", "·")} ${label("email:")} ${theme.fg("text", emailValue)}`);
+  if (compact) add(`${label("email:")} ${theme.fg("text", emailValue)}`);
+  add(theme.fg("border", "─".repeat(inner)));
   if (!model.profiles.length) {
-    lines.push(theme.fg("muted", "no profiles yet: press n to create one"));
+    add(theme.fg("muted", "no profiles yet: press n to create one"));
   } else {
     const count = model.profiles.length;
     const start = Math.min(Math.max(0, model.selected - Math.floor(MAX_LISTED / 2)), Math.max(0, count - MAX_LISTED));
     const end = Math.min(count, start + MAX_LISTED);
     const nameWidth = Math.min(compact ? 12 : 18, Math.max(...model.profiles.map((p) => visibleWidth(p.name))));
-    if (start > 0) lines.push(theme.fg("dim", `  ↑ ${start} more`));
+    if (start > 0) add(theme.fg("dim", `  ↑ ${start} more`));
     for (let i = start; i < end; i++) {
-      lines.push(profileLine(model, i, nameWidth, theme));
-      if (i === model.selected && model.row > 0) lines.push(...providerLines(model, compact, theme));
+      add(profileLine(model, i, nameWidth, theme), { profile: i, row: 0 });
+      if (i === model.selected && model.row > 0) providerLines(model, compact, theme).forEach((line, k) => add(line, { profile: i, row: k + 1 }));
     }
-    if (end < count) lines.push(theme.fg("dim", `  ↓ ${count - end} more`));
+    if (end < count) add(theme.fg("dim", `  ↓ ${count - end} more`));
   }
-  lines.push("");
+  add("");
   if (model.feedback) {
     const tone = model.feedback.type === "error" ? "error" : model.feedback.type === "warning" ? "warning" : "success";
-    for (const line of clean(model.feedback.message.replace(/\r/g, "")).split("\n")) lines.push(theme.fg(tone, line));
+    for (const line of clean(model.feedback.message.replace(/\r/g, "")).split("\n")) add(theme.fg(tone, line));
   } else {
-    lines.push(theme.fg("dim", compact ? "enter: switch or log in" : "enter: switch on a profile, log in on a provider (→ opens its providers)"));
+    add(theme.fg("dim", compact ? "enter: switch or log in" : "enter: switch on a profile, log in on a provider (→ opens its providers)"));
   }
   // `o` opens the project with the selected profile, so it is offered only on a logged-in provider row.
   const canOpen = model.row > 0 && model.profiles[model.selected]?.providers[model.row - 1]?.loggedIn === true;
-  const hints = compact
-    ? ["↑↓ profile →← providers ⏎ ok", "n new d del s session", `e email ${canOpen ? "o open " : ""}esc close`]
-    : ["↑↓ profile  →← providers  enter select  n new  d delete", `s set session  e email${canOpen ? "  o open in tab" : ""}  esc close`];
-  for (const hint of hints) lines.push(theme.fg("dim", hint));
-  return lines;
+  // Each hint is [key, what it does]: the key is drawn in the theme's accent, the text dim.
+  type Hint = [string, string];
+  const open: Hint[] = canOpen ? [["o", compact ? "open" : "open in tab"]] : [];
+  const hints: Hint[][] = compact
+    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["d", "del"], ["s", "session"]], [["e", "email"], ...open, ["esc", "close"]]]
+    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"], ["n", "new"], ["d", "delete"]], [["s", "set session"], ["e", "email"], ...open, ["esc", "close"]]];
+  const gap = compact ? " " : "  ";
+  add(theme.fg("border", "─".repeat(inner)));
+  for (const line of hints) add(line.map(([key, text]) => `${theme.fg("accent", key)} ${theme.fg("dim", text)}`).join(gap));
+  return { lines, hits };
 }
 
 /**
@@ -95,14 +116,22 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): string[] 
  */
 export function renderMenu(model: MenuModel, width: number, theme: MenuTheme = identityTheme): string[] {
   const w = Math.max(0, Math.floor(width));
-  if (w < 6) return bodyLines(model, 20, identityTheme).map((line) => truncateToWidth(line, w, ""));
+  if (w < 6) return bodyLines(model, 20, identityTheme).lines.map((line) => truncateToWidth(line, w, ""));
   const inner = w - 4;
   const border = (text: string) => theme.fg("border", text);
-  const title = ` ${model.title} `;
-  const top = visibleWidth(title) + 2 <= inner + 2 ? `╭─${title}${"─".repeat(inner + 2 - 1 - visibleWidth(title))}╮` : `╭${"─".repeat(inner + 2)}╮`;
   return [
-    border(top),
-    ...bodyLines(model, inner, theme).map((line) => `${border("│")} ${fit(line, inner)} ${border("│")}`),
+    border(`╭${"─".repeat(inner + 2)}╮`),
+    ...bodyLines(model, inner, theme).lines.map((line) => `${border("│")} ${fit(line, inner)} ${border("│")}`),
     border(`╰${"─".repeat(inner + 2)}╯`),
   ];
+}
+
+/**
+ * For each line `renderMenu` returns at `width`, what a click on it selects (null on the frame, the header,
+ * the hints and every other line). Same indexes as the rendered lines: the top border is line 0.
+ */
+export function menuHits(model: MenuModel, width: number): (MenuHit | null)[] {
+  const w = Math.max(0, Math.floor(width));
+  if (w < 6) return [];
+  return [null, ...bodyLines(model, w - 4, identityTheme).hits, null];
 }

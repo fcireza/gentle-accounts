@@ -9,7 +9,7 @@ import { resolveContext } from "../src/session-home.ts";
 import { settingsPath } from "../src/settings.ts";
 import { claudeLoginCommand, loginHint } from "../src/login.ts";
 import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
-import { OVERLAY_OPTIONS, menuAvailable, runAccountsMenu } from "../src/menu/run.ts";
+import { OVERLAY_OPTIONS, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
 import type { AccountsMenuPanel, MenuAction } from "../src/menu/panel.ts";
 import { identityTheme } from "../src/menu/view.ts";
 import type { OpenTabResult, TabCommand } from "../src/terminal.ts";
@@ -27,7 +27,7 @@ function setup() {
 }
 
 /** Fake `ctx.ui.custom`: renders each opened panel and returns the next scripted action (or undefined). */
-function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string } = {}) {
+function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string; terminal?: unknown } = {}) {
   const frames: string[] = [];
   const notes: { message: string; type?: string }[] = [];
   const options: unknown[] = [];
@@ -48,7 +48,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
       custom: async (factory: (tui: unknown, theme: unknown, kb: unknown, done: (a: MenuAction) => void) => AccountsMenuPanel, opts: unknown) => {
         options.push(opts);
         let result: MenuAction | undefined;
-        const panel = factory({ requestRender() {} }, identityTheme, {}, (a) => (result = a));
+        const panel = factory({ requestRender() {}, terminal: o.terminal }, identityTheme, {}, (a) => (result = a));
         frames.push(panel.render(120).join("\n"));
         return script.length ? script.shift() : result;
       },
@@ -74,13 +74,18 @@ function deps(agentDir: string, statusLog: string[] = []) {
 
 const feedbackOf = (frame: string) => frame.split("\n").filter((l) => !/[╭╰]/.test(l)).map((l) => l.slice(2, -2).trimEnd()).join("\n");
 
-test("S31 run: menu opens as a centered full overlay and ends on close", async () => {
+test("S36 run: menu opens as a centered panel of about 60% of the terminal and ends on close", async () => {
   const { agentDir } = setup();
   const c = fakeCtx([{ type: "close" }]);
   await runAccountsMenu(c.ctx, deps(agentDir));
   assert.equal(c.frames.length, 1);
-  assert.deepEqual(c.options, [{ overlay: true, overlayOptions: { ...OVERLAY_OPTIONS } }]);
-  assert.deepEqual(OVERLAY_OPTIONS, { anchor: "center", width: "100%", maxHeight: "100%", margin: 0 });
+  assert.equal(c.options.length, 1);
+  const opened = c.options[0] as { overlay: boolean; overlayOptions: () => ReturnType<typeof menuOverlayOptions> };
+  assert.equal(opened.overlay, true);
+  assert.equal(typeof opened.overlayOptions, "function", "options are resolved at show time so the margin can follow the sidebar");
+  const resolved = opened.overlayOptions();
+  assert.deepEqual({ anchor: resolved.anchor, width: resolved.width, minWidth: resolved.minWidth, maxHeight: resolved.maxHeight, margin: resolved.margin }, OVERLAY_OPTIONS);
+  assert.deepEqual(OVERLAY_OPTIONS, { anchor: "center", width: "60%", minWidth: 60, maxHeight: "90%", margin: 1 });
   assert.match(c.frames[0], /▸ ● work/);
   const undef = fakeCtx([undefined]);
   await runAccountsMenu(undef.ctx, deps(agentDir));
@@ -288,4 +293,46 @@ test("S31 run: the menu is available only with UI in tui mode", () => {
   assert.equal(menuAvailable({ hasUI: false, mode: "tui" }), false);
   assert.equal(menuAvailable({ hasUI: true, mode: "rpc" }), false);
   assert.equal(menuAvailable({ hasUI: true }), false);
+});
+
+// -- S39: centered on the chat column when the Gentle Shell sidebar is painting ---------------------------------
+
+const SIDEBAR = Symbol.for("gentle-pi.experimental-sidebar.state");
+const withSidebar = (state: unknown) => ({ [SIDEBAR]: state }) as object;
+const owning = { active: true, ownsHost: () => true, railColumns: 53 };
+
+test("S39 margin: the sidebar rail plus one column of padding, 0 for anything else", () => {
+  assert.equal(sidebarRightMargin(withSidebar(owning)), 54);
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, railColumns: 20 })), 21);
+  for (const bad of [undefined, null, "terminal", 5, {}, withSidebar(undefined), withSidebar(null), withSidebar("x")]) assert.equal(sidebarRightMargin(bad), 0, JSON.stringify(bad));
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, active: false })), 0, "not painting");
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, ownsHost: () => false })), 0, "the sidebar does not own this host");
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, ownsHost: undefined })), 0);
+  for (const rail of [0, -3, 1.5, "53", undefined, NaN]) assert.equal(sidebarRightMargin(withSidebar({ ...owning, railColumns: rail })), 0, String(rail));
+  assert.equal(sidebarRightMargin(withSidebar({ ...owning, ownsHost: () => { throw new Error("boom"); } })), 0, "never throws");
+});
+
+test("S39 margin: the overlay margin is live, so the panel follows the sidebar while the menu stays open", () => {
+  let terminal: unknown = undefined;
+  const options = menuOverlayOptions(() => terminal);
+  assert.equal(options.margin, 1, "no sidebar: the plain margin");
+  terminal = withSidebar(owning);
+  assert.equal(options.visible(), true);
+  assert.deepEqual(options.margin, { top: 1, right: 54, bottom: 1, left: 1 }, "confined to the chat column");
+  terminal = withSidebar({ ...owning, active: false });
+  options.visible();
+  assert.equal(options.margin, 1, "the sidebar went away (a resize across its breakpoint)");
+  assert.equal(options.width, "60%");
+  assert.equal(options.anchor, "center");
+});
+
+test("S39 run: the menu hands pi the terminal it is shown on, so the margin reads the real sidebar", async () => {
+  const { agentDir } = setup();
+  const c = fakeCtx([{ type: "close" }], { terminal: withSidebar(owning) });
+  await runAccountsMenu(c.ctx, deps(agentDir));
+  const opened = c.options[0] as { overlayOptions: () => ReturnType<typeof menuOverlayOptions> };
+  assert.deepEqual(opened.overlayOptions().margin, { top: 1, right: 54, bottom: 1, left: 1 });
+  const plain = fakeCtx([{ type: "close" }]);
+  await runAccountsMenu(plain.ctx, deps(agentDir));
+  assert.equal((plain.options[0] as { overlayOptions: () => ReturnType<typeof menuOverlayOptions> }).overlayOptions().margin, 1);
 });

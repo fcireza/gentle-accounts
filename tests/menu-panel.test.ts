@@ -123,3 +123,102 @@ test("S31 keys: decoder table", () => {
   assert.equal(decodeKey("\x1b[97;1:3u"), undefined);
   assert.equal(decodeKey("é"), undefined);
 });
+
+// -- mouse (pi delivers it in fullscreen mode only; coordinates are local to the panel) --------------------
+
+const W = 100;
+type Mouse = Parameters<AccountsMenuPanel["handleMouse"]>[0];
+const mouse = (y: number, extra: Partial<Mouse> = {}): Mouse => ({ type: "click", button: "left", x: 10, y, width: W, clickCount: 1, ...extra });
+const lineOf = (panel: AccountsMenuPanel, re: RegExp): number => {
+  const y = panel.render(W).findIndex((l) => re.test(l));
+  assert.ok(y >= 0, `no line matches ${re}`);
+  return y;
+};
+
+test("S35 mouse: a click selects the profile under the pointer and swallows the event", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  assert.deepEqual(panel.handleMouse(mouse(lineOf(panel, /zeta/))), { handled: true });
+  assert.deepEqual(actions, [], "a single click never acts");
+  assert.match(panel.render(W).join("\n"), /▸ ○ zeta/);
+  panel.handleInput("\r");
+  assert.deepEqual(actions, [{ type: "switch", profile: "zeta", row: 0 }], "the selection is the one Enter acts on");
+});
+
+test("S35 mouse: a double click acts like Enter, on a profile and on a provider", () => {
+  const onProfile: MenuAction[] = [];
+  const a = new AccountsMenuPanel(model(), identityTheme, (x) => onProfile.push(x));
+  a.handleMouse(mouse(lineOf(a, /personal/), { clickCount: 2 }));
+  assert.deepEqual(onProfile, [{ type: "switch", profile: "personal", row: 0 }]);
+
+  const onProvider: MenuAction[] = [];
+  const b = new AccountsMenuPanel(model(), identityTheme, (x) => onProvider.push(x));
+  b.handleInput(KEYS.right);
+  b.handleMouse(mouse(lineOf(b, /Codex/), { clickCount: 1 }));
+  assert.deepEqual(onProvider, []);
+  b.handleMouse(mouse(lineOf(b, /Codex/), { clickCount: 2 }));
+  assert.deepEqual(onProvider, [{ type: "login", profile: "work", provider: "openai-codex", row: 2 }]);
+});
+
+test("S35 mouse: clicking another profile closes the open providers", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  panel.handleInput(KEYS.right);
+  assert.match(panel.render(W).join("\n"), /▸ ○ Claude Bridge|▸ ● Claude Bridge/, "providers open on the first row");
+  panel.handleMouse(mouse(lineOf(panel, /personal/)));
+  const text = panel.render(W).join("\n");
+  assert.match(text, /▸ ○ personal/);
+  assert.doesNotMatch(text, /Codex {2,}not logged in/, "the providers of the old profile are gone");
+});
+
+test("S35 mouse: the wheel moves like up and down, and is ignored without a delta", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  assert.deepEqual(panel.handleMouse({ type: "wheel", button: "none", x: 0, y: 3, width: W, wheelDelta: 1 }), { handled: true });
+  panel.handleInput(KEYS.enter);
+  assert.deepEqual(actions, [{ type: "switch", profile: "zeta", row: 0 }]);
+  const idle = new AccountsMenuPanel(model(), identityTheme, () => undefined);
+  assert.equal(idle.handleMouse({ type: "wheel", button: "none", x: 0, y: 3, width: W }), undefined);
+});
+
+test("S35 mouse: clicks outside the rows, other buttons and other events change nothing", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  const before = panel.render(W).join("\n");
+  const lines = panel.render(W);
+  assert.deepEqual(panel.handleMouse(mouse(0)), { handled: true }, "frame");
+  assert.deepEqual(panel.handleMouse(mouse(1)), { handled: true }, "header");
+  assert.deepEqual(panel.handleMouse(mouse(lines.length - 2)), { handled: true }, "hints");
+  assert.deepEqual(panel.handleMouse(mouse(999)), { handled: true }, "below the panel");
+  assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { button: "right" })), undefined);
+  for (const type of ["release", "move", "drag"]) assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { type })), undefined, type);
+  assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { type: "press", button: "right" })), undefined, "a right press stays with pi");
+  assert.equal(panel.render(W).join("\n"), before, "nothing moved");
+  assert.deepEqual(actions, []);
+});
+
+test("S35 mouse: after the panel finished it ignores the mouse", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  panel.handleInput(KEYS.esc);
+  assert.equal(panel.handleMouse(mouse(lineOf(panel, /work/), { clickCount: 2 })), undefined);
+  assert.deepEqual(actions, [{ type: "close" }]);
+});
+
+test("S40 mouse: a left press is handled, because pi only delivers the click of a press the component handled", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  const before = panel.render(W).join("\n");
+  // On a row, on the frame and below the panel: always handled (an unhandled press starts a text selection in the chat).
+  for (const y of [lineOf(panel, /zeta/), 0, 1, 999]) {
+    assert.deepEqual(panel.handleMouse(mouse(y, { type: "press" })), { handled: true, render: false }, `press at ${y}`);
+  }
+  assert.equal(panel.render(W).join("\n"), before, "a press alone selects nothing; the selection happens on the click");
+  assert.deepEqual(actions, []);
+  // pi's gesture: press then release on the same cell, then the click it synthesizes.
+  const y = lineOf(panel, /zeta/);
+  assert.ok(panel.handleMouse(mouse(y, { type: "press" }))?.handled);
+  assert.equal(panel.handleMouse(mouse(y, { type: "release" })), undefined);
+  assert.ok(panel.handleMouse(mouse(y, { clickCount: 1 }))?.handled);
+  assert.match(panel.render(W).join("\n"), /▸ ○ zeta/);
+});

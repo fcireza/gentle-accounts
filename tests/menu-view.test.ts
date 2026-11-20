@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
 import { writeAuthFile } from "../src/auth-sync.ts";
 import { buildSessionHome, resolveContext } from "../src/session-home.ts";
-import { COMPACT_WIDTH, buildMenuModel, identityTheme, renderMenu, truncateToWidth, visibleWidth, type MenuModel, type MenuTheme } from "../src/menu/view.ts";
+import { COMPACT_WIDTH, buildMenuModel, identityTheme, menuHits, renderMenu, truncateToWidth, visibleWidth, type MenuModel, type MenuTheme } from "../src/menu/view.ts";
 
 const EMAIL = "maria.lopez@company.com";
 
@@ -105,7 +105,8 @@ test("S31 view: session mode reads the shared store, the session current and H/a
   assert.equal(m.mode, "session home");
   assert.deepEqual(m.profiles.map((p) => [p.name, p.active]), [["personal", false], ["work", true]]);
   assert.deepEqual(m.profiles[1].providers.map((p) => p.loggedIn), [false, true, false]);
-  assert.match(renderMenu(m, 100).join("\n"), /mode: session home/);
+  assert.equal(m.mode, "session home");
+  assert.doesNotMatch(renderMenu(m, 100).join("\n"), /mode:/, "the header no longer shows the mode");
 });
 
 test("S31 view: selection restores by name and clamps the row; an unknown name falls back to the first tab", () => {
@@ -139,8 +140,12 @@ test("S31 render: every width keeps lines inside the frame with identity and tag
 test("S31 render: wide layout lists the profiles, expands the selected one and shows feedback and key hints", () => {
   const m = { ...model({ showEmail: false }), selected: 0, feedback: { message: "Delete cancelled.", type: "info" as const } };
   const text = renderMenu(m, 100).join("\n");
-  assert.match(text, /╭─ gentle-accounts ─/);
-  assert.match(text, /gentle-accounts · accounts {3}mode: global · email: hidden/);
+  const plain = renderMenu(m, 100, identityTheme);
+  assert.match(plain[0], /^╭─+╮$/, "plain frame: the title is inside the panel");
+  assert.match(plain[1], /^│ Accounts {80,}esc │$/, "title on the left, esc on the right");
+  assert.match(plain[2], /^│ Account Default: personal · email: hidden +│$/, "the default account is the session profile");
+  assert.match(plain[3], /^│ ─+ │$/);
+  assert.match(plain.at(-4)!, /^│ ─+ │$/, "a rule separates the key hints from the rest");
   assert.match(text, /▸ ○ personal ★ {2}Claude Bridge · Anthropic/);
   assert.match(text, /\s{2}● work {4,}Codex {2}active/);
   assert.doesNotMatch(text, /logged in/, "providers stay collapsed on the profile row");
@@ -167,7 +172,7 @@ test("S31 render: compact layout under 50 columns", () => {
   const m = { ...model(), selected: 0, row: 1 };
   for (const width of [30, 40, COMPACT_WIDTH - 1]) {
     const text = check(m, width, identityTheme).join("\n");
-    assert.match(text, /gentle-accounts · global/);
+    assert.match(text, /Default: personal/);
     assert.match(text, /● Claude B/, "label cut by the width, never wrapped");
     assert.match(text, /esc close/);
   }
@@ -219,4 +224,64 @@ test("S31 render: width helpers count wide characters and ANSI correctly", () =>
   assert.equal(visibleWidth("◉ ★ ● ○ ╭"), 9);
   assert.equal(truncateToWidth("名前名前", 5), "名前…");
   assert.equal(visibleWidth(truncateToWidth("\x1b[31mabcdef\x1b[0m", 4)), 4);
+});
+
+test("S35 hits: one entry per rendered line, profiles at row 0 and the open profile's providers at 1..n", () => {
+  const m = { ...model(), selected: 0 };
+  for (const width of WIDTHS) {
+    for (const row of [0, 2]) {
+      const lines = renderMenu({ ...m, row }, width, identityTheme);
+      const hits = menuHits({ ...m, row }, width);
+      assert.equal(hits.length, lines.length, `width ${width} row ${row}: same indexes as the rendered lines`);
+      assert.equal(hits[0], null);
+      assert.equal(hits.at(-1), null);
+    }
+  }
+  const lines = renderMenu({ ...m, row: 2 }, 100, identityTheme);
+  const hits = menuHits({ ...m, row: 2 }, 100);
+  const at = (re: RegExp) => hits[lines.findIndex((l) => re.test(l))];
+  assert.deepEqual(at(/[●○] personal/), { profile: 0, row: 0 });
+  assert.deepEqual(at(/Claude Bridge {2}logged in/), { profile: 0, row: 1 });
+  assert.deepEqual(at(/Codex/), { profile: 0, row: 2 });
+  assert.deepEqual(at(/Anthropic {6}logged in/), { profile: 0, row: 3 });
+  assert.deepEqual(hits.filter((h) => h).length, 1 + 3 + 1, "personal + its 3 providers + work");
+  assert.deepEqual(menuHits(m, 3), []);
+});
+
+test("S37 render: in the key hints the keys use the theme's accent and the text the dim color", () => {
+  const A = "\x1b[35m";
+  const D = "\x1b[90m";
+  const R = "\x1b[39m";
+  const named: MenuTheme = { fg: (color, text) => (color === "accent" ? `${A}${text}${R}` : color === "dim" ? `${D}${text}${R}` : text) };
+  const key = (k: string, t: string) => `${A}${k}${R} ${D}${t}${R}`;
+  const m = { ...model(), selected: 0 };
+  const wide = renderMenu(m, 100, named).join("\n");
+  assert.ok(wide.includes(`${key("↑↓", "profile")}  ${key("→←", "providers")}  ${key("enter", "select")}`));
+  assert.ok(wide.includes(`${key("s", "set session")}  ${key("e", "email")}  ${key("esc", "close")}`));
+  assert.ok(!wide.includes(`${A}o${R}`), "no open hint off a logged-in provider");
+  assert.ok(renderMenu({ ...m, row: 1 }, 100, named).join("\n").includes(key("o", "open in tab")));
+  assert.ok(renderMenu(m, 40, named).join("\n").includes(key("⏎", "ok")), "compact layout too");
+});
+
+test("S38 render: the header names the default account, or none when no session profile is set", () => {
+  const m = model();
+  const named = renderMenu({ ...m, selected: 0 }, 100, identityTheme).join("\n");
+  assert.match(named, /Account Default: personal · email: hidden/);
+  const none = { ...m, profiles: m.profiles.map((p) => ({ ...p, startup: false })) };
+  assert.match(renderMenu(none, 100, identityTheme).join("\n"), /Account Default: none · email: hidden/);
+  assert.match(renderMenu(none, 40, identityTheme).join("\n"), /Default: none/);
+  assert.doesNotMatch(named, /mode:/);
+});
+
+test("S41 render: the header labels use the theme's accent and the values the text color", () => {
+  const A = "\x1b[35m";
+  const T = "\x1b[37m";
+  const R = "\x1b[39m";
+  const named: MenuTheme = { fg: (color, text) => (color === "accent" ? `${A}${text}${R}` : color === "text" ? `${T}${text}${R}` : text) };
+  const wide = renderMenu({ ...model(), selected: 0 }, 100, named).join("\n");
+  assert.ok(wide.includes(`${A}Account Default:${R} ${T}personal${R}`));
+  assert.ok(wide.includes(`${A}email:${R} ${T}hidden${R}`));
+  const compact = renderMenu({ ...model(), selected: 0 }, 40, named).join("\n");
+  assert.ok(compact.includes(`${A}Default:${R} ${T}personal${R}`));
+  assert.ok(compact.includes(`${A}email:${R} ${T}hidden${R}`));
 });

@@ -25,9 +25,9 @@ Sin argumentos, abre el menú de cuentas (igual que `/gentle:accounts menu`) cua
 
 ### `/gentle:accounts menu`
 
-Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:profiles` de Gentle Shell. Sin la TUI interactiva usa el selector `Switch profile`.
+Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:profiles` de Gentle Shell. Es un panel de cerca del 60% de la columna del chat, centrado en ella: cuando Gentle Shell muestra su barra lateral el panel queda a su lado y no en toda la terminal, con el título y `esc` arriba y las pistas de teclas abajo; en terminales angostas pasa a un diseño compacto. Sin la TUI interactiva usa el selector `Switch profile`.
 
-- Encabezado: el modo (`session home` cuando la sesión la inició el launcher, `global` en otro caso) y la visualización del correo (`shown` o `hidden`).
+- Encabezado: `Account Default`, el perfil de sesión con el que empiezan las sesiones nuevas (`none` si no está definido) y la visualización del correo (`shown` o `hidden`).
 - Una fila por perfil: `●` marca el perfil activo en esta sesión, `○` los demás y `★` el perfil de sesión, seguidos de los proveedores con sesión iniciada. La lista muestra ocho perfiles a la vez y se desplaza; `↑ N more` y `↓ N more` cuentan los ocultos.
 - Proveedores: `→` sobre el perfil seleccionado abre una fila por proveedor (Claude, Codex, Anthropic) con `●` si hay sesión iniciada u `○` si no, y `←` las cierra. El correo aparece solo en esas filas y solo cuando se muestra el correo; mientras está oculto no aparece nada después de `logged in`. Abrir el menú nunca ejecuta `claude auth status` por perfil: reutiliza el resultado de la barra de estado para el perfil activo y lee archivos para los demás.
 - Sin perfiles: `no profiles yet: press n to create one`.
@@ -44,6 +44,8 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
 | `Esc` o `Ctrl+C` | Cierra. |
+
+Mouse, solo en modo `fullscreen` (en el modo normal la terminal es dueña del mouse y solo se usa el teclado): un clic selecciona el perfil o proveedor bajo el puntero, un doble clic actúa como `Enter` y la rueda se mueve como `↑` `↓`. Los clics sobre el marco, el encabezado o las pistas no hacen nada.
 
 Los mensajes aparecen dentro del menú, porque las notificaciones quedan ocultas detrás de él.
 
