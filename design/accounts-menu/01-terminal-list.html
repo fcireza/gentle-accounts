@@ -20,7 +20,7 @@ li.p.sel{background:#28121E}
 li.p.sel .name{color:#F095C8;font-weight:700}
 li.p:not(.sel):not(.on) .name{color:#A78E9B}
 ul.prov{list-style:none;padding:2px 0 6px 44px}
-li.r{display:grid;grid-template-columns:20px 20px 190px minmax(0,1fr);gap:6px;padding:2px 12px;border-radius:4px;cursor:pointer}
+li.r{display:grid;grid-template-columns:20px 20px 210px minmax(0,1fr);gap:6px;padding:2px 12px;border-radius:4px;cursor:pointer}
 li.r.sel{background:#28121E}
 li.r.sel .lbl{color:#F095C8}
 .fb{padding:6px 20px;min-height:32px;border-top:1px solid #563040;font-size:13px}
@@ -38,9 +38,9 @@ footer{padding:10px 20px;border-top:1px solid #563040;color:#A78E9B;font-size:13
 </div>
 <script>
 const P=[
- {n:"work",email:"mari****@company.com",full:"maria.lopez@company.com",pr:[["Claude",1],["Codex",1],["Anthropic",0]]},
- {n:"personal",email:"fede****@gmail.com",full:"federico@gmail.com",pr:[["Claude",1],["Codex",1],["Anthropic",1]]},
- {n:"client-acme",email:"",full:"",pr:[["Claude",0],["Codex",0],["Anthropic",0]]}
+ {n:"work",email:"mari****@company.com",full:"maria.lopez@company.com",pr:[["Claude Bridge",1],["Codex",1],["Anthropic",0]]},
+ {n:"personal",email:"fede****@gmail.com",full:"federico@gmail.com",pr:[["Claude Bridge",1],["Codex",1],["Anthropic",1]]},
+ {n:"client-acme",email:"",full:"",pr:[["Claude Bridge",0],["Codex",0],["Anthropic",0]]}
 ];
 let sel=0,row=0,active=0,startup=1,showEmail=false,fb="";
 const $=s=>document.querySelector(s);

@@ -147,7 +147,7 @@ test("S34: providerStates keeps the base rows and adds every other oauth provide
   };
   const rows = providerStates(null, auth);
   assert.deepEqual(rows, [
-    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: false },
+    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "openai-codex", label: "Codex", loggedIn: true },
     { provider: "anthropic", label: "Anthropic", loggedIn: false },
     { provider: "google-antigravity", label: "google-antigravity", loggedIn: true },
@@ -164,9 +164,9 @@ test("S34: providerStates with base providers only is unchanged (api key anthrop
 
 test("S2: providerStates Claude row has the full email only when showEmail is true", () => {
   const claude = { email: "fcireza@gmail.com" };
-  assert.deepEqual(providerStates(claude, {})[0], { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true });
-  assert.deepEqual(providerStates(claude, {}, { showEmail: false })[0], { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true });
-  assert.deepEqual(providerStates(claude, {}, { showEmail: true })[0], { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true, email: "fcireza@gmail.com" });
+  assert.deepEqual(providerStates(claude, {})[0], { provider: "claude", label: "Claude Bridge", loggedIn: true });
+  assert.deepEqual(providerStates(claude, {}, { showEmail: false })[0], { provider: "claude", label: "Claude Bridge", loggedIn: true });
+  assert.deepEqual(providerStates(claude, {}, { showEmail: true })[0], { provider: "claude", label: "Claude Bridge", loggedIn: true, email: "fcireza@gmail.com" });
 });
 
 test("S1: logged in + hidden shows only the profile, no separator and no email", () => {

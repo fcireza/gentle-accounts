@@ -6,7 +6,7 @@ import { identityTheme, type MenuModel, type MenuProfile } from "../src/menu/vie
 
 const providers = (n = 3) =>
   [
-    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: false },
+    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "openai-codex", label: "Codex", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: false },
   ].slice(0, n);

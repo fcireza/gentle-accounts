@@ -52,12 +52,12 @@ test("S31 view: global model has one entry per profile with active, startup and 
   assert.equal(m.row, 0);
   const [personal, work] = m.profiles;
   assert.deepEqual(personal.providers, [
-    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: true },
+    { provider: "claude", label: "Claude Bridge", loggedIn: true },
     { provider: "openai-codex", label: "Codex", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: true },
   ]);
   assert.deepEqual(work.providers, [
-    { provider: "claude", label: "Claude (claude-bridge)", loggedIn: false },
+    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "openai-codex", label: "Codex", loggedIn: true },
     { provider: "anthropic", label: "Anthropic", loggedIn: false },
   ]);
@@ -83,7 +83,7 @@ test("S31 view: email hidden by default, full only when shown; never a token any
   assert.doesNotMatch(hiddenText, /maria\.lopez/);
   assert.doesNotMatch(hiddenText, new RegExp(TOKEN));
   const hiddenRender = renderMenu({ ...hidden, selected: 0, row: 1 }, 100).join("\n");
-  assert.match(hiddenRender, /● Claude \(claude-bridge\) {2}logged in\s*│/, "email hidden: nothing after logged in");
+  assert.match(hiddenRender, /● Claude Bridge {2}logged in\s*│/, "email hidden: nothing after logged in");
   assert.doesNotMatch(hiddenRender, /mari\*\*\*\*|@company/, "no email at all");
   const shownText = JSON.stringify(shown) + renderMenu({ ...shown, selected: 0, row: 1 }, 100).join("\n");
   assert.match(shownText, /maria\.lopez@company\.com/);
@@ -141,7 +141,7 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   const text = renderMenu(m, 100).join("\n");
   assert.match(text, /╭─ gentle-accounts ─/);
   assert.match(text, /gentle-accounts · accounts {3}mode: global · email: hidden/);
-  assert.match(text, /▸ ○ personal ★ {2}Claude · Anthropic/);
+  assert.match(text, /▸ ○ personal ★ {2}Claude Bridge · Anthropic/);
   assert.match(text, /\s{2}● work {4,}Codex {2}active/);
   assert.doesNotMatch(text, /logged in/, "providers stay collapsed on the profile row");
   assert.doesNotMatch(text, /mari\*\*\*\*/, "no email on the list");
@@ -151,14 +151,14 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   assert.doesNotMatch(text, /o open/, "open is offered only on a logged-in provider row");
   const open = renderMenu({ ...m, row: 2 }, 100).join("\n");
   assert.match(open, /▾ ○ personal/);
-  assert.match(open, /● Claude \(claude-bridge\) {2}logged in\s*│/, "no email while the display is hidden");
+  assert.match(open, /● Claude Bridge {2}logged in\s*│/, "no email while the display is hidden");
   assert.doesNotMatch(open, /o open/, "row 2 (Codex) is not logged in");
   const onLogged = renderMenu({ ...m, row: 1 }, 100).join("\n");
   assert.match(onLogged, /s set session {2}e email {2}o open in tab {2}esc close/);
   const shownEmail = renderMenu({ ...model({ showEmail: true }), selected: 0, row: 1 }, 100).join("\n");
   assert.match(shownEmail, /logged in · maria\.lopez@company\.com/);
-  assert.match(open, /▸ ○ Codex {19}not logged in/);
-  assert.match(open, /● Anthropic {15}logged in/);
+  assert.match(open, /▸ ○ Codex {10}not logged in/);
+  assert.match(open, /● Anthropic {6}logged in/);
   const active = renderMenu({ ...m, selected: 1 }, 100).join("\n");
   assert.match(active, /▸ ● work/);
 });
@@ -168,11 +168,10 @@ test("S31 render: compact layout under 50 columns", () => {
   for (const width of [30, 40, COMPACT_WIDTH - 1]) {
     const text = check(m, width, identityTheme).join("\n");
     assert.match(text, /gentle-accounts · global/);
-    assert.match(text, /● Claude logged in/);
-    assert.doesNotMatch(text, /claude-bridge/);
+    assert.match(text, /● Claude B/, "label cut by the width, never wrapped");
     assert.match(text, /esc close/);
   }
-  assert.match(renderMenu(m, COMPACT_WIDTH).join("\n"), /Claude \(claude-bridge\)/);
+  assert.match(renderMenu(m, COMPACT_WIDTH).join("\n"), /Claude Bridge/);
 });
 
 test("S31 render: many profiles scroll the list and always show the selected one", () => {

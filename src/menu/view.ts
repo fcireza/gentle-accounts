@@ -191,10 +191,6 @@ function bold(theme: MenuTheme, text: string): string {
   return theme.bold ? theme.bold(text) : text;
 }
 
-function shortLabel(label: string): string {
-  return label.replace(/ \(claude-bridge\)$/, "");
-}
-
 /** Profiles listed at once; the list scrolls around the selected one beyond this. */
 const MAX_LISTED = 8;
 
@@ -207,7 +203,7 @@ function profileLine(model: MenuModel, index: number, nameWidth: number, theme: 
   const name = fit(truncateToWidth(p.name, nameWidth), nameWidth);
   const nameColor = selected ? "accent" : p.active ? "text" : "muted";
   const star = p.startup ? theme.fg("warning", "★") : " ";
-  const logged = p.providers.filter((x) => x.loggedIn).map((x) => shortLabel(x.label));
+  const logged = p.providers.filter((x) => x.loggedIn).map((x) => x.label);
   const summary = logged.length ? theme.fg("muted", logged.join(" · ")) : theme.fg("warning", "not logged in");
   const active = p.active ? `  ${theme.fg("success", "active")}` : "";
   return `${pointer}${dot} ${selected ? theme.fg(nameColor, bold(theme, name)) : theme.fg(nameColor, name)} ${star}  ${summary}${active}`;
@@ -222,7 +218,7 @@ function providerLines(model: MenuModel, compact: boolean, theme: MenuTheme): st
     const pointer = row === model.row ? theme.fg("accent", "▸ ") : "  ";
     const dot = p.loggedIn ? theme.fg("success", "●") : theme.fg("dim", "○");
     const state = p.loggedIn ? `logged in${model.showEmail && p.email ? ` · ${clean(p.email)}` : ""}` : "not logged in";
-    const label = compact ? shortLabel(p.label) : p.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(p.label)));
+    const label = compact ? p.label : p.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(p.label)));
     return `    ${pointer}${dot} ${theme.fg(row === model.row ? "accent" : "text", label)}${compact ? " " : ""}${theme.fg(p.loggedIn ? "success" : "muted", state)}`;
   });
 }

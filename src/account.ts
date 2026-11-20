@@ -55,7 +55,7 @@ export function statusText(profile: string, account: { email: string } | null, o
 
 /** Menu labels of the providers a profile covers (S31); unknown covered providers show their id. */
 export const PROVIDER_LABELS: Record<string, string> = {
-  claude: "Claude (claude-bridge)",
+  claude: "Claude Bridge",
   "openai-codex": "Codex",
   anthropic: "Anthropic",
 };
