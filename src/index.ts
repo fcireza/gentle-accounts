@@ -1,6 +1,6 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { homedir } from "node:os";
-import { PLUGIN_LABEL, queryClaudeAccount, statusText, type ClaudeAccount, type ClaudeStatusRunner } from "./account.ts";
+import { PLUGIN_LABEL, type ClaudeStatusRunner } from "./account.ts";
+import { createStatusBar, type TimerHandle } from "./status-bar.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, STARTUP_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { menuAvailable, runAccountsMenu, type MenuFlows, type Report } from "./menu/run.ts";
@@ -28,12 +28,7 @@ function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "w
   ctx.ui.notify(message, type);
 }
 
-const STATUS_KEY = PLUGIN_LABEL;
 const UNSET_DIR = "(unset: Claude Code default)";
-const REFRESH_MS = 60_000;
-
-type StatusCtx = { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void } };
-type TimerHandle = { unref?: () => unknown };
 
 /** Test seams; pi calls the factory with the API only. */
 export interface ExtensionDeps {
@@ -121,42 +116,8 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   const startTimer = deps.setInterval ?? ((fn: () => void, ms: number) => setInterval(fn, ms));
   const stopTimer = deps.clearInterval ?? ((handle: TimerHandle) => clearInterval(handle as ReturnType<typeof setInterval>));
 
-  let generation = 0;
-  let inFlight: string | null = null;
-  let timer: TimerHandle | undefined;
-  let lastCtx: StatusCtx | undefined;
-  // Last `claude auth status` answer of the status bar, reused by the menu (no extra process per open).
-  let lastAccount: { store: string; profile: string; account: ClaudeAccount | null } | undefined;
-
-  /**
-   * Shows `gentle-accounts: <profile>` (plus ` · <email>` only when shown); never throws. A refresh for the profile
-   * already being computed is skipped, and a result for an older request is dropped.
-   */
-  async function updateStatus(ctx: StatusCtx, s: ProfileStore): Promise<void> {
-    try {
-      if (!ctx?.hasUI || !ctx.ui?.setStatus) return;
-      lastCtx = ctx;
-      const current = s.current();
-      if (current && inFlight === current) return;
-      const gen = ++generation;
-      if (!current) {
-        inFlight = null;
-        ctx.ui.setStatus(STATUS_KEY, undefined);
-        return;
-      }
-      inFlight = current;
-      try {
-        const account = await queryClaudeAccount({ claudeConfigDir: s.claudeConfigEnv(current), homeDir: homedir(), run: deps.runClaudeStatus });
-        if (gen !== generation || s.current() !== current) return;
-        lastAccount = { store: s.currentPath, profile: current, account };
-        ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: showEmail() }));
-      } finally {
-        if (gen === generation) inFlight = null;
-      }
-    } catch {
-      // The status line is cosmetic; never break the caller.
-    }
-  }
+  const statusBar = createStatusBar({ store, showEmail, runClaudeStatus: deps.runClaudeStatus, startTimer, stopTimer });
+  const updateStatus = statusBar.update;
 
   pi.on("session_start", async (event, ctx) => {
     const { store: s, session } = context();
@@ -186,12 +147,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       // A corrupt startup profile leaves everything as it was; the session keeps the last used one.
       ctx.ui.notify(`${PLUGIN_LABEL}: ${(error as Error).message}`, "error");
     }
-    if (!timer) {
-      timer = startTimer(() => {
-        if (lastCtx) void updateStatus(lastCtx, store());
-      }, REFRESH_MS);
-      timer.unref?.();
-    }
+    statusBar.start();
     await updateStatus(ctx, s);
   });
 
@@ -200,9 +156,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   });
 
   pi.on("session_shutdown", () => {
-    if (timer) stopTimer(timer);
-    timer = undefined;
-    lastCtx = undefined;
+    statusBar.stop();
   });
 
   pi.registerCommand("gentle:accounts", {
@@ -266,10 +220,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
               switchTo: (c, st, live, target, report) => switchFlow({ ctx: c, store: st, liveAuthPath: live, target, report, refreshStatus: () => updateStatus(c, st) }),
             } satisfies MenuFlows,
             refreshStatus: (c, st) => updateStatus(c, st),
-            activeClaude: (st) => {
-              const current = st.current();
-              return lastAccount && current && lastAccount.store === st.currentPath && lastAccount.profile === current ? lastAccount.account : undefined;
-            },
+            activeClaude: (st) => statusBar.cachedAccount(st),
           });
         }
       }
