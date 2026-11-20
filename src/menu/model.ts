@@ -1,7 +1,7 @@
 import type { DetectedLogin } from "../detect.ts";
 import { join } from "node:path";
 import { PLUGIN_LABEL, providerStates, readClaudeAccount, type ClaudeAccount, type ProviderState } from "../account.ts";
-import { readAuthFile, type AuthData } from "../auth-sync.ts";
+import { coveredProviders, readAuthFile, type AuthData } from "../auth-sync.ts";
 import type { ProfileStore } from "../store.ts";
 
 /** The subset of pi's theme the menu uses; pi's `Theme` satisfies it. */
@@ -71,14 +71,17 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
   const { store, homeDir } = options;
   const current = store.current();
   const startup = store.startup();
-  const profiles = store.list().map((name): MenuProfile => {
+  const names = store.list();
+  // Every provider logged in anywhere (the live file from /login, any snapshot) is listed for every profile.
+  const providers = coveredProviders(safeAuth(options.liveAuthPath), ...names.map((name) => safeAuth(store.authPath(name))));
+  const profiles = names.map((name): MenuProfile => {
     const active = name === current;
     const claude =
       active && options.activeClaude !== undefined
         ? options.activeClaude
         : readClaudeAccount(store.claudeConfigEnv(name) ?? join(homeDir, ".claude"), homeDir);
     const auth = safeAuth(active ? options.liveAuthPath : store.authPath(name));
-    return { name, active, startup: name === startup, providers: providerStates(claude, auth, { showEmail: options.showEmail }) };
+    return { name, active, startup: name === startup, providers: providerStates(claude, auth, { showEmail: options.showEmail, providers }) };
   });
   const wanted = options.selectedName ?? current;
   const selected = Math.max(0, profiles.findIndex((p) => p.name === wanted));

@@ -342,3 +342,15 @@ test("a detected Claude login shows its email only when email display is on, mas
   const shown = renderMenu({ ...model({ showEmail: true }), detected }, 100, identityTheme).join("\n");
   assert.match(shown, /Claude Bridge \(mar\*{4}@company\.com\)/);
 });
+
+test("every profile lists the providers logged in anywhere, logged out where it has no entry", () => {
+  const { agentDir, store, liveAuthPath } = globalSetup();
+  writeAuthFile(liveAuthPath, { "google-antigravity": { type: "oauth", access: "a", refresh: "r", expires: 1 } });
+  const m = buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir });
+  for (const p of m.profiles) {
+    const row = p.providers.find((x) => x.provider === "google-antigravity");
+    assert.ok(row, `${p.name} lists it`);
+    assert.equal(row.loggedIn, p.active, `${p.name}: logged in only where the entry exists`);
+  }
+  assert.deepEqual(m.profiles[0].providers.map((x) => x.provider), m.profiles[1].providers.map((x) => x.provider), "same rows, same order");
+});

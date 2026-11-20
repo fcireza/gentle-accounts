@@ -82,15 +82,18 @@ export interface ProviderState {
 /**
  * Provider rows of one profile for the accounts menu: Claude from an already known account (never spawns),
  * then every covered pi provider, logged in when its entry is present in `auth` (the live file for the active
- * profile, the snapshot for the others). Never returns tokens.
+ * profile, the snapshot for the others). `options.providers` adds providers known elsewhere (another profile or the
+ * live file) so every profile lists the same rows, logged out where it has no entry. Never returns tokens.
  */
-export function providerStates(claude: ClaudeAccount | null, auth: AuthData, options: StatusTextOptions = {}): ProviderState[] {
+export function providerStates(claude: ClaudeAccount | null, auth: AuthData, options: StatusTextOptions & { providers?: string[] } = {}): ProviderState[] {
   const rows: ProviderState[] = [
     claude
       ? { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: true, ...(options.showEmail === true ? { email: claude.email } : {}) }
       : { provider: "claude", label: PROVIDER_LABELS.claude, loggedIn: false },
   ];
-  for (const provider of coveredProviders(auth)) {
+  const known = coveredProviders(auth);
+  for (const provider of options.providers ?? []) if (!known.includes(provider)) known.push(provider);
+  for (const provider of known) {
     const entry = auth[provider];
     rows.push({ provider, label: PROVIDER_LABELS[provider] ?? provider, loggedIn: Boolean(entry && typeof entry === "object") });
   }
