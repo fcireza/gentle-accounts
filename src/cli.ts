@@ -16,7 +16,7 @@ export const USAGE = [
   "  gentle-accounts current                         print the active profile",
   "  gentle-accounts create <name>                   create an empty profile",
   "  gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir",
-  "  gentle-accounts rename <old> <new>               rename a profile (its logins move with it)",
+  "  gentle-accounts rename <old> <new>              rename a profile (its logins move with it)",
   "  gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)",
   "  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email",
   "  gentle-accounts --help                          show this help",
