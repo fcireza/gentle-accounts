@@ -41,6 +41,7 @@ Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:prof
 | `n` | New profile (asks for a name with `New profile name`; same messages as `create`). |
 | `d` | Delete the selected profile (same confirmation and refusals as `delete`). |
 | `r` | Rename the selected profile (asks for the new name with `Rename profile "<name>" to`, the old name prefilled; an empty, unchanged or cancelled answer does nothing; same messages as `rename`). |
+| `i` | Adopt the detected login as a new profile (asks for a name with `Name for the detected login`). Only while the menu shows a `Detected login:` line; the key hint `i adopt` appears only then. |
 | `s` | Set the selected profile as the session profile, or clear it when it already is. |
 | `e` | Toggle the email display (same messages as `email show` and `email hide`). |
 | `o` | Open this project with the selected profile in a new terminal tab. Only on a provider row with a login; the key hint `o open in tab` appears only there. |

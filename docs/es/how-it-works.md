@@ -96,6 +96,15 @@ En macOS, Claude Code guarda el inicio de sesión en el llavero, y la entrada de
 
 Así que `default` recibe el marcador `claude-default` y la variable se elimina mientras está activo, en la extensión y en el entorno del proceso hijo del launcher. `/gentle:accounts current` muestra `CLAUDE_CONFIG_DIR=(unset: Claude Code default)`, y el comando de inicio de sesión para `default` es simplemente `claude auth login`. La misma medición no se repitió en Linux ni en Windows (no verificado).
 
+## Logins detectados
+
+Un login hecho con `/login` en pi o Gentle Shell mientras hay un perfil activo se guarda en ese perfil, así que el menú busca logins que ningún perfil tiene y los ofrece con `i`:
+
+- Una cuenta de Claude en `~/.claude` que ningún perfil usa. Adoptarla crea un perfil con el directorio por defecto de Claude Code; no se copia ni se mueve nada.
+- Una cuenta de Codex en el `auth.json` en vivo cuyo `accountId` difiere del que está en el snapshot del perfil activo y no está en ningún otro perfil. Adoptarla copia esa entrada a un perfil nuevo y lo deja como actual. El perfil anterior conserva su cuenta.
+
+Las entradas de Anthropic no traen un id de cuenta, así que un login nuevo de Anthropic no se distingue de un refresco de token y no se detecta. La detección es de solo lectura, corre solo fuera de las sesiones del launcher y un `auth.json` ilegible no detecta nada.
+
 ## La barra de estado
 
 La extensión muestra la cuenta con `setStatus` de pi, bajo la clave `gentle-accounts`. Gentle Shell la muestra en su barra de estado y en la barra lateral.

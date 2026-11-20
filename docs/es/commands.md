@@ -41,6 +41,7 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `n` | Perfil nuevo (pide el nombre con `New profile name`; mismos mensajes que `create`). |
 | `d` | Borra el perfil seleccionado (misma confirmación y rechazos que `delete`). |
 | `r` | Renombra el perfil seleccionado (pide el nuevo nombre con `Rename profile "<name>" to`, con el nombre actual ya escrito; una respuesta vacía, igual o cancelada no hace nada; mismos mensajes que `rename`). |
+| `i` | Adopta el login detectado como un perfil nuevo (pide un nombre con `Name for the detected login`). Solo mientras el menú muestra una línea `Detected login:`; el hint `i adopt` aparece solo entonces. |
 | `s` | Define el perfil seleccionado como perfil de sesión, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |

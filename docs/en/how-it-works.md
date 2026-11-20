@@ -96,6 +96,15 @@ On macOS, Claude Code stores the login in the keychain, and the entry depends on
 
 So `default` gets the `claude-default` marker and the variable is removed while it is active, in the extension and in the child environment of the launcher. `/gentle:accounts current` shows `CLAUDE_CONFIG_DIR=(unset: Claude Code default)`, and the login command for `default` is plain `claude auth login`. The same measurement was not repeated on Linux or Windows (not verified).
 
+## Detected logins
+
+A login made with `/login` in pi or Gentle Shell while a profile is active is saved into that profile, so the menu looks for logins that no profile owns and offers them with `i`:
+
+- A Claude account in `~/.claude` that no profile uses. Adopting it creates a profile on Claude Code's default dir; nothing is copied or moved.
+- A Codex account in the live `auth.json` whose `accountId` differs from the one in the active profile's snapshot and is in no other profile. Adopting it copies that entry into a new profile and makes it current. The previous profile keeps its own account.
+
+Anthropic entries carry no account id, so a new Anthropic login cannot be told apart from a token refresh and is not detected. Detection is read-only, runs only outside launcher sessions, and an unreadable `auth.json` detects nothing.
+
 ## The status bar
 
 The extension shows the account with pi's `setStatus`, under the key `gentle-accounts`. Gentle Shell shows it in its status bar and sidebar.
