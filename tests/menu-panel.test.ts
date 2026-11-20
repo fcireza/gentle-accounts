@@ -260,3 +260,16 @@ test("S42 mouse: the open rule is one function for the hint and the key", () => 
   assert.equal(canOpenProject({ ...m, row: 2 }), true);
   assert.equal(canOpenProject({ ...m, profiles: [], row: 1 }), false);
 });
+
+test("S10 panel: r asks to rename the selected profile, from the profile row or a provider row", () => {
+  assert.deepEqual(run(["r"]).actions, [{ type: "rename", profile: "work", row: 0 }]);
+  assert.deepEqual(run([KEYS.down, "r"]).actions, [{ type: "rename", profile: "zeta", row: 0 }]);
+  assert.deepEqual(run([KEYS.right, KEYS.down, "r"]).actions, [{ type: "rename", profile: "work", row: 2 }]);
+  assert.deepEqual(run(["R"]).actions, [{ type: "rename", profile: "work", row: 0 }], "shift does not matter");
+  assert.deepEqual(run(["\x1b[114u"]).actions, [{ type: "rename", profile: "work", row: 0 }], "kitty press");
+});
+
+test("S10 panel: with no profiles r does nothing, and it ends the panel only once", () => {
+  assert.deepEqual(run(["r"], model([], 0)).actions, []);
+  assert.deepEqual(run(["r", "r", "n", KEYS.esc]).actions, [{ type: "rename", profile: "work", row: 0 }]);
+});

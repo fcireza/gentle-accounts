@@ -7,6 +7,7 @@ export type MenuAction =
   | { type: "login"; profile: string; provider: string; row: number }
   | { type: "create"; profile?: string; row: number }
   | { type: "delete"; profile: string; row: number }
+  | { type: "rename"; profile: string; row: number }
   | { type: "startup"; profile: string; row: number }
   | { type: "email"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
@@ -175,6 +176,9 @@ export class AccountsMenuPanel {
         return;
       case "char:s":
         if (name) return this.finish({ type: "startup", profile: name, row });
+        return;
+      case "char:r":
+        if (name) return this.finish({ type: "rename", profile: name, row });
         return;
       case "char:o":
         // Only on a logged-in provider row, as the key hint says.

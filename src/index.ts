@@ -104,9 +104,16 @@ export async function deleteFlow(ctx: ExtensionCommandContext, s: ProfileStore, 
   }
 }
 
+/** `rename <old> <new>`: the same messages for the command and the menu; this process's CLAUDE_CONFIG_DIR follows the folder. */
+export function renameFlow(s: ProfileStore, from: string, to: string): Feedback {
+  const result = renameProfile(s, from, to, { env: process.env });
+  return { message: result.message, type: result.ok ? "info" : "error" };
+}
+
 export const COMMAND_FLOWS = {
   create: createFlow,
   remove: deleteFlow,
+  rename: renameFlow,
 } as const;
 
 export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {}): void {
@@ -195,10 +202,9 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       }
       if (sub === "rename") {
         if (!arg || !arg2 || extra.length) return notify(ctx, USAGE, "warning");
-        // The environment of this process follows the folder when the renamed profile is the current one.
-        const result = renameProfile(s, arg, arg2, { env: process.env });
-        notify(ctx, result.message, result.ok ? "info" : "error");
-        if (result.ok) await updateStatus(ctx, s);
+        const result = renameFlow(s, arg, arg2);
+        notify(ctx, result.message, result.type);
+        if (result.type === "info") await updateStatus(ctx, s);
         return;
       }
       if (sub === "login") {

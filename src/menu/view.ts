@@ -107,8 +107,8 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
   type Hint = [string, string];
   const open: Hint[] = canOpen ? [["o", compact ? "open" : "open in tab"]] : [];
   const hints: Hint[][] = compact
-    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["d", "del"], ["s", "session"]], [["e", "email"], ...open, ["esc", "close"]]]
-    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"], ["n", "new"], ["d", "delete"]], [["s", "set session"], ["e", "email"], ...open, ["esc", "close"]]];
+    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["s", "session"], ["e", "email"]], [...open, ["esc", "close"]]]
+    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["s", "set session"]], [["e", "email"], ...open, ["esc", "close"]]];
   const gap = compact ? " " : "  ";
   add(theme.fg("border", "─".repeat(inner)));
   for (const line of hints) add(line.map(([key, text]) => `${theme.fg("accent", key)} ${theme.fg("dim", text)}`).join(gap));

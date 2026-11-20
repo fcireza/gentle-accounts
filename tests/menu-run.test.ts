@@ -34,6 +34,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
   let editor: string | undefined;
   let refreshed = 0;
   const selects: { title: string; options: string[] }[] = [];
+  const prompts: { title: string; placeholder?: string }[] = [];
   const ctx = {
     hasUI: o.hasUI ?? true,
     mode: o.mode ?? "tui",
@@ -42,7 +43,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
     ui: {
       notify: (message: string, type?: string) => notes.push({ message, type }),
       confirm: async () => o.confirm ?? false,
-      input: async () => o.input,
+      input: async (title: string, placeholder?: string) => (prompts.push({ title, placeholder }), o.input),
       select: async (title: string, options: string[]) => (selects.push({ title, options }), o.select),
       setEditorText: (t: string) => void (editor = t),
       custom: async (factory: (tui: unknown, theme: unknown, kb: unknown, done: (a: MenuAction) => void) => AccountsMenuPanel, opts: unknown) => {
@@ -54,7 +55,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
       },
     },
   } as unknown as ExtensionCommandContext;
-  return { ctx, frames, notes, options, editor: () => editor, refreshed: () => refreshed, selects: () => selects };
+  return { ctx, frames, notes, options, editor: () => editor, refreshed: () => refreshed, selects: () => selects, prompts };
 }
 
 function deps(agentDir: string, statusLog: string[] = []) {
@@ -344,4 +345,56 @@ test("S42 margin: it is read when the layout asks, so the first layout never see
   terminal = withSidebar(owning);
   assert.equal(first, 1);
   assert.deepEqual(options.margin, { top: 1, right: 54, bottom: 1, left: 1 }, "no visible() call needed in between");
+});
+
+// -- S10: rename from the menu ----------------------------------------------------------------------------------
+
+test("S10 run: r prompts with the old name prefilled, renames, reselects the new name and refreshes the status", async () => {
+  const { agentDir, store } = setup();
+  const log: string[] = [];
+  const c = fakeCtx([{ type: "rename", profile: "work", row: 0 }, { type: "close" }], { input: "  office  " });
+  await runAccountsMenu(c.ctx, deps(agentDir, log));
+  assert.deepEqual(c.prompts, [{ title: 'Rename profile "work" to', placeholder: "work" }]);
+  assert.deepEqual(store.list(), ["office", "personal"]);
+  assert.match(feedbackOf(c.frames[1]), /Renamed profile "work" to "office"\. Other open sessions that use it keep the old path until they switch or restart\./);
+  assert.match(c.frames[1], /▸ ● office/, "the renamed profile stays selected and active");
+  assert.ok(log.includes("office"), "the status bar was refreshed after the rename");
+});
+
+test("S10 run: an empty, unchanged or cancelled answer does nothing and never calls the flow", async () => {
+  const { agentDir, store } = setup();
+  let calls = 0;
+  const spy = { ...deps(agentDir), flows: { ...deps(agentDir).flows, rename: () => (calls++, { message: "x", type: "info" as const }) } };
+  for (const input of ["", "   ", "work", undefined]) {
+    const c = fakeCtx([{ type: "rename", profile: "work", row: 0 }, { type: "close" }], { input });
+    await runAccountsMenu(c.ctx, spy);
+    assert.doesNotMatch(c.frames[1], /Renamed|x$/m, JSON.stringify(input));
+  }
+  assert.equal(calls, 0);
+  assert.deepEqual(store.list(), ["personal", "work"]);
+});
+
+test("S10 run: a refusal is shown as feedback and the selection stays on the old name", async () => {
+  const { agentDir, store } = setup();
+  const log: string[] = [];
+  for (const [input, message] of [
+    ["personal", /Profile "personal" already exists\./],
+    ["Bad Name", /Invalid profile name "Bad Name": use lowercase letters/],
+    ["rename", /"rename" is a reserved word/],
+  ] as const) {
+    const c = fakeCtx([{ type: "rename", profile: "work", row: 0 }, { type: "close" }], { input });
+    await runAccountsMenu(c.ctx, deps(agentDir, log));
+    assert.match(feedbackOf(c.frames[1]), message, input);
+    assert.match(c.frames[1], /▸ ● work/, input);
+  }
+  assert.deepEqual(store.list(), ["personal", "work"]);
+  assert.equal(log.length, 0, "no status refresh for a rename that did not happen");
+});
+
+test("S10 run: a profile that is not the current one gets the plain message", async () => {
+  const { agentDir, store } = setup();
+  const c = fakeCtx([{ type: "rename", profile: "personal", row: 0 }, { type: "close" }], { input: "home" });
+  await runAccountsMenu(c.ctx, deps(agentDir));
+  assert.match(feedbackOf(c.frames[1]), /^Renamed profile "personal" to "home"\.$/m);
+  assert.deepEqual(store.list(), ["home", "work"]);
 });

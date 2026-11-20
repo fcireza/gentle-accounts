@@ -18,6 +18,7 @@ export interface MenuFlows {
   switchTo: (ctx: ExtensionCommandContext, store: ProfileStore, liveAuthPath: string, target: string, report: Report) => Promise<void>;
   create: (store: ProfileStore, name: string) => Feedback;
   remove: (ctx: ExtensionCommandContext, store: ProfileStore, name: string) => Promise<Feedback>;
+  rename: (store: ProfileStore, from: string, to: string) => Feedback;
 }
 
 /** The custom overlay needs the interactive TUI; RPC, print and json modes keep the select picker. */
@@ -160,6 +161,17 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
         case "delete":
           feedback = await deps.flows.remove(ctx, s, action.profile);
           break;
+        case "rename": {
+          // The old name is prefilled: an empty, unchanged or cancelled answer is not a rename.
+          const name = (await ctx.ui.input(`Rename profile "${action.profile}" to`, action.profile))?.trim();
+          if (!name || name === action.profile) break;
+          feedback = deps.flows.rename(s, action.profile, name);
+          if (feedback.type === "info") {
+            selectedName = name;
+            await deps.refreshStatus(ctx, s);
+          }
+          break;
+        }
         case "startup": {
           const result = runStartupCommand(s, s.startup() === action.profile ? "last" : action.profile);
           set(result.message, result.ok ? "info" : "error");

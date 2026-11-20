@@ -142,21 +142,22 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   assert.match(plain[1], /^│ Accounts {80,}esc │$/, "title on the left, esc on the right");
   assert.match(plain[2], /^│ Account Default: personal · email: hidden +│$/, "the default account is the session profile");
   assert.match(plain[3], /^│ ─+ │$/);
-  assert.match(plain.at(-4)!, /^│ ─+ │$/, "a rule separates the key hints from the rest");
+  assert.match(plain.at(-5)!, /^│ ─+ │$/, "a rule separates the three lines of key hints from the rest");
   assert.match(text, /▸ ○ personal ★ {2}Claude Bridge · Anthropic/);
   assert.match(text, /\s{2}● work {4,}Codex {2}active/);
   assert.doesNotMatch(text, /logged in/, "providers stay collapsed on the profile row");
   assert.doesNotMatch(text, /mari\*\*\*\*/, "no email on the list");
   assert.match(text, /Delete cancelled\./);
-  assert.match(text, /↑↓ profile {2}→← providers {2}enter select {2}n new {2}d delete/);
-  assert.match(text, /s set session {2}e email {2}esc close/);
+  assert.match(text, /↑↓ profile {2}→← providers {2}enter select/);
+  assert.match(text, /n new {2}r rename {2}d delete {2}s set session/);
+  assert.match(text, /e email {2}esc close/);
   assert.doesNotMatch(text, /o open/, "open is offered only on a logged-in provider row");
   const open = renderMenu({ ...m, row: 2 }, 100).join("\n");
   assert.match(open, /▾ ○ personal/);
   assert.match(open, /● Claude Bridge {2}logged in\s*│/, "no email while the display is hidden");
   assert.doesNotMatch(open, /o open/, "row 2 (Codex) is not logged in");
   const onLogged = renderMenu({ ...m, row: 1 }, 100).join("\n");
-  assert.match(onLogged, /s set session {2}e email {2}o open in tab {2}esc close/);
+  assert.match(onLogged, /e email {2}o open in tab {2}esc close/);
   const shownEmail = renderMenu({ ...model({ showEmail: true }), selected: 0, row: 1 }, 100).join("\n");
   assert.match(shownEmail, /logged in · maria\.lopez@company\.com/);
   assert.match(open, /▸ ○ Codex {10}not logged in/);
@@ -254,7 +255,8 @@ test("S37 render: in the key hints the keys use the theme's accent and the text 
   const m = { ...model(), selected: 0 };
   const wide = renderMenu(m, 100, named).join("\n");
   assert.ok(wide.includes(`${key("↑↓", "profile")}  ${key("→←", "providers")}  ${key("enter", "select")}`));
-  assert.ok(wide.includes(`${key("s", "set session")}  ${key("e", "email")}  ${key("esc", "close")}`));
+  assert.ok(wide.includes(`${key("n", "new")}  ${key("r", "rename")}  ${key("d", "delete")}  ${key("s", "set session")}`));
+  assert.ok(wide.includes(`${key("e", "email")}  ${key("esc", "close")}`));
   assert.ok(!wide.includes(`${A}o${R}`), "no open hint off a logged-in provider");
   assert.ok(renderMenu({ ...m, row: 1 }, 100, named).join("\n").includes(key("o", "open in tab")));
   assert.ok(renderMenu(m, 40, named).join("\n").includes(key("⏎", "ok")), "compact layout too");
@@ -289,4 +291,26 @@ test("S42 hits: one entry per rendered line with multi-line feedback, in the com
     const m = { ...model(), selected: 0, row: 2, feedback: long };
     assert.equal(menuHits(m, width).length, renderMenu(m, width, identityTheme).length, `width ${width}`);
   }
+});
+
+test("S10 hints: r rename is listed and the wide hints take three lines that fit the narrowest panel", () => {
+  const m = { ...model(), selected: 0 };
+  const plain = renderMenu(m, 60, identityTheme).map(strip);
+  const text = plain.join("\n");
+  assert.match(text, /│ ↑↓ profile {2}→← providers {2}enter select +│/);
+  assert.match(text, /│ n new {2}r rename {2}d delete {2}s set session +│/);
+  assert.match(text, /│ e email {2}esc close +│/);
+  const hintLines = plain.filter((l) => /↑↓ profile|n new  r rename|e email/.test(l));
+  assert.equal(hintLines.length, 3, "three hint lines");
+  assert.doesNotMatch(hintLines.join("\n"), /…/, "no hint is cut at the 60 columns of the panel's minimum width");
+  const open = renderMenu({ ...m, row: 1 }, 60, identityTheme).map(strip).join("\n");
+  assert.match(open, /│ e email {2}o open in tab {2}esc close +│/);
+  for (const width of WIDTHS) for (const line of renderMenu({ ...m, row: 1 }, width, identityTheme)) assert.ok(visibleWidth(line) <= width, `width ${width}`);
+});
+
+test("S10 hints: compact layout lists r rename too", () => {
+  const text = renderMenu({ ...model(), selected: 0 }, 40, identityTheme).map(strip).join("\n");
+  assert.match(text, /n new r rename d del/);
+  assert.match(text, /s session e email/);
+  assert.match(text, /esc close/);
 });
