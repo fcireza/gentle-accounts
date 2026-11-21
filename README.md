@@ -4,7 +4,7 @@ Español | [English](README.en.md)
 
 > Los mensajes del programa se muestran en inglés.
 
-Varias cuentas de Claude, Codex y Anthropic en Gentle Shell y pi, con un solo comando para cambiar entre ellas.
+**Un login por cuenta, una sola vez.** Cada perfil guarda su propia sesión de Claude, Codex y Anthropic en Gentle Shell y pi. Cambiás desde el menú o con un comando y no volvés a loguearte: la barra de estado te muestra siempre qué cuenta está activa.
 
 <p align="center">
   <a href="https://github.com/fcireza/gentle-accounts/releases"><img src="https://img.shields.io/github/v/release/fcireza/gentle-accounts?label=release&labelColor=1A1218&color=F095C8&style=for-the-badge" alt="release"></a>

@@ -2,7 +2,7 @@
 
 [Español](README.md) | English
 
-Several Claude, Codex and Anthropic accounts in Gentle Shell and pi, with one command to switch between them.
+**One login per account, once.** Each profile keeps its own Claude, Codex and Anthropic session in Gentle Shell and pi. Switch from the menu or with one command and never log in again: the status bar always shows which account is active.
 
 <p align="center">
   <a href="https://github.com/fcireza/gentle-accounts/releases"><img src="https://img.shields.io/github/v/release/fcireza/gentle-accounts?label=release&labelColor=1A1218&color=F095C8&style=for-the-badge" alt="release"></a>

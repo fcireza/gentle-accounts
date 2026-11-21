@@ -1,7 +1,7 @@
 {
   "name": "gentle-accounts",
   "version": "0.1.0",
-  "description": "Multiple accounts for gentle-shell and pi: switch between Claude (claude-bridge), Codex and Anthropic logins with /gentle:accounts, or start a shell with a given profile.",
+  "description": "Switch between your Claude, Codex and Anthropic accounts in Gentle Shell and pi without logging in again. Work/personal profiles, one command or a menu.",
   "keywords": [
     "pi-package",
     "pi",
