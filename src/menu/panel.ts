@@ -99,7 +99,7 @@ export class AccountsMenuPanel {
   }
 
   /**
-   * Fullscreen mouse: a left click selects the profile or provider under the pointer, a double click acts like
+   * Fullscreen mouse: moving the pointer over a row highlights it, a left click selects the profile or provider under the pointer, a double click acts like
    * Enter, the wheel moves like up and down. Anything else on the panel is swallowed; the keyboard keeps working.
    */
   handleMouse(event: PanelMouseEvent): PanelMouseResult | undefined {
@@ -109,6 +109,19 @@ export class AccountsMenuPanel {
       this.step(event.wheelDelta < 0 ? -1 : 1);
       this.invalidate();
       return { handled: true };
+    }
+    // Hover: resting the pointer on a row highlights it (the selection), so a click lands on what is lit.
+    if (event.type === "move") {
+      if (event.x < 2 || event.x > event.width - 3) return { handled: true, render: false };
+      const hit = menuHits({ ...this.model, selected: this.selected, row: this.row }, event.width)[event.y];
+      // While the providers are open, other profiles are not hovered: selecting one would close them and shift
+      // the rows under the pointer. The mouse selects them with a click, as before.
+      if (!hit || (hit.profile === this.selected && hit.row === this.row) || (this.row > 0 && hit.profile !== this.selected)) return { handled: true, render: false };
+      this.selected = hit.profile;
+      this.row = hit.row;
+      this.invalidate();
+      // pi redraws only when the handler asks for it (like gentle-pi's own hover): without `render` the lit row never shows.
+      return { handled: true, render: true };
     }
     // pi only synthesizes the click on release when the press was handled by the same component: an unhandled
     // press starts a text selection in the chat instead, and no click ever arrives.
