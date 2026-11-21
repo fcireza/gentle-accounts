@@ -223,12 +223,12 @@ El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○`
 Dos cosas que hace el menú por usted:
 
 - Un login hecho con `/login` fuera de los perfiles muestra una línea `Detected login:`; presione `i`, escriba un nombre y pasa a ser un perfil nuevo. El perfil anterior conserva su propia cuenta.
-- `x` en una fila de proveedor pide confirmación y borra las credenciales de ese proveedor solo de ese perfil. Claude muestra `claude auth logout` en su lugar.
+- `x` en una fila de proveedor pide confirmación y borra las credenciales de ese proveedor solo de ese perfil. Claude pide confirmación y ejecuta `claude auth logout` para el perfil.
 
 Iniciar sesión desde una fila de proveedor:
 
-- Claude: elija `In a new terminal tab`, `In this terminal` o `Show the command`.
-- Codex y Anthropic: el menú se cierra y escribe `/login` en el editor; presione Enter y elija el proveedor. Solo funciona para el perfil activo, así que primero cambie a él.
+- Claude: elija `In a new terminal tab` (recomendada), `In this terminal` o `Show the command`.
+- Codex y Anthropic: las mismas tres opciones que Claude, con `In this terminal` como recomendada. En esta terminal el menú ejecuta el login del proveedor para ese perfil (cambiando a él primero si no está activo), abre el navegador y guarda las credenciales en el perfil; la pestaña y el comando inician `gentle-accounts <name>`, donde escribe `/login`.
 
 ## 10. Una cuenta distinta en cada proyecto
 

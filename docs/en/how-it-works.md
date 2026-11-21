@@ -109,7 +109,7 @@ Anthropic entries carry no account id, so a new Anthropic login cannot be told a
 
 `x` on a logged-in provider row removes that provider's entry from the profile's `auth.json`, and from the live `auth.json` too when the profile is the current one. Other profiles and API keys are not touched, and every file is read before any is written, so a corrupt file changes nothing. The token is only forgotten on this machine; it is not revoked at the provider.
 
-Claude is not handled from the menu: its login lives in its own config dir, which can be the default one shared with other tools, so the menu shows `claude auth logout` for you to run with the profile's `CLAUDE_CONFIG_DIR`.
+Claude's login lives in its own config dir, which can be the default one shared with other tools, so the menu asks to confirm (and warns when the folder is shared) and runs `claude auth logout` with the profile's `CLAUDE_CONFIG_DIR`. With email display on, Codex and the other OAuth providers also show the account email when the credential carries one (read locally from the saved token; never verified).
 
 ## The status bar
 
@@ -146,7 +146,7 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 
 ## Not supported on purpose
 
-- Running pi's `/login` from the extension: the accounts menu writes `/login` in the editor and you press Enter.
+- Logging in from the extension uses the provider's own OAuth flow, so providers without an OAuth login (and the `/login` list itself) stay in pi.
 - Adding entries to Gentle Shell's command menu: it is a fixed list that extensions cannot extend, so the entry points are `/gentle:accounts` (and its menu) and the status bar.
 - Switching during an agent turn.
 - Deleting the active profile, or deleting from the launcher.

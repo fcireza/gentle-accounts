@@ -48,14 +48,14 @@ Claude Code guarda una sola sesión por equipo, y pi guarda las credenciales de 
 | Proveedor | Qué guarda cada perfil | Cómo iniciar sesión |
 | --- | --- | --- |
 | Claude Bridge (mediante [pi-claude-bridge](https://github.com/elidickinson/pi-claude-bridge)) | su propia sesión de Claude Code (un `CLAUDE_CONFIG_DIR` separado) | `/gentle:accounts login claude` o `gentle-accounts login <profile>` |
-| Codex (`openai-codex`) | sus propias credenciales en el `auth.json` de pi | el `/login` de pi |
-| Anthropic (proveedor nativo de pi) | sus propias credenciales en el `auth.json` de pi | el `/login` de pi |
+| Codex (`openai-codex`) | sus propias credenciales en el `auth.json` de pi | `Enter` en su fila del menú (pestaña nueva, esta terminal o mostrar el comando) |
+| Anthropic (proveedor nativo de pi) | sus propias credenciales en el `auth.json` de pi | `Enter` en su fila del menú (pestaña nueva, esta terminal o mostrar el comando) |
 
 Los proveedores con clave de API siguen siendo globales; todo proveedor de cuenta (oauth) pertenece al perfil.
 
 ## Comandos
 
-El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles (`●` activo en esta sesión, `○` los demás y `★` perfil de sesión). Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `r` renombrar, `d` borrar, `s` sesión, `e` correo, `x` cerrar la sesión de un proveedor, `i` adoptar un login detectado fuera de los perfiles, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar. En modo `fullscreen` también puede hacer clic en un perfil o proveedor, doble clic para cambiar o iniciar sesión, y usar la rueda.
+El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles (`●` activo en esta sesión, `○` los demás y `★` perfil de sesión). Teclas: `↑` `↓` perfil, `→` `←` abrir o cerrar sus proveedores (`●`/`○` con sesión o sin ella), `Enter` cambiar o iniciar sesión, `n` nuevo, `r` renombrar, `d` borrar, `s` sesión, `e` correo, `x` cerrar la sesión de un proveedor, `i` adoptar un login detectado fuera de los perfiles, `o` (en un proveedor con sesión) abrir el proyecto con ese perfil en una pestaña nueva, `Esc` cerrar. En modo `fullscreen` el puntero ilumina la fila bajo el mouse; también puede hacer clic en un perfil o proveedor, doble clic para cambiar o iniciar sesión, y usar la rueda.
 
 | Comando | Qué hace |
 | --- | --- |

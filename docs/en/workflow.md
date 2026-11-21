@@ -223,12 +223,12 @@ The menu lists the profiles: `‚óè` marks the profile active in this session, `‚ó
 Two things the menu does for you:
 
 - A login made with `/login` outside the profiles shows a `Detected login:` line; press `i`, type a name and it becomes a new profile. The previous profile keeps its own account.
-- `x` on a provider row asks to confirm and removes that provider's credentials from that profile only. Claude shows `claude auth logout` instead.
+- `x` on a provider row asks to confirm and removes that provider's credentials from that profile only. Claude asks to confirm and runs `claude auth logout` for the profile.
 
 Logging in from a provider row:
 
-- Claude: choose `In a new terminal tab`, `In this terminal` or `Show the command`.
-- Codex and Anthropic: the menu closes and writes `/login` in the editor; press Enter and choose the provider. It only works for the active profile, so switch to it first.
+- Claude: choose `In a new terminal tab` (recommended), `In this terminal` or `Show the command`.
+- Codex and Anthropic: the same three choices as Claude, with `In this terminal` recommended. In this terminal the menu runs the provider's login for that profile (switching to it first when it is not active), opens the browser and saves the credentials into the profile; the tab and the command start `gentle-accounts <name>`, where you type `/login`.
 
 ## 10. A different account in each project
 

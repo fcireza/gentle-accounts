@@ -46,14 +46,14 @@ Claude Code keeps one login per machine, and pi keeps your Codex and Anthropic c
 | Provider | What each profile keeps | How to log in |
 | --- | --- | --- |
 | Claude Bridge (via [pi-claude-bridge](https://github.com/elidickinson/pi-claude-bridge)) | its own Claude Code login (a separate `CLAUDE_CONFIG_DIR`) | `/gentle:accounts login claude` or `gentle-accounts login <profile>` |
-| Codex (`openai-codex`) | its own credentials in pi's `auth.json` | pi's `/login` |
-| Anthropic (pi's native provider) | its own credentials in pi's `auth.json` | pi's `/login` |
+| Codex (`openai-codex`) | its own credentials in pi's `auth.json` | `Enter` on its menu row (new tab, this terminal or show the command) |
+| Anthropic (pi's native provider) | its own credentials in pi's `auth.json` | `Enter` on its menu row (new tab, this terminal or show the command) |
 
 Providers that use an API key stay global; every account (oauth) provider belongs to the profile.
 
 ## Commands
 
-The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `r` rename, `d` delete, `s` session, `e` email, `x` log a provider out, `i` adopt a login detected outside the profiles, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode you can also click a profile or provider, double-click to switch or log in, and use the wheel.
+The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles (`●` active in this session, `○` the others, `★` session profile). Keys: `↑` `↓` profile, `→` `←` open or close its providers (`●`/`○` logged in or not), `Enter` switch or log in, `n` new, `r` rename, `d` delete, `s` session, `e` email, `x` log a provider out, `i` adopt a login detected outside the profiles, `o` (on a logged-in provider) open the project with that profile in a new tab, `Esc` close. In `fullscreen` mode the pointer highlights the row under the mouse, and you can also click a profile or provider, double-click to switch or log in, and use the wheel.
 
 | Command | What it does |
 | --- | --- |
