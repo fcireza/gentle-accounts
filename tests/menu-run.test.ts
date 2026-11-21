@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -9,7 +9,7 @@ import { resolveContext } from "../src/session-home.ts";
 import { settingsPath } from "../src/settings.ts";
 import { claudeLoginCommand, loginHint } from "../src/login.ts";
 import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
-import { OVERLAY_OPTIONS, loginProviders, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
+import { OVERLAY_OPTIONS, loginProviders, saveCredential, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
 import type { AccountsMenuPanel, MenuAction } from "../src/menu/panel.ts";
 import { identityTheme } from "../src/menu/view.ts";
 import type { OpenTabResult, TabCommand } from "../src/terminal.ts";
@@ -516,4 +516,40 @@ test("S38 run: declining, or a failing claude auth logout, changes nothing and r
   const bad = fakeCtx([{ type: "logout", profile: "personal", provider: "claude", row: 1 }, { type: "close" }], { confirm: true });
   await runAccountsMenu(bad.ctx, { ...deps(agentDir), claudeLogout: async () => ({ ok: false, message: "claude auth logout failed (1)" }) });
   assert.match(feedbackOf(bad.frames[1]), /claude auth logout failed \(1\)/);
+});
+
+test("S40 run: saveCredential writes both copies, and puts the profile copy back when the live write fails", { skip: process.platform === "win32" }, () => {
+  const { agentDir, store } = setup();
+  const live = join(agentDir, "auth.json");
+  const snap = store.authPath("work");
+  writeFileSync(live, JSON.stringify({ google: "k" }));
+  writeFileSync(snap, JSON.stringify({ anthropic: { type: "oauth", access: "old" } }));
+  const cred = { type: "oauth", access: "new" };
+  saveCredential(live, snap, "anthropic", cred);
+  assert.deepEqual(JSON.parse(readFileSync(live, "utf8")), { google: "k", anthropic: cred });
+  assert.deepEqual(JSON.parse(readFileSync(snap, "utf8")), { anthropic: cred });
+  // A failing live write (read-only directory for the live file) restores the profile copy.
+  const roDir = join(agentDir, "ro");
+  mkdirSync(roDir);
+  const roLive = join(roDir, "auth.json");
+  writeFileSync(roLive, "{}");
+  chmodSync(roDir, 0o500);
+  try {
+    writeFileSync(snap, JSON.stringify({ anthropic: { type: "oauth", access: "keep" } }));
+    assert.throws(() => saveCredential(roLive, snap, "anthropic", cred));
+    assert.equal(JSON.parse(readFileSync(snap, "utf8")).anthropic.access, "keep");
+  } finally {
+    chmodSync(roDir, 0o700);
+  }
+});
+
+test("S40 run: logging Claude out of the default folder names the profiles that share it", async () => {
+  const { agentDir, store } = setup();
+  store.create("shared", { claudeDefault: true });
+  store.create("twin", { claudeDefault: true });
+  const c = fakeCtx([{ type: "logout", profile: "shared", provider: "claude", row: 1 }, { type: "close" }], { confirm: false });
+  const asked: string[] = [];
+  (c.ctx.ui as { confirm: unknown }).confirm = async (_t: string, m: string) => (asked.push(m), false);
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), claudeLogout: async () => ({ ok: true, message: "" }) });
+  assert.match(asked[0], /default folder, so these profiles are logged out too: twin\./);
 });

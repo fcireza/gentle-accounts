@@ -22,9 +22,10 @@ export interface LoginUi {
 }
 
 /** Best effort: opens a link in the default browser; a failure is silent (the link is also shown). */
+/** No shell is involved (`rundll32` on Windows gets the URL as one argument), so `&` and friends in a URL are inert. */
 export function openBrowser(url: string, platform: NodeJS.Platform = process.platform): void {
   if (!/^https?:\/\//i.test(url)) return;
-  const [command, args] = platform === "darwin" ? ["open", [url]] : platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
+  const [command, args] = platform === "darwin" ? ["open", [url]] : platform === "win32" ? ["rundll32", ["url.dll,FileProtocolHandler", url]] : ["xdg-open", [url]];
   try {
     const child = spawn(command, args, { stdio: "ignore", detached: true });
     child.on("error", () => {});
@@ -38,12 +39,31 @@ export function openBrowser(url: string, platform: NodeJS.Platform = process.pla
  * Runs the provider's own OAuth login (the same flow `/login` runs) with the command's UI and returns the stored
  * credential shape (`type: "oauth"`). Rejects when the user cancels a prompt or the provider fails.
  */
-export async function runOauthLogin(provider: OauthProvider, ui: LoginUi, open: (url: string) => void = openBrowser): Promise<Record<string, unknown>> {
+export const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+
+export async function runOauthLogin(provider: OauthProvider, ui: LoginUi, open: (url: string) => void = openBrowser, timeoutMs: number = LOGIN_TIMEOUT_MS): Promise<Record<string, unknown>> {
+  // A login nobody completes must not hold the menu forever: abort the provider's flow and give up.
+  const abort = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      abort.abort();
+      reject(new Error("login timed out"));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([attempt(provider, ui, open, abort.signal), timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function attempt(provider: OauthProvider, ui: LoginUi, open: (url: string) => void, signal: AbortSignal): Promise<Record<string, unknown>> {
   const cancelled = (): never => {
     throw new Error("login cancelled");
   };
   const credential = await provider.login({
-    signal: new AbortController().signal,
+    signal,
     async prompt(prompt) {
       if (prompt.type === "select") {
         const picked = await ui.select(prompt.message, prompt.options.map((option) => option.label));

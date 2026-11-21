@@ -41,3 +41,19 @@ test("S37 oauth: cancelling a prompt rejects the login", async () => {
   await assert.rejects(runOauthLogin({ login: async (i) => (await i.prompt({ type: "text", message: "x" }), {}) }, impl), /login cancelled/);
   await assert.rejects(runOauthLogin({ login: async (i) => (await i.prompt({ type: "select", message: "x", options: [{ id: "a", label: "A" }] }), {}) }, impl), /login cancelled/);
 });
+
+test("S40 oauth: a login nobody completes times out, aborts the provider's flow and never resolves", async () => {
+  const { impl } = ui({});
+  let aborted = false;
+  await assert.rejects(
+    runOauthLogin({ login: (i) => new Promise((_, reject) => i.signal.addEventListener("abort", () => ((aborted = true), reject(new Error("aborted"))))) }, impl, () => {}, 20),
+    /login timed out/,
+  );
+  assert.equal(aborted, true);
+});
+
+test("S40 oauth: the browser opener passes the URL as one argument without a shell, even on Windows", async () => {
+  const { openBrowser } = await import("../src/oauth-login.ts");
+  assert.doesNotThrow(() => openBrowser("ftp://not-http", "win32"), "non-http links are ignored");
+  assert.doesNotThrow(() => openBrowser("https://example.test/?a=1&calc=2", "linux"));
+});

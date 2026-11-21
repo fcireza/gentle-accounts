@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { spawn as nodeSpawn } from "node:child_process";
 import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { loginEnv, runClaudeLoginHere, type InheritResult, type InheritSpawn } from "../login-runner.ts";
 import { openInNewTab, type OpenTabResult, type TabCommand, type TabSpawn } from "../terminal.ts";
 import { PROVIDER_LABELS, runClaudeAuthLogout, type ClaudeAccount } from "../account.ts";
@@ -32,6 +33,28 @@ export function loginProviders(ctx: ExtensionCommandContext): { id: string; name
     return found;
   } catch {
     return [];
+  }
+}
+
+/**
+ * Saves a fresh credential into the live auth.json and the profile's own copy. Both files are read and both new
+ * contents built before anything is written; if the second write fails the first is put back, so the two never disagree.
+ */
+export function saveCredential(livePath: string, snapshotPath: string, provider: string, credential: unknown): void {
+  const live = readAuthFile(livePath);
+  const snapshot = readAuthFile(snapshotPath);
+  const nextLive = { ...live, [provider]: credential };
+  const nextSnapshot = { ...snapshot, [provider]: credential };
+  writeAuthFile(snapshotPath, nextSnapshot);
+  try {
+    writeAuthFile(livePath, nextLive);
+  } catch (error) {
+    try {
+      writeAuthFile(snapshotPath, snapshot);
+    } catch {
+      // the original error is the one to report
+    }
+    throw error;
   }
 }
 
@@ -229,7 +252,10 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
         case "logout": {
           if (action.provider === "claude") {
             const dir = s.claudeConfigEnv(action.profile);
-            const shared = dir === undefined ? " It uses Claude Code's default folder, so every profile on it is logged out too." : "";
+            // On Claude Code's default folder every profile that uses it loses its login too: name them.
+            const defaultDir = resolve(join(deps.homeDir ?? homedir(), ".claude"));
+            const sharing = s.list().filter((name) => name !== action.profile && (s.claudeConfigEnv(name) === undefined || resolve(s.claudeConfigEnv(name) as string) === defaultDir));
+            const shared = dir === undefined ? ` It uses Claude Code's default folder, so ${sharing.length ? `these profiles are logged out too: ${sharing.join(", ")}` : "every profile on it is logged out too"}.` : "";
             if (!(await ctx.ui.confirm("Log out", `Log Claude Code out of profile "${action.profile}" (claude auth logout)?${shared}`))) break;
             const result = await (deps.claudeLogout ?? runClaudeAuthLogout)(loginEnv(process.env, dir));
             set(result.ok ? `Logged Claude Code out of profile "${action.profile}".` : result.message, result.ok ? "info" : "error");
@@ -313,13 +339,7 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
           }
           try {
             const credential = await (deps.oauthLogin ?? runOauthLogin)(oauth, ctx.ui);
-            const live = readAuthFile(liveAuthPath);
-            live[action.provider] = credential;
-            writeAuthFile(liveAuthPath, live);
-            // The profile keeps its own copy right away, not only when it is switched away from.
-            const snapshot = readAuthFile(s.authPath(action.profile));
-            snapshot[action.provider] = credential;
-            writeAuthFile(s.authPath(action.profile), snapshot);
+            saveCredential(liveAuthPath, s.authPath(action.profile), action.provider, credential);
             await ctx.modelRegistry.refresh();
             await deps.refreshStatus(ctx, s);
             set(`Logged ${label} into profile "${action.profile}".`);
