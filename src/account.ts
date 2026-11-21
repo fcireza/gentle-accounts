@@ -70,6 +70,33 @@ export const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic",
 };
 
+/**
+ * Best-effort email of a pi oauth credential, read locally and never verified: an `email` field, or the `email`
+ * claim of the access or id token (OpenAI nests it under its profile claim). undefined when none is found.
+ */
+export function credentialEmail(entry: unknown): string | undefined {
+  if (!entry || typeof entry !== "object") return undefined;
+  const e = entry as Record<string, unknown>;
+  const valid = (v: unknown): string | undefined => (typeof v === "string" && /^[^\s@]+@[^\s@]+$/.test(v) ? v : undefined);
+  const direct = valid(e.email);
+  if (direct) return direct;
+  for (const field of ["idToken", "id_token", "access"]) {
+    const token = e[field];
+    if (typeof token !== "string") continue;
+    const part = token.split(".")[1];
+    if (!part) continue;
+    try {
+      const claims = JSON.parse(Buffer.from(part, "base64url").toString("utf8")) as Record<string, unknown>;
+      const nested = claims["https://api.openai.com/profile"] as { email?: unknown } | undefined;
+      const found = valid(claims.email) ?? valid(nested?.email);
+      if (found) return found;
+    } catch {
+      // not a JWT: try the next field
+    }
+  }
+  return undefined;
+}
+
 export interface ProviderState {
   /** `claude` or a covered pi provider id. */
   provider: string;
@@ -95,7 +122,9 @@ export function providerStates(claude: ClaudeAccount | null, auth: AuthData, opt
   for (const provider of options.providers ?? []) if (!known.includes(provider)) known.push(provider);
   for (const provider of known) {
     const entry = auth[provider];
-    rows.push({ provider, label: PROVIDER_LABELS[provider] ?? options.labels?.[provider] ?? provider, loggedIn: Boolean(entry && typeof entry === "object") });
+    const loggedIn = Boolean(entry && typeof entry === "object");
+    const email = loggedIn && options.showEmail === true ? credentialEmail(entry) : undefined;
+    rows.push({ provider, label: PROVIDER_LABELS[provider] ?? options.labels?.[provider] ?? provider, loggedIn, ...(email ? { email } : {}) });
   }
   return rows;
 }
@@ -116,6 +145,16 @@ export const runClaudeAuthStatus: ClaudeStatusRunner = (env) =>
         else resolveOut(out);
       },
     );
+  });
+
+/** Runs `claude auth logout` with the given env; resolves whether it exited cleanly (the CLI's own message is dropped). */
+export type ClaudeLogoutRunner = (env: Env) => Promise<{ ok: boolean; message: string }>;
+
+export const runClaudeAuthLogout: ClaudeLogoutRunner = (env) =>
+  new Promise((resolveOut) => {
+    execFile("claude", ["auth", "logout"], { env: env as NodeJS.ProcessEnv, timeout: 15000, shell: process.platform === "win32", windowsHide: true }, (error) => {
+      resolveOut(error ? { ok: false, message: error.killed ? "claude auth logout timed out" : `claude auth logout failed (${(error as { code?: unknown }).code ?? error.message})` } : { ok: true, message: "" });
+    });
   });
 
 /** Parses `claude auth status` output: an account, null (CLI says logged out), or undefined (no answer). */

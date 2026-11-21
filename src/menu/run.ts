@@ -1,9 +1,9 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { spawn as nodeSpawn } from "node:child_process";
 import { homedir } from "node:os";
-import { runClaudeLoginHere, type InheritResult, type InheritSpawn } from "../login-runner.ts";
+import { loginEnv, runClaudeLoginHere, type InheritResult, type InheritSpawn } from "../login-runner.ts";
 import { openInNewTab, type OpenTabResult, type TabCommand, type TabSpawn } from "../terminal.ts";
-import { PROVIDER_LABELS, type ClaudeAccount } from "../account.ts";
+import { PROVIDER_LABELS, runClaudeAuthLogout, type ClaudeAccount } from "../account.ts";
 import { claudeLoginCommand, loginHint } from "../login.ts";
 import { getShowEmail, runEmailCommand, settingsPath } from "../settings.ts";
 import type { AgentContext } from "../session-home.ts";
@@ -11,6 +11,8 @@ import { runStartupCommand, type ProfileStore } from "../store.ts";
 import { AccountsMenuPanel, type MenuAction } from "./panel.ts";
 import { adoptLogin } from "../adopt.ts";
 import { logoutProvider } from "../logout.ts";
+import { runOauthLogin, type OauthProvider, type LoginUi } from "../oauth-login.ts";
+import { readAuthFile, writeAuthFile } from "../auth-sync.ts";
 import { detectLogins } from "../detect.ts";
 import { buildMenuModel, type Feedback, type FeedbackType } from "./view.ts";
 
@@ -60,10 +62,21 @@ export interface MenuDeps {
   cwd?: string;
   /** S32 runners, injectable for tests (defaults spawn real processes). */
   openTab?: (cwd: string, command: TabCommand) => Promise<OpenTabResult>;
+  /** Runs the provider's OAuth login and returns the credential (default: the real flow with the command's UI). */
+  oauthLogin?: (provider: OauthProvider, ui: LoginUi) => Promise<Record<string, unknown>>;
+  /** Runs `claude auth logout` with the profile's env (default: the real CLI). */
+  claudeLogout?: (env: NodeJS.ProcessEnv) => Promise<{ ok: boolean; message: string }>;
   loginHere?: (ctx: ExtensionCommandContext, claudeDir: string | undefined) => Promise<InheritResult>;
 }
 
 export const CLAUDE_LOGIN_CHOICES = ["In a new terminal tab", "In this terminal", "Show the command"] as const;
+const RECOMMENDED = " (recommended)";
+
+/** Asks where to log in, marking the recommended choice; resolves to the plain choice label (undefined when cancelled). */
+async function askLoginChoice(ctx: ExtensionCommandContext, title: string, recommended: number): Promise<string | undefined> {
+  const picked = await ctx.ui.select(title, CLAUDE_LOGIN_CHOICES.map((label, i) => (i === recommended ? label + RECOMMENDED : label)));
+  return picked?.endsWith(RECOMMENDED) ? picked.slice(0, -RECOMMENDED.length) : picked;
+}
 
 const defaultOpenTab = (platform: NodeJS.Platform) => (cwd: string, command: TabCommand) =>
   openInNewTab({ env: process.env, platform, cwd, command, spawn: nodeSpawn as unknown as TabSpawn });
@@ -215,8 +228,12 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
         }
         case "logout": {
           if (action.provider === "claude") {
-            // Claude's login lives in its config dir (possibly the shared default), so it is not removed from here.
-            set("Claude logs out with its own CLI: run claude auth logout (with the profile's CLAUDE_CONFIG_DIR).", "warning");
+            const dir = s.claudeConfigEnv(action.profile);
+            const shared = dir === undefined ? " It uses Claude Code's default folder, so every profile on it is logged out too." : "";
+            if (!(await ctx.ui.confirm("Log out", `Log Claude Code out of profile "${action.profile}" (claude auth logout)?${shared}`))) break;
+            const result = await (deps.claudeLogout ?? runClaudeAuthLogout)(loginEnv(process.env, dir));
+            set(result.ok ? `Logged Claude Code out of profile "${action.profile}".` : result.message, result.ok ? "info" : "error");
+            if (result.ok) await deps.refreshStatus(ctx, s);
             break;
           }
           const ok = await ctx.ui.confirm("Log out", `Log "${action.provider}" out of profile "${action.profile}"? Its token is only forgotten on this machine.`);
@@ -247,7 +264,7 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
               set(prefix + hint);
               ctx.ui.notify(hint, "info");
             };
-            const choice = await ctx.ui.select(`Log profile "${action.profile}" into Claude Code`, [...CLAUDE_LOGIN_CHOICES]);
+            const choice = await askLoginChoice(ctx, `Log profile "${action.profile}" into Claude Code`, 0);
             if (choice === CLAUDE_LOGIN_CHOICES[0]) {
               const opened = await openTab(cwd, { argv: ["claude", "auth", "login"], env: { CLAUDE_CONFIG_DIR: dir ?? null } });
               if (opened.ok) {
@@ -265,14 +282,51 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
             break;
           }
           const label = PROVIDER_LABELS[action.provider] ?? action.provider;
-          const active = s.current();
-          if (active !== action.profile) {
-            set(`/login signs in the active profile. Switch to "${action.profile}" first, then log ${label} in.`, "warning");
+          const oauth = (ctx.modelRegistry.getProvider(action.provider) as { auth?: { oauth?: OauthProvider } } | undefined)?.auth?.oauth;
+          if (!oauth) {
+            set(`${label} has no OAuth login here: run /login and choose it for the active profile.`, "warning");
             break;
           }
-          ctx.ui.setEditorText("/login");
-          ctx.ui.notify(`Press Enter to run /login and choose ${label} for profile "${action.profile}".`, "info");
-          return;
+          // The same three choices as Claude Code: a new tab, this terminal, or the command to run by hand.
+          const choice = await askLoginChoice(ctx, `Log profile "${action.profile}" into ${label}`, 1);
+          if (choice === CLAUDE_LOGIN_CHOICES[0] || choice === CLAUDE_LOGIN_CHOICES[2]) {
+            // Both start a session on the profile; its /login saves into that profile (the session home syncs it back).
+            const hint = `Run this in ANOTHER terminal, then type /login and choose ${label}:\n\n  ${platform === "win32" ? "PS> " : "$ "}gentle-accounts ${action.profile}\n\nWhen it ends, the login stays in profile "${action.profile}".`;
+            if (choice === CLAUDE_LOGIN_CHOICES[0]) {
+              const opened = await openTab(cwd, { argv: ["gentle-accounts", action.profile], env: {} });
+              if (opened.ok) set(`Opened "${action.profile}" in a new terminal tab (${opened.terminal}): type /login there and choose ${label}.`);
+              else {
+                set(`Could not open a new terminal tab.\n${hint}`);
+                ctx.ui.notify(hint, "info");
+              }
+            } else {
+              set(hint);
+              ctx.ui.notify(hint, "info");
+            }
+            break;
+          }
+          if (choice !== CLAUDE_LOGIN_CHOICES[1]) break;
+          // In this terminal: /login signs in the active profile, so make this one active first (the same switch the menu does).
+          if (s.current() !== action.profile) {
+            await deps.flows.switchTo(ctx, s, liveAuthPath, action.profile, set);
+            if (s.current() !== action.profile) break;
+          }
+          try {
+            const credential = await (deps.oauthLogin ?? runOauthLogin)(oauth, ctx.ui);
+            const live = readAuthFile(liveAuthPath);
+            live[action.provider] = credential;
+            writeAuthFile(liveAuthPath, live);
+            // The profile keeps its own copy right away, not only when it is switched away from.
+            const snapshot = readAuthFile(s.authPath(action.profile));
+            snapshot[action.provider] = credential;
+            writeAuthFile(s.authPath(action.profile), snapshot);
+            await ctx.modelRegistry.refresh();
+            await deps.refreshStatus(ctx, s);
+            set(`Logged ${label} into profile "${action.profile}".`);
+          } catch (error) {
+            set(`Could not log ${label} in: ${errorText(error)}`, "error");
+          }
+          break;
         }
         case "open": {
           const opened = await openTab(cwd, { argv: ["gentle-accounts", action.profile], env: {} });
