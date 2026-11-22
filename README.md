@@ -57,18 +57,14 @@ El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista lo
 | Comando | Qué hace |
 | --- | --- |
 | `/gentle:accounts` | Abre el menú de cuentas. |
+| `/gentle:accounts help` | Muestra el uso. |
 | `/gentle:accounts <name>` | Cambia a `<name>`. |
 | `/gentle:accounts list` | Lista los perfiles. |
-| `/gentle:accounts current` | Muestra el perfil activo. |
 | `/gentle:accounts create <name>` | Crea un perfil vacío. |
-| `/gentle:accounts delete <name>` | Borra un perfil, con confirmación. |
-| `/gentle:accounts rename <old> <new>` | Renombra un perfil; sus sesiones se mueven con él. |
-| `/gentle:accounts login claude` | Imprime el comando que inicia la sesión de Claude Code del perfil activo. |
 | `/gentle:accounts session [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
 | `/gentle:accounts email [show\|hide]` | Muestra u oculta el correo completo en la barra de estado. |
-| `/gentle:accounts help` | Muestra el uso. |
-| `gentle-accounts <name>` | Inicia `gentle-shell` con ese perfil en una carpeta de sesión privada. |
-| `gentle-accounts login <name>` | Ejecuta `claude auth login` para ese perfil. |
+| `/gentle:accounts delete <name>` | Borra un perfil, con confirmación. |
+
 
 Primer uso:
 
@@ -89,17 +85,11 @@ Requisitos: Node 22.18 o superior, pi 1.5.1 o superior (o Gentle Shell), la CLI 
 Con Gentle Shell o con pi:
 
 ```sh
-gentle-shell -- install git:github.com/fcireza/gentle-accounts
+gentle-shell install git:github.com/fcireza/gentle-accounts
 ```
 
 ```sh
 pi install git:github.com/fcireza/gentle-accounts
-```
-
-Launcher opcional, en `~/.zshrc` o `~/.bashrc`:
-
-```sh
-alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts/bin/gentle-accounts.mjs'
 ```
 
 ### Windows (PowerShell)
@@ -107,17 +97,11 @@ alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-
 **Windows no se probó en un equipo real**, solo con pruebas automatizadas; se recomienda WSL.
 
 ```powershell
-gentle-shell -- install git:github.com/fcireza/gentle-accounts
+gentle-shell install git:github.com/fcireza/gentle-accounts
 ```
 
 ```powershell
 pi install git:github.com/fcireza/gentle-accounts
-```
-
-Launcher opcional, en `$PROFILE`:
-
-```powershell
-function gentle-accounts { node "$env:USERPROFILE\.gentle-shell\agent\git\github.com\fcireza\gentle-accounts\bin\gentle-accounts.mjs" @args }
 ```
 
 ## Desinstalar
@@ -127,7 +111,7 @@ Desinstalar conserva sus perfiles en disco bajo `profiles/` hasta que usted borr
 ### macOS / Linux
 
 ```sh
-gentle-shell -- remove git:github.com/fcireza/gentle-accounts
+gentle-shell remove git:github.com/fcireza/gentle-accounts
 ```
 
 ```sh
@@ -137,7 +121,7 @@ pi remove git:github.com/fcireza/gentle-accounts
 ### Windows (PowerShell)
 
 ```powershell
-gentle-shell -- remove git:github.com/fcireza/gentle-accounts
+gentle-shell remove git:github.com/fcireza/gentle-accounts
 ```
 
 ```powershell
@@ -150,14 +134,13 @@ Detalles, actualización y el paquete anterior en [Instalación](https://github.
 
 Este repositorio lleva los topics `gentle-shell-package` y `gentle-shell-extension` para aparecer en el [Gentle Hub](https://gentlemanprogramming.com/gentle-hub/).
 
-## Licencia
-
-MIT
-
-<p align="center"><img src="https://raw.githubusercontent.com/fcireza/gentle-accounts/main/assets/logo.svg" alt="gentle-accounts" width="350"></p>
+---
 
 <p align="center">
   <strong>Un login por cuenta, una sola vez.</strong><br>
   Hecho para que cambiar de cuenta sea lo más fácil de tu día.<br>
   Si te sirvió, dejá una ⭐ en <a href="https://github.com/fcireza/gentle-accounts">GitHub</a>.
 </p>
+<p align="center"><img src="https://raw.githubusercontent.com/fcireza/gentle-accounts/main/assets/logo.svg" alt="gentle-accounts" width="350"></p>
+
+<p align="center"><sub>By <a href="https://github.com/fcireza">@fcireza</a></sub></p>
