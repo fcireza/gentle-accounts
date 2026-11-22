@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/logo-mark.svg" alt="gentle-accounts" width="100"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/fcireza/gentle-accounts/main/assets/logo-mark.svg" alt="gentle-accounts" width="100"></p>
 
-Español | [English](README.en.md)
+Español | [English](https://github.com/fcireza/gentle-accounts/blob/main/README.en.md)
 
 > Los mensajes del programa se muestran en inglés.
 
@@ -8,7 +8,7 @@ Español | [English](README.en.md)
 
 <p align="center">
   <a href="https://github.com/fcireza/gentle-accounts/releases"><img src="https://img.shields.io/github/v/release/fcireza/gentle-accounts?label=release&labelColor=1A1218&color=F095C8&style=for-the-badge" alt="release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1A1218?labelColor=1A1218&color=D7A0B8&style=for-the-badge" alt="MIT"></a>
+  <a href="https://github.com/fcireza/gentle-accounts/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-1A1218?labelColor=1A1218&color=D7A0B8&style=for-the-badge" alt="MIT"></a>
   <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-native-F095C8?labelColor=1A1218&style=for-the-badge" alt="Pi-native package"></a>
 </p>
 
@@ -16,21 +16,15 @@ Español | [English](README.en.md)
   <a href="https://github.com/Gentleman-Programming/gentle-ai"><img src="https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/docs/assets/brand/built-with-gentle-ai.png" height="64" alt="Built with Gentle-AI"></a>
 </p>
 
-<p align="center"><img src="assets/logo.svg" alt="gentle-accounts" width="350"></p>
-
-![Barra de estado de Gentle Shell con el nombre del perfil activo](assets/hero-status-bar.svg)
-
-Las imágenes son ilustraciones construidas con los mensajes reales del programa, no capturas de pantalla.
-
 ## Documentación
 
-- [Índice](docs/es/README.md): punto de partida de la documentación.
-- [Instalación](docs/es/install.md): cada sistema, Gentle Shell y pi, alias, actualizar y quitar.
-- [Flujo de trabajo](docs/es/workflow.md): escenarios completos con imágenes.
-- [Comandos](docs/es/commands.md): referencia completa con todos los mensajes.
-- [Cómo funciona](docs/es/how-it-works.md): estructura en disco, cambio de perfil, barra de estado y seguridad.
-- [Solución de problemas](docs/es/troubleshooting.md): síntomas, causas y soluciones.
-- [Desarrollo](docs/es/development.md): pruebas, CI, Conventional Commits y versiones.
+- [Índice](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/README.md): punto de partida de la documentación.
+- [Instalación](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/install.md): cada sistema, Gentle Shell y pi, alias, actualizar y quitar.
+- [Flujo de trabajo](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/workflow.md): escenarios completos con imágenes.
+- [Comandos](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/commands.md): referencia completa con todos los mensajes.
+- [Cómo funciona](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/how-it-works.md): estructura en disco, cambio de perfil, barra de estado y seguridad.
+- [Solución de problemas](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/troubleshooting.md): síntomas, causas y soluciones.
+- [Desarrollo](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/development.md): pruebas, CI, Conventional Commits y versiones.
 
 ## Objetivo
 
@@ -41,7 +35,7 @@ Claude Code guarda una sola sesión por equipo, y pi guarda las credenciales de 
 - Cada perfil guarda sus propias sesiones: su propia carpeta de Claude Code (`CLAUDE_CONFIG_DIR`) y su propio conjunto de credenciales del `auth.json` de pi.
 - Cambiar con `/gentle:accounts <name>`, o desde el menú, las intercambia y actualiza la barra de estado, que muestra el perfil activo.
 - `gentle-accounts <profile>` inicia una sesión con una carpeta del agente privada, así que dos proyectos pueden usar dos cuentas al mismo tiempo. Evite la MISMA cuenta en dos sesiones abiertas: los refresh tokens de OAuth rotan y una de ellas puede invalidarse.
-- Los perfiles quedan en disco bajo `profiles/` en la carpeta del agente. Más en [Cómo funciona](docs/es/how-it-works.md).
+- Los perfiles quedan en disco bajo `profiles/` en la carpeta del agente. Más en [Cómo funciona](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/how-it-works.md).
 
 ## Proveedores
 
@@ -76,7 +70,7 @@ Primer uso: crear un perfil, cambiar a él y abrir el menú para iniciar sesión
 /gentle:accounts
 ```
 
-Los demás comandos y todos los mensajes están en [Comandos](docs/es/commands.md).
+Los demás comandos y todos los mensajes están en [Comandos](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/commands.md).
 
 ## Instalar / Desinstalar
 
@@ -88,7 +82,7 @@ Los demás comandos y todos los mensajes están en [Comandos](docs/es/commands.m
 | Desinstalar con Gentle Shell | `gentle-shell -- remove git:github.com/fcireza/gentle-accounts` | `gentle-shell -- remove git:github.com/fcireza/gentle-accounts` | `gentle-shell -- remove git:github.com/fcireza/gentle-accounts` |
 | Desinstalar con pi | `pi remove git:github.com/fcireza/gentle-accounts` | `pi remove git:github.com/fcireza/gentle-accounts` | `pi remove git:github.com/fcireza/gentle-accounts` |
 
-Requisitos: Node 22.18 o superior, pi 1.5.1 o superior (o Gentle Shell), la CLI `claude` y pi-claude-bridge para los perfiles de Claude. Desinstalar conserva sus perfiles en disco bajo `profiles/` hasta que usted borre esa carpeta. **Windows no se probó en un equipo real**, solo con pruebas automatizadas; se recomienda WSL. Detalles, actualización y el paquete anterior en [Instalación](docs/es/install.md).
+Requisitos: Node 22.18 o superior, pi 1.5.1 o superior (o Gentle Shell), la CLI `claude` y pi-claude-bridge para los perfiles de Claude. Desinstalar conserva sus perfiles en disco bajo `profiles/` hasta que usted borre esa carpeta. **Windows no se probó en un equipo real**, solo con pruebas automatizadas; se recomienda WSL. Detalles, actualización y el paquete anterior en [Instalación](https://github.com/fcireza/gentle-accounts/blob/main/docs/es/install.md).
 
 ## Gentle Hub
 
@@ -97,3 +91,5 @@ Este repositorio lleva los topics `gentle-shell-package` y `gentle-shell-extensi
 ## Licencia
 
 MIT
+
+<p align="center"><img src="https://raw.githubusercontent.com/fcireza/gentle-accounts/main/assets/logo.svg" alt="gentle-accounts" width="350"></p>
