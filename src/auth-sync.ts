@@ -55,6 +55,18 @@ export function transferCovered(source: AuthData, target: AuthData): AuthData {
   return next;
 }
 
+/**
+ * The profile file `own` with the global entries of `live` (non-covered providers, e.g. api keys) added: the live
+ * ones win on a conflict, an entry only `own` has is kept, nothing is deleted. Always a new object; key order is
+ * `own`'s, then the live entries it lacked.
+ */
+export function withGlobalEntries(live: AuthData, own: AuthData): AuthData {
+  const covered = coveredProviders(live, own);
+  const next: AuthData = { ...own };
+  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
+  return next;
+}
+
 /** Fails (before any state changes) when the target profile's auth.json is unreadable. */
 export function assertProfileReadable(store: ProfileStore, name: string): void {
   store.assertExists(name);
@@ -135,10 +147,7 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
 function switchLinked({ store, liveAuthPath, env, to }: SwitchOptions, from: string | null): SwitchResult {
   const live = readAuthFile(liveAuthPath);
   const incoming = readAuthFile(store.authPath(to));
-  const covered = coveredProviders(live, incoming);
-  const next: AuthData = {};
-  for (const [provider, entry] of Object.entries(incoming)) next[provider] = entry;
-  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
+  const next = withGlobalEntries(live, incoming);
   if (JSON.stringify(next) !== JSON.stringify(incoming)) writeAuthFile(store.authPath(to), next);
   pointAuthAt(liveAuthPath, store.authPath(to));
   applyClaudeConfigEnv(env, store.claudeConfigEnv(to));

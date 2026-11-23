@@ -25,6 +25,9 @@ export function isAuthLinked(path: string): boolean {
   }
 }
 
+// Kernels allow ~40 symlink hops; 8 is plenty for a credentials link, and a longer chain is a cycle for our purposes.
+const MAX_LINK_HOPS = 8;
+
 /**
  * Where a write to `path` really lands: the link target when `path` is a symlink (followed through
  * chains), `path` itself otherwise. A write-then-rename on the link would replace it by a regular file,
@@ -39,14 +42,13 @@ export function resolveAuthTarget(path: string): string {
   return current;
 }
 
-const MAX_LINK_HOPS = 8;
-
 /**
  * Makes `linkPath` a symlink to `target`, replacing an existing link atomically (the link is built next
  * to it and renamed over it), so a reader never sees the path missing. Neither the old nor the new
  * target is touched. POSIX only: Windows keeps the copy model.
  */
 export function pointAuthAt(linkPath: string, target: string): void {
+  // Same `<path>.<pid>.<random>.tmp` pattern as writeFileAtomic in store.ts.
   const tmp = `${linkPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
   symlinkSync(target, tmp);
   try {
