@@ -197,3 +197,39 @@ test("S3: switchLinked re-reads the incoming file right before writing: a token 
   assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": rotated, google: googleKey });
   assert.equal(readlinkSync(liveAuthPath), store.authPath("personal"));
 });
+
+test("S3: when the incoming file turns corrupt between the two reads the switch throws and the link, current profile and env stay", posix, () => {
+  const { store, liveAuthPath } = setup();
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork, google: googleKey });
+  writeAuthFile(store.authPath("personal"), { "openai-codex": codexPersonal });
+  pointAuthAt(liveAuthPath, store.authPath("work"));
+  store.setCurrent("work");
+  const env: Record<string, string | undefined> = {};
+
+  assert.throws(
+    () => switchProfile({ store, liveAuthPath, env, to: "personal", beforeProfileWrite: () => writeFileSync(store.authPath("personal"), "{broken") }),
+    /personal/,
+  );
+
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("work"));
+  assert.equal(store.current(), "work");
+  assert.deepEqual(env, {});
+  assert.equal(readFileSync(store.authPath("personal"), "utf8"), "{broken");
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": codexWork, google: googleKey });
+});
+
+test("S3: when the second read shows the file already holds the carried keys the switch writes nothing and still moves the link", posix, () => {
+  const { store, liveAuthPath } = setup();
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork, google: googleKey });
+  writeAuthFile(store.authPath("personal"), { "openai-codex": codexPersonal });
+  pointAuthAt(liveAuthPath, store.authPath("work"));
+  store.setCurrent("work");
+  // Another session already carried the key into the incoming file between the two reads.
+  const already = { "openai-codex": { ...codexPersonal, expires: 50 }, google: googleKey };
+
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal", beforeProfileWrite: () => writeAuthFile(store.authPath("personal"), already) });
+
+  assert.deepEqual(readAuthFile(store.authPath("personal")), already);
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("personal"));
+  assert.equal(store.current(), "personal");
+});
