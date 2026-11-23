@@ -3,7 +3,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -14,6 +14,10 @@ import { SESSION_CURRENT, buildSessionHome, finishSessionHome, resolveContext } 
 const W = { anthropic: { type: "oauth", access: "w-access", refresh: "w-refresh", expires: 1 } };
 const P = { "openai-codex": { type: "oauth", access: "p-access", refresh: "p-refresh", expires: 2 } };
 const GLOBAL = { google: { type: "api_key", key: "g-key" } }; // api-key providers stay global (S34)
+
+// POSIX homes link their credentials file to the profile file (S6); win32 keeps the private copy.
+const isWin = process.platform === "win32";
+const linkOf = (home: string): string | null => (lstatSync(join(home, "auth.json")).isSymbolicLink() ? readlinkSync(join(home, "auth.json")) : null);
 
 const sha = (path: string): string => (existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : "missing");
 
@@ -70,8 +74,16 @@ test("S30: no snapshot ever receives the other session's credentials", () => {
   writeAuthFile(s2.liveAuthPath, { ...GLOBAL, ...p2 });
   switchProfile({ store: s2.store, liveAuthPath: s2.liveAuthPath, env: {}, to: "work" });
   switchProfile({ store: s1.store, liveAuthPath: s1.liveAuthPath, env: {}, to: "personal" });
-  assert.deepEqual(readAuthFile(store.authPath("work")), W);
-  assert.deepEqual(readAuthFile(store.authPath("personal")), p2);
+  if (isWin) {
+    assert.deepEqual(readAuthFile(store.authPath("work")), W);
+    assert.deepEqual(readAuthFile(store.authPath("personal")), p2);
+  } else {
+    // Linked: the rotation went straight into the personal file; the global api key is carried to every profile file touched.
+    assert.deepEqual(readAuthFile(store.authPath("work")), { ...W, ...GLOBAL });
+    assert.deepEqual(readAuthFile(store.authPath("personal")), { ...p2, ...GLOBAL });
+    assert.equal(linkOf(h1), store.authPath("personal"));
+    assert.equal(linkOf(h2), store.authPath("work"));
+  }
   assert.deepEqual(readAuthFile(s1.liveAuthPath), { ...GLOBAL, ...p2 });
   assert.deepEqual(readAuthFile(s2.liveAuthPath), { ...GLOBAL, ...W });
   assert.equal(s1.store.current(), "personal");
@@ -82,12 +94,21 @@ test("S30: two sessions on different profiles copy back their own credentials", 
   const { shared, store, h1, h2 } = twoSessions();
   const w2 = { anthropic: { type: "oauth", access: "w2", refresh: "w2", expires: 11 } };
   const p2 = { "openai-codex": { type: "oauth", access: "p2", refresh: "p2", expires: 12 } };
+  if (!isWin) {
+    assert.equal(linkOf(h1), store.authPath("work"));
+    assert.equal(linkOf(h2), store.authPath("personal"));
+  }
   writeAuthFile(join(h1, "auth.json"), { ...GLOBAL, ...w2 });
   writeAuthFile(join(h2, "auth.json"), { ...GLOBAL, ...p2 });
+  if (!isWin) {
+    // Linked: the writes already landed in each own profile file, before any finish.
+    assert.deepEqual(readAuthFile(store.authPath("work")), { ...GLOBAL, ...w2 });
+    assert.deepEqual(readAuthFile(store.authPath("personal")), { ...GLOBAL, ...p2 });
+  }
   assert.equal(finishSessionHome(h2, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.equal(finishSessionHome(h1, { sharedAgentDir: shared, stderr: () => {} }), true);
-  assert.deepEqual(readAuthFile(store.authPath("work")), w2);
-  assert.deepEqual(readAuthFile(store.authPath("personal")), p2);
+  assert.deepEqual(readAuthFile(store.authPath("work")), isWin ? w2 : { ...GLOBAL, ...w2 });
+  assert.deepEqual(readAuthFile(store.authPath("personal")), isWin ? p2 : { ...GLOBAL, ...p2 });
   assert.equal(existsSync(h1) || existsSync(h2), false);
   assert.deepEqual(readAuthFile(join(shared, "auth.json")), GLOBAL);
 });
@@ -99,14 +120,16 @@ test("S30: a token rotation in one private auth.json lands only in its profile s
   const w2 = { anthropic: { type: "oauth", access: "w-rot", refresh: "w-rot", expires: 99 } };
   writeAuthFile(join(h1, "auth.json"), { ...GLOBAL, ...w2 });
   const h2Before = sha(join(h2, "auth.json"));
+  if (!isWin) assert.equal(linkOf(h1), store.authPath("work"));
+  if (!isWin) assert.deepEqual(readAuthFile(store.authPath("work")), { ...GLOBAL, ...w2 }); // landed before the finish
   finishSessionHome(h1, { sharedAgentDir: shared, stderr: () => {} });
-  assert.deepEqual(readAuthFile(store.authPath("work")), w2);
+  assert.deepEqual(readAuthFile(store.authPath("work")), isWin ? w2 : { ...GLOBAL, ...w2 });
   assert.equal(sha(store.authPath("personal")), personalBefore);
   assert.equal(sha(join(h2, "auth.json")), h2Before);
   assert.equal(sha(join(shared, "auth.json")), sharedBefore);
   finishSessionHome(h2, { sharedAgentDir: shared, stderr: () => {} });
   assert.equal(sha(store.authPath("personal")), personalBefore);
-  assert.deepEqual(readAuthFile(store.authPath("work")), w2);
+  assert.deepEqual(readAuthFile(store.authPath("work")), isWin ? w2 : { ...GLOBAL, ...w2 });
 });
 
 test("S30: first-run default creation from 8 real processes at once (4 sessions, 4 global) is consistent", async () => {
@@ -175,7 +198,8 @@ for (const order of ["rotating session first", "idle session first"]) {
     writeAuthFile(join(a, "auth.json"), { ...GLOBAL, ...rot("rotated", 20) });
     const homes = order === "rotating session first" ? [a, c] : [c, a];
     for (const h of homes) assert.equal(finishSessionHome(h, { sharedAgentDir: shared, stderr: () => {} }), true);
-    assert.deepEqual(readAuthFile(store.authPath("work")), rot("rotated", 20));
+    // Linked (POSIX): both homes share the profile file, so the rotation is there at once and no finish can undo it.
+    assert.deepEqual(readAuthFile(store.authPath("work")), isWin ? rot("rotated", 20) : { ...GLOBAL, ...rot("rotated", 20) });
     assert.equal(existsSync(join(shared, "auth.json")), false);
   });
 }

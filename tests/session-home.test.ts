@@ -1,7 +1,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
@@ -9,7 +9,7 @@ import { readAuthFile, writeAuthFile } from "../src/auth-sync.ts";
 import {
   SESSION_CURRENT,
   SESSION_MARKER,
-  buildSessionHome,
+  buildSessionHome as buildLinkedSessionHome,
   pickFreshest,
   recordSessionChildPid,
   finishSessionHome,
@@ -25,6 +25,21 @@ import {
 const W = { anthropic: { type: "oauth", access: "w-access", refresh: "w-refresh", expires: 1 } };
 const P = { "openai-codex": { type: "oauth", access: "p-access", refresh: "p-refresh", expires: 2 } };
 const GLOBAL = { google: { type: "api_key", key: "g-key" } }; // api-key providers stay global (S34)
+
+// Tests whose subject is the private-copy model (copy-back, homes of an older version, link failure) use this builder: the
+// link to auth.json is refused, so the home is a copy. Every other test runs on the linked model (S6, auth-session-link.test.ts).
+const buildCopySessionHome: typeof buildLinkedSessionHome = (options) =>
+  buildLinkedSessionHome({
+    ...options,
+    fs: options.fs ?? ({
+      ...fs,
+      symlinkSync: (target: string, path: string, ...rest: unknown[]) => {
+        if (String(path).endsWith("auth.json") && !String(path).includes("auth.json.")) throw new Error("EPERM");
+        return (fs.symlinkSync as (...a: unknown[]) => void)(target, path, ...rest);
+      },
+    } as typeof fs),
+  });
+const buildSessionHome = buildLinkedSessionHome;
 
 function sandbox() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "gentle-accounts-sh-")));
@@ -69,8 +84,13 @@ test("S30: build creates the recipe: links, private auth.json, absolute settings
     if (process.platform === "win32") assert.equal(existsSync(join(home, name)), true, name);
     else assert.equal(lstatSync(join(home, name)).isSymbolicLink(), true, name);
   }
-  assert.equal(lstatSync(join(home, "auth.json")).isFile(), true);
-  if (process.platform !== "win32") assert.equal(statSync(join(home, "auth.json")).mode & 0o777, 0o600);
+  // POSIX: a link to the profile's own file (S6); win32 keeps a private copy.
+  if (process.platform === "win32") assert.equal(lstatSync(join(home, "auth.json")).isFile(), true);
+  else {
+    assert.equal(lstatSync(join(home, "auth.json")).isSymbolicLink(), true);
+    assert.equal(readlinkSync(join(home, "auth.json")), store.authPath("personal"));
+    assert.equal(statSync(join(home, "auth.json")).mode & 0o777, 0o600);
+  }
   // Non covered providers of the shared live auth are kept, covered ones come from the profile snapshot.
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, ...P });
   const settings = JSON.parse(readFileSync(join(home, "settings.json"), "utf8"));
@@ -106,9 +126,9 @@ test("S30: the global current profile takes its covered entries from the shared 
   store.setCurrent("work");
   const fresh = { anthropic: { type: "oauth", access: "rotated", refresh: "rotated", expires: 9 } };
   writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, ...fresh });
-  const w = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const w = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.deepEqual(readAuthFile(join(w.home, "auth.json")), { ...GLOBAL, ...fresh });
-  const p = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
+  const p = buildCopySessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
   assert.deepEqual(readAuthFile(join(p.home, "auth.json")), { ...GLOBAL, ...P });
 });
 
@@ -174,7 +194,7 @@ test("S30: removal never follows links: every shared file and folder stays intac
 
 test("S30: finish copies the covered providers back into the session's current snapshot and removes the home", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   const rotated = { anthropic: { type: "oauth", access: "w2", refresh: "w2r", expires: 5 } };
   writeAuthFile(join(home, "auth.json"), { ...GLOBAL, ...rotated });
   const err: string[] = [];
@@ -189,7 +209,7 @@ test("S30: finish copies the covered providers back into the session's current s
 
 test("S30: finish follows a switch made inside the session (H/.gentle-accounts-current)", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeFileSync(join(home, SESSION_CURRENT), "personal\n");
   const p2 = { "openai-codex": { type: "oauth", access: "p2", refresh: "p2", expires: 7 } };
   writeAuthFile(join(home, "auth.json"), p2);
@@ -200,7 +220,7 @@ test("S30: finish follows a switch made inside the session (H/.gentle-accounts-c
 
 test("S30: a failed copy-back reports on stderr and keeps H/auth.json and the home", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeFileSync(store.authPath("work"), "{corrupt");
   const err: string[] = [];
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: (l) => err.push(l) }), false);
@@ -299,7 +319,7 @@ test("S30: the global current profile starts from the freshest entry per provide
   const liveCodex = oauth("live-codex", 70);
   writeAuthFile(store.authPath("work"), { anthropic: snapAnthropic, "openai-codex": oauth("snap-codex", 60) });
   writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, anthropic: { ...oauth("live-old", 10), extra: "x" }, "openai-codex": liveCodex });
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, anthropic: snapAnthropic, "openai-codex": liveCodex });
 });
 
@@ -308,7 +328,7 @@ test("S30: a provider only in the snapshot is used; api_key entries keep the liv
   store.setCurrent("work");
   writeAuthFile(store.authPath("work"), { anthropic: { type: "api_key", key: "snap" }, "openai-codex": oauth("only-snap", 5) });
   writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, anthropic: { type: "api_key", key: "live" } });
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, anthropic: { type: "api_key", key: "live" }, "openai-codex": oauth("only-snap", 5) });
 });
 
@@ -325,7 +345,7 @@ test("S30: a profile that is not the global current uses only its snapshot, even
 
 test("S30: copy-back keeps the fresher oauth entry of the snapshot over an older private one", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeAuthFile(store.authPath("work"), { anthropic: oauth("rotated-by-other", 50) });
   writeAuthFile(join(home, "auth.json"), { ...GLOBAL, anthropic: oauth("stale", 10) });
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
@@ -335,7 +355,7 @@ test("S30: copy-back keeps the fresher oauth entry of the snapshot over an older
 test("S30: a covered provider logged out inside the session is removed from the snapshot at copy-back", () => {
   const { shared, base, store } = sandbox();
   writeAuthFile(store.authPath("work"), { anthropic: oauth("a", 10), "openai-codex": oauth("c", 10) });
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeAuthFile(join(home, "auth.json"), { ...GLOBAL, "openai-codex": oauth("c", 10) }); // the user logged anthropic out
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
   assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": oauth("c", 10) });
@@ -360,7 +380,7 @@ test("S30: copy-back: a fresher private oauth entry wins; ties and api keys take
 
 test("S30: copy-back adds a provider missing in the snapshot, drops one missing in the private file, never writes non covered ones", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeAuthFile(store.authPath("work"), { anthropic: oauth("snap", 5) });
   writeAuthFile(join(home, "auth.json"), { ...GLOBAL, "openai-codex": oauth("new", 7) });
   assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
@@ -487,9 +507,9 @@ test("S34: build and copy-back carry an extra oauth provider; api-key providers 
   writeAuthFile(store.authPath("work"), { ...W, ag: oauth("snap-ag", 9) });
   writeAuthFile(store.authPath("personal"), P);
   writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, ...W, ag: oauth("live-ag", 1) });
-  const w = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const w = buildCopySessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.deepEqual(readAuthFile(join(w.home, "auth.json")), { ...GLOBAL, ...W, ag: oauth("snap-ag", 9) });
-  const p = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
+  const p = buildCopySessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
   assert.deepEqual(readAuthFile(join(p.home, "auth.json")), { ...GLOBAL, ...P }, "ag of the live file is not leaked");
   writeAuthFile(join(p.home, "auth.json"), { ...GLOBAL, ...P, ag: oauth("p-ag", 4) });
   assert.equal(finishSessionHome(p.home, { sharedAgentDir: shared, stderr: () => {} }), true);

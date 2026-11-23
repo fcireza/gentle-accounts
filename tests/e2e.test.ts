@@ -101,8 +101,9 @@ test("launcher e2e (S30): launches run on private homes, never switch the global
   const p = runWith({ FAKE_AUTH: JSON.stringify({ ...rotated, other: auth.other }), FAKE_EXIT: "5" }, "personal");
   assert.equal(p.code, 5, p.err);
   assert.equal(p.err, "");
-  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "personal", "auth.json"), "utf8")), rotated);
-  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), {});
+  // POSIX: the session wrote through its link into the profile file, and the global api key is carried (S2).
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "personal", "auth.json"), "utf8")), isWin ? rotated : { ...rotated, other: auth.other });
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "profiles", "work", "auth.json"), "utf8")), isWin ? {} : { other: auth.other }); // the earlier work session carried the api key
   assert.equal(readFileSync(live, "utf8"), JSON.stringify(auth));
   assert.equal(run("current").out.trim(), "default");
   assert.equal(run("list").out, "* default\n  personal\n  work\n");

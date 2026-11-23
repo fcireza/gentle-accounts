@@ -9,7 +9,7 @@ import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type SpawnCall } from "../src/cli.ts";
 import { SESSION_CURRENT, buildSessionHome } from "../src/session-home.ts";
-import { realpathSync } from "node:fs";
+import { readlinkSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { claudeLoginCommand } from "../src/login.ts";
 
@@ -728,7 +728,11 @@ function sessionSetup(profile = "work") {
   process.env.PI_CODING_AGENT_DIR = home;
   const globalFiles = [join(shared, "auth.json"), store.currentPath, store.authPath("work"), store.authPath("personal")];
   const before = Object.fromEntries(globalFiles.map((p) => [p, sha(p)]));
-  const unchanged = () => assert.deepEqual(Object.fromEntries(globalFiles.map((p) => [p, sha(p)])), before);
+  // `except` names files a test expects to change: every other global file must keep its hash.
+  const unchanged = (except: string[] = []) => {
+    const kept = globalFiles.filter((p) => !except.includes(p));
+    assert.deepEqual(Object.fromEntries(kept.map((p) => [p, sha(p)])), Object.fromEntries(kept.map((p) => [p, before[p]])));
+  };
   return { ...env, shared, store, home, unchanged };
 }
 
@@ -755,7 +759,14 @@ test("S30: a switch inside a session rewrites only H/auth.json and the session c
   assert.equal(readFileSync(join(home, SESSION_CURRENT), "utf8"), "personal\n");
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: { type: "api_key", key: "o" } });
   assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
-  unchanged();
+  if (process.platform === "win32") {
+    unchanged();
+  } else {
+    // S2: the linked switch carries the global api key into the arriving profile's own file, and nothing else changes.
+    unchanged([store.authPath("personal")]);
+    assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: { type: "api_key", key: "o" } });
+    assert.equal(readlinkSync(join(home, "auth.json")), store.authPath("personal"));
+  }
   assert.equal(store.current(), "personal");
   const cur = fakeCtx();
   await profile.handler("current", cur.ctx);

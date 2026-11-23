@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { ProfileStore, writeFileAtomic } from "./store.ts";
+import { isAuthLinked, pointAuthAt } from "./auth-link.ts";
 import { coveredProviders, pickFreshest, readAuthFile, transferCovered, writeAuthFile, type AuthData } from "./auth-sync.ts";
 
 export { pickFreshest };
@@ -139,6 +140,17 @@ export function buildSessionHome(options: BuildOptions): { home: string; marker:
   // Everything is read before the home exists, so a corrupt file builds nothing.
   const store = new ProfileStore(shared);
   const auth = sessionAuth(store, join(shared, "auth.json"), options.profile);
+  // POSIX: the home links to the profile file, which first gets the global (non-covered) entries of the shared live file.
+  let linked: AuthData | null = null;
+  // A profile without its file yet (the first-run `default`) has nothing to link to: it keeps the copy.
+  if (platform !== "win32" && store.exists(options.profile)) {
+    const live = readAuthFile(join(shared, "auth.json"));
+    const own = readAuthFile(store.authPath(options.profile));
+    const covered = coveredProviders(live, own);
+    const next: AuthData = { ...own };
+    for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
+    linked = JSON.stringify(next) !== JSON.stringify(own) ? next : null;
+  }
   const settingsPath = join(shared, "settings.json");
   // pi resolves relative package paths against the agent dir as it was given (before realpath):
   // through a symlinked path (macOS /tmp -> /private/tmp) the canonical dir would point elsewhere.
@@ -152,7 +164,19 @@ export function buildSessionHome(options: BuildOptions): { home: string; marker:
       if (skipEntry(name)) continue;
       linkEntry(fs, platform, join(shared, name), join(home, name));
     }
-    writeAuthFile(join(home, "auth.json"), auth);
+    let isLinked = false;
+    if (platform !== "win32" && store.exists(options.profile)) {
+      try {
+        if (fs === nodeFs) pointAuthAt(join(home, "auth.json"), store.authPath(options.profile));
+        else fs.symlinkSync(store.authPath(options.profile), join(home, "auth.json"));
+        isLinked = true;
+      } catch {
+        // S3: any failure keeps the private copy below.
+      }
+    }
+    // The link exists first: a failed link leaves the profile file as it was (copy fallback). Writes go through the link.
+    if (isLinked && linked !== null) writeAuthFile(store.authPath(options.profile), linked);
+    if (!isLinked) writeAuthFile(join(home, "auth.json"), auth);
     if (settings !== null) fs.writeFileSync(join(home, "settings.json"), settings, { mode: 0o600 });
     fs.writeFileSync(join(home, SESSION_CURRENT), `${options.profile}\n`, { mode: 0o600 });
     const marker: SessionMarker = {
@@ -242,6 +266,11 @@ export function finishSessionHome(
   try {
     if (!profile) throw new Error("the session has no current profile");
     store.assertExists(profile);
+    // A linked home already wrote through to the profile file: nothing to copy back.
+    if (isAuthLinked(join(home, "auth.json"))) {
+      removeSessionHome(home, options);
+      return true;
+    }
     const live = readAuthFile(join(home, "auth.json"));
     const snapshot = readAuthFile(store.authPath(profile));
     // Same freshness rule as the build: another session on this profile may have saved a newer token.
