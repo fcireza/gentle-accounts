@@ -14,6 +14,7 @@ import { adoptLogin } from "../adopt.ts";
 import { logoutProvider } from "../logout.ts";
 import { runOauthLogin, type OauthProvider, type LoginUi } from "../oauth-login.ts";
 import { readAuthFile, writeAuthFile } from "../auth-sync.ts";
+import { isAuthLinked } from "../auth-link.ts";
 import { detectLogins } from "../detect.ts";
 import { buildMenuModel, type Feedback, type FeedbackType } from "./view.ts";
 
@@ -41,6 +42,12 @@ export function loginProviders(ctx: ExtensionCommandContext): { id: string; name
  * contents built before anything is written; if the second write fails the first is put back, so the two never disagree.
  */
 export function saveCredential(livePath: string, snapshotPath: string, provider: string, credential: unknown): void {
+  if (isAuthLinked(livePath)) {
+    // S5: the live file is a profile's own file, so there is one copy to write: the profile's. Writing through the
+    // link could land in another profile's file.
+    writeAuthFile(snapshotPath, { ...readAuthFile(snapshotPath), [provider]: credential });
+    return;
+  }
   const live = readAuthFile(livePath);
   const snapshot = readAuthFile(snapshotPath);
   const nextLive = { ...live, [provider]: credential };
