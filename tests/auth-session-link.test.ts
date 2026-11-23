@@ -138,3 +138,25 @@ test("S6: shared file linked to another profile, session on a different profile"
   assert.deepEqual(readAuthFile(store.authPath("work")), { ...W, ...GOOGLE }); // work untouched
   assert.equal(readlinkSync(authOf(shared)), store.authPath("work")); // global link untouched
 });
+
+test("S3: the build re-reads the profile file right before writing: a token rotated in between survives with the carried api key", { skip: !posix }, () => {
+  const { shared, base, store } = sandbox();
+  writeFileSync(authOf(shared), JSON.stringify(GOOGLE));
+  const rotated = { "openai-codex": { type: "oauth", access: "rot-access", refresh: "rot-refresh", expires: 99 } };
+  buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, beforeProfileWrite: () => writeAuthFile(store.authPath("personal"), rotated) });
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { ...rotated, ...GOOGLE });
+});
+
+test("R3: when the link fails and the late copy read throws, the build throws and leaves no home behind", { skip: !posix }, () => {
+  const { shared, base, store } = sandbox();
+  writeFileSync(authOf(shared), JSON.stringify(GOOGLE));
+  const failing = { ...nodeFs, symlinkSync: (target: string, path: string, ...rest: unknown[]) => {
+    if (String(path).includes("auth.json")) {
+      writeFileSync(store.authPath("personal"), "{ not json"); // corrupt after the first read, before the fallback read
+      throw new Error("EPERM");
+    }
+    return (nodeFs.symlinkSync as (...a: unknown[]) => void)(target, path, ...rest);
+  } } as typeof nodeFs;
+  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, fs: failing }));
+  assert.deepEqual(existsSync(base) ? nodeFs.readdirSync(base) : [], []);
+});

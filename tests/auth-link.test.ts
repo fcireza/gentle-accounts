@@ -183,3 +183,17 @@ test("S1: when the link cannot be moved the switch throws and the link, current 
   assert.equal(store.current(), "work");
   assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": codexWork });
 });
+
+test("S3: switchLinked re-reads the incoming file right before writing: a token rotated in between survives with the carried api key", posix, () => {
+  const { store, liveAuthPath } = setup();
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork, google: googleKey });
+  writeAuthFile(store.authPath("personal"), { "openai-codex": codexPersonal });
+  pointAuthAt(liveAuthPath, store.authPath("work"));
+  store.setCurrent("work");
+  const rotated = { ...codexPersonal, access: "a-rotated", refresh: "r-rotated", expires: 99 };
+
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal", beforeProfileWrite: () => writeAuthFile(store.authPath("personal"), { "openai-codex": rotated }) });
+
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": rotated, google: googleKey });
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("personal"));
+});

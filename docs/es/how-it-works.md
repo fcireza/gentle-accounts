@@ -65,7 +65,7 @@ Al fusionar credenciales (una copia privada de vuelta, una migración o un guard
 
 Límite conocido: los inicios de sesión OAuth de Codex y Anthropic usan refresh tokens rotativos. Usar la MISMA cuenta en dos sesiones abiertas a la vez puede hacer que una invalide el token que tiene la otra, y esa sesión tendrá que iniciar sesión de nuevo. Es preferible usar una cuenta (perfil) distinta en cada sesión.
 
-Límite conocido: una construcción de sesión que agrega claves globales aún puede competir con una rotación de token hecha por otra sesión abierta en el mismo perfil, porque no hay bloqueo.
+Límite conocido: una construcción de sesión que agrega claves globales, y un cambio de perfil que las agrega, aún pueden competir con una rotación de token hecha por otra sesión abierta en el mismo perfil, porque no hay bloqueo. Volver a leer el archivo del perfil justo antes de escribir reduce esa ventana, no la elimina.
 
 ## El cambio de perfil, paso a paso
 

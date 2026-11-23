@@ -131,13 +131,17 @@ export interface BuildOptions {
   id?: string;
   /** Expected owner of the base dir (test seam). */
   uid?: number;
+  /** Test seam: called after the first read of the profile file and right before the second one. */
+  beforeProfileWrite?: () => void;
 }
 
 export function buildSessionHome(options: BuildOptions): { home: string; marker: SessionMarker } {
   const fs = options.fs ?? nodeFs;
   const platform = options.platform ?? process.platform;
   const shared = fs.realpathSync(options.sharedAgentDir);
-  // Everything is read before the home exists, so a corrupt file builds nothing.
+  // On the link path everything is read before the home exists, so a corrupt file builds nothing. On the copy path
+  // (no link, or the link failed) the copy credentials are read before the home exists, except in the link-failure
+  // fallback: there `sessionAuth` runs after the home exists, inside the cleanup try, so a throw removes the home.
   const store = new ProfileStore(shared);
   const sharedAuthPath = join(shared, "auth.json");
   const profileAuthPath = store.authPath(options.profile);
@@ -149,8 +153,8 @@ export function buildSessionHome(options: BuildOptions): { home: string; marker:
     const merged = withGlobalEntries(readAuthFile(sharedAuthPath), own);
     return JSON.stringify(merged) !== JSON.stringify(own) ? merged : null;
   };
-  // The profile file gets the global (non-covered) entries of the shared live file; null when that changes nothing.
-  const globalEntriesToWrite = useLink ? globalEntriesOf() : null;
+  // Only a gate (non-null: the profile file needs the global entries of the shared live file); the value written is the second read.
+  const needsGlobalEntries = useLink ? globalEntriesOf() : null;
   const copyAuth = useLink ? null : sessionAuth(store, sharedAuthPath, options.profile);
   const settingsPath = join(shared, "settings.json");
   // pi resolves relative package paths against the agent dir as it was given (before realpath):
@@ -179,7 +183,8 @@ export function buildSessionHome(options: BuildOptions): { home: string; marker:
     if (linked) {
       // The link exists first: a failed link leaves the profile file as it was (copy fallback). Writes go through the link.
       // Read again right before writing: another session on this profile may have rotated its token since the first read.
-      if (globalEntriesToWrite !== null) {
+      if (needsGlobalEntries !== null) {
+        options.beforeProfileWrite?.();
         const fresh = globalEntriesOf();
         if (fresh !== null) writeAuthFile(profileAuthPath, fresh);
       }
