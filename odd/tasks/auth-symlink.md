@@ -17,7 +17,8 @@ Risk: item 1 (rewrites stored credentials, migrates the live auth.json) and item
 
 - T1. S1, S2, S5: link-aware auth module (point, switch, carry non-OAuth) with tests. Route: inline. Commit: db1ec6e. Done.
 - T2. S4: migration of the live file and POSIX fallback (S3), plus the T1 follow-ups (keep API keys on a switch, refuse link cycles). Route: inline. Commit: 02fa5d4. Done. The migration is NOT wired into the extension yet: T3 first moves every writer to the single-file model.
-- T3. S5, S6: move `adoptLogin`, `logoutProvider`, `saveCredential` and the session home to the single-file model, then wire `migrateToLinkedAuth` (outside session homes). Route: inline. Commit: pending.
+- T3. S5, S6, split in three work units. T3a: `saveCredential` writes one copy and `adoptLogin` refuses a live login on a linked file (`logoutProvider` already works linked: it rewrites the same file twice with the same content). Commit: fa2d727. Done, native review approved. T3b (S6): the launcher session home. Commit: pending. T3c: wire `migrateToLinkedAuth` outside session homes. Commit: pending. Route: T3b delegated (context backstop), T3c inline.
+- Known trade-off (S1): a raw `/login` made in pi outside the menu lands in the current profile's file and replaces that provider's token, with no adopt rescue (the copy model could adopt it until the next switch). Documented in T4.
 - T4. S7: docs en/es and README. Route: inline. Commit: pending.
 
 ## Log
