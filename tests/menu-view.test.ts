@@ -39,7 +39,7 @@ function globalSetup() {
 
 function model(extra: Partial<Parameters<typeof buildMenuModel>[0]> = {}) {
   const { agentDir, store, liveAuthPath } = globalSetup();
-  return buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir, ...extra });
+  return buildMenuModel({ store, liveAuthPath, showEmail: false, sessionMode: true, homeDir: agentDir, ...extra });
 }
 
 test("S31 view: global model has one entry per profile with active, startup and provider states", () => {
@@ -50,14 +50,15 @@ test("S31 view: global model has one entry per profile with active, startup and 
   assert.equal(m.selected, 1, "opens on the active profile");
   assert.equal(m.row, 0);
   const [personal, work] = m.profiles;
+  // Logged-in providers come first, each group in its usual order.
   assert.deepEqual(personal.providers, [
     { provider: "claude", label: "Claude Bridge", loggedIn: true },
-    { provider: "openai-codex", label: "Codex", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: true },
+    { provider: "openai-codex", label: "Codex", loggedIn: false },
   ]);
   assert.deepEqual(work.providers, [
-    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "openai-codex", label: "Codex", loggedIn: true },
+    { provider: "claude", label: "Claude Bridge", loggedIn: false },
     { provider: "anthropic", label: "Anthropic", loggedIn: false },
   ]);
 });
@@ -66,18 +67,18 @@ test("S31 view: the active profile reuses the cached Claude answer (null = logge
   const { agentDir, store, liveAuthPath } = globalSetup();
   writeAccount(store.claudeDir("work"), "file@x.io");
   const base = { store, liveAuthPath, showEmail: true, homeDir: agentDir };
-  assert.equal(buildMenuModel({ ...base, activeClaude: { email: "cached@x.io" } }).profiles[1].providers[0].email, "cached@x.io");
-  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[1].providers[0].loggedIn, false);
-  assert.equal(buildMenuModel(base).profiles[1].providers[0].email, "file@x.io", "no cache: file read");
+  assert.equal(buildMenuModel({ ...base, activeClaude: { email: "cached@x.io" } }).profiles[1].providers.find((p) => p.provider === "claude")!.email, "cached@x.io");
+  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[1].providers.find((p) => p.provider === "claude")!.loggedIn, false);
+  assert.equal(buildMenuModel(base).profiles[1].providers.find((p) => p.provider === "claude")!.email, "file@x.io", "no cache: file read");
   // Another profile never uses the cache.
-  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[0].providers[0].email, EMAIL);
+  assert.equal(buildMenuModel({ ...base, activeClaude: null }).profiles[0].providers.find((p) => p.provider === "claude")!.email, EMAIL);
 });
 
 test("S31 view: email hidden by default, full only when shown; never a token anywhere", () => {
   const hidden = model();
   const shown = model({ showEmail: true });
   assert.equal(shown.showEmail, true);
-  assert.equal(shown.profiles[0].providers[0].email, EMAIL);
+  assert.equal(shown.profiles[0].providers.find((p) => p.provider === "claude")!.email, EMAIL);
   const hiddenText = JSON.stringify(hidden) + WIDTHS.flatMap((w) => renderMenu({ ...hidden, selected: 0, row: 1 }, w, identityTheme)).join("\n");
   assert.doesNotMatch(hiddenText, /maria\.lopez/);
   assert.doesNotMatch(hiddenText, new RegExp(TOKEN));
@@ -85,7 +86,7 @@ test("S31 view: email hidden by default, full only when shown; never a token any
   assert.match(hiddenRender, /● Claude Bridge {2}logged in\s*│/, "email hidden: nothing after logged in");
   assert.doesNotMatch(hiddenRender, /mari\*\*\*\*|@company/, "no email at all");
   const shownText = JSON.stringify(shown) + renderMenu({ ...shown, selected: 0, row: 1 }, 100).join("\n");
-  assert.match(shownText, /maria\.lopez@company\.com/);
+  assert.match(shownText, /mar\*{4}@company\.com/);
   assert.doesNotMatch(shownText, new RegExp(TOKEN));
 });
 
@@ -102,7 +103,7 @@ test("S31 view: session mode reads the shared store, the session current and H/a
   writeFileSync(ctx.store.currentPath, "work\n");
   const m = buildMenuModel({ store: ctx.store, liveAuthPath: ctx.liveAuthPath, showEmail: false, homeDir: agentDir });
   assert.deepEqual(m.profiles.map((p) => [p.name, p.active]), [["personal", false], ["work", true]]);
-  assert.deepEqual(m.profiles[1].providers.map((p) => p.loggedIn), [false, true, false]);
+  assert.deepEqual(m.profiles[1].providers.map((p) => p.loggedIn), [true, false, false]);
   assert.doesNotMatch(renderMenu(m, 100).join("\n"), /mode:/, "the header does not show the mode");
 });
 
@@ -136,13 +137,12 @@ test("S31 render: every width keeps lines inside the frame with identity and tag
 
 test("S31 render: wide layout lists the profiles, expands the selected one and shows feedback and key hints", () => {
   const m = { ...model({ showEmail: false }), selected: 0, feedback: { message: "Delete cancelled.", type: "info" as const } };
-  const text = renderMenu(m, 100).join("\n");
-  const plain = renderMenu(m, 100, identityTheme);
-  assert.match(plain[0], /^╭─+╮$/, "plain frame: the title is inside the panel");
-  assert.match(plain[1], /^│ Accounts {80,}esc │$/, "title on the left, esc on the right");
-  assert.match(plain[2], /^│ Account Default: personal · email: hidden +│$/, "the default account is the session profile");
-  assert.match(plain[3], /^│ ─+ │$/);
-  assert.match(plain.at(-5)!, /^│ ─+ │$/, "a rule separates the three lines of key hints from the rest");
+  const text = renderMenu(m, 200).join("\n");
+  const plain = renderMenu(m, 200, identityTheme);
+  assert.match(plain[0], /^╭─+ Gentle Accounts ─+╮$/, "title centered in the top border");
+  assert.match(plain[1], /^│ Account Default: personal · Account Session: work +│$/, "the default account is the session profile");
+  assert.match(plain[2], /^│ ─+ │$/);
+  assert.match(plain.at(-3)!, /^│ ─+ │$/, "a rule separates the key hints from the rest");
   assert.match(text, /▸ ○ personal ★ {2}Claude Bridge · Anthropic/);
   assert.match(text, /\s{2}● work {4,}Codex {2}active/);
   assert.doesNotMatch(text, /logged in/, "providers stay collapsed on the profile row");
@@ -152,14 +152,14 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   assert.match(text, /n new {2}r rename {2}d delete {2}s set session/);
   assert.match(text, /e email {2}esc close/);
   assert.doesNotMatch(text, /o open/, "open is offered only on a logged-in provider row");
-  const open = renderMenu({ ...m, row: 2 }, 100).join("\n");
+  const open = renderMenu({ ...m, row: 3 }, 100).join("\n");
   assert.match(open, /▾ ○ personal/);
   assert.match(open, /● Claude Bridge {2}logged in\s*│/, "no email while the display is hidden");
-  assert.doesNotMatch(open, /o open/, "row 2 (Codex) is not logged in");
-  const onLogged = renderMenu({ ...m, row: 1 }, 100).join("\n");
-  assert.match(onLogged, /e email {2}o open in tab {2}esc close/);
+  assert.doesNotMatch(open, /o open/, "row 3 (Codex) is not logged in");
+  const onLogged = renderMenu({ ...m, row: 1 }, 200).join("\n");
+  assert.match(onLogged, /e email {2}o open in tab {2}x logout {2}esc close/);
   const shownEmail = renderMenu({ ...model({ showEmail: true }), selected: 0, row: 1 }, 100).join("\n");
-  assert.match(shownEmail, /logged in · maria\.lopez@company\.com/);
+  assert.match(shownEmail, /logged in · mar\*{4}@company\.com/);
   assert.match(open, /▸ ○ Codex {10}not logged in/);
   assert.match(open, /● Anthropic {6}logged in/);
   const active = renderMenu({ ...m, selected: 1 }, 100).join("\n");
@@ -189,7 +189,7 @@ test("S31 render: many profiles scroll the list and always show the selected one
         const plain = check({ ...base, selected, row }, width, identityTheme);
         const name = `profile-${String(selected).padStart(2, "0")}`;
         assert.ok(plain.some((l) => l.includes(name) && /[▸▾]/.test(l)), `width ${width} selected ${selected}: selected profile is listed`);
-        assert.ok(plain.filter((l) => /profile-\d\d/.test(l)).length <= 8, "at most 8 profiles at once");
+        assert.ok(plain.filter((l) => /profile-\d\d/.test(l) && !/Session:/.test(l)).length <= 8, "at most 8 profiles at once");
         if (selected > 0) assert.ok(plain.some((l) => /↑ \d+ more/.test(l)), "hint for hidden profiles above");
         if (selected < 19) assert.ok(plain.some((l) => /↓ \d+ more/.test(l)), "hint for hidden profiles below");
       }
@@ -212,7 +212,7 @@ test("S31 render: long names, wide characters, an empty list and a single profil
     const text = check({ ...single, feedback: { message: "日本語のフィードバック🙂".repeat(10), type: "warning" } }, width, taggedTheme).join("\n");
     assert.match(text, /a-very-long/);
   }
-  assert.match(renderMenu({ ...single, row: 1 }, 200).join("\n"), /名前名前名前@例え\.jp/);
+  assert.match(renderMenu({ ...single, row: 1 }, 200).join("\n"), /名前名\*{4}@例え\.jp/);
 });
 
 test("S31 render: width helpers count wide characters and ANSI correctly", () => {
@@ -240,8 +240,8 @@ test("S35 hits: one entry per rendered line, profiles at row 0 and the open prof
   const at = (re: RegExp) => hits[lines.findIndex((l) => re.test(l))];
   assert.deepEqual(at(/[●○] personal/), { profile: 0, row: 0 });
   assert.deepEqual(at(/Claude Bridge {2}logged in/), { profile: 0, row: 1 });
-  assert.deepEqual(at(/Codex/), { profile: 0, row: 2 });
-  assert.deepEqual(at(/Anthropic {6}logged in/), { profile: 0, row: 3 });
+  assert.deepEqual(at(/Anthropic {6}logged in/), { profile: 0, row: 2 });
+  assert.deepEqual(at(/Codex/), { profile: 0, row: 3 });
   assert.deepEqual(hits.filter((h) => h).length, 1 + 3 + 1, "personal + its 3 providers + work");
   assert.deepEqual(menuHits(m, 3), []);
 });
@@ -253,21 +253,21 @@ test("S37 render: in the key hints the keys use the theme's accent and the text 
   const named: MenuTheme = { fg: (color, text) => (color === "accent" ? `${A}${text}${R}` : color === "dim" ? `${D}${text}${R}` : text) };
   const key = (k: string, t: string) => `${A}${k}${R} ${D}${t}${R}`;
   const m = { ...model(), selected: 0 };
-  const wide = renderMenu(m, 100, named).join("\n");
+  const wide = renderMenu(m, 200, named).join("\n");
   assert.ok(wide.includes(`${key("↑↓", "profile")}  ${key("→←", "providers")}  ${key("enter", "select")}`));
   assert.ok(wide.includes(`${key("n", "new")}  ${key("r", "rename")}  ${key("d", "delete")}  ${key("s", "set session")}`));
   assert.ok(wide.includes(`${key("e", "email")}  ${key("esc", "close")}`));
   assert.ok(!wide.includes(`${A}o${R}`), "no open hint off a logged-in provider");
-  assert.ok(renderMenu({ ...m, row: 1 }, 100, named).join("\n").includes(key("o", "open in tab")));
+  assert.ok(renderMenu({ ...m, row: 1 }, 200, named).join("\n").includes(key("o", "open in tab")));
   assert.ok(renderMenu(m, 40, named).join("\n").includes(key("⏎", "ok")), "compact layout too");
 });
 
 test("S38 render: the header names the default account, or none when no session profile is set", () => {
   const m = model();
   const named = renderMenu({ ...m, selected: 0 }, 100, identityTheme).join("\n");
-  assert.match(named, /Account Default: personal · email: hidden/);
+  assert.match(named, /Account Default: personal · Account Session: work/);
   const none = { ...m, profiles: m.profiles.map((p) => ({ ...p, startup: false })) };
-  assert.match(renderMenu(none, 100, identityTheme).join("\n"), /Account Default: none · email: hidden/);
+  assert.match(renderMenu(none, 100, identityTheme).join("\n"), /Account Default: none · Account Session: work/);
   assert.match(renderMenu(none, 40, identityTheme).join("\n"), /Default: none/);
   assert.doesNotMatch(named, /mode:/);
 });
@@ -279,10 +279,10 @@ test("S41 render: the header labels use the theme's accent and the values the te
   const named: MenuTheme = { fg: (color, text) => (color === "accent" ? `${A}${text}${R}` : color === "text" ? `${T}${text}${R}` : text) };
   const wide = renderMenu({ ...model(), selected: 0 }, 100, named).join("\n");
   assert.ok(wide.includes(`${A}Account Default:${R} ${T}personal${R}`));
-  assert.ok(wide.includes(`${A}email:${R} ${T}hidden${R}`));
+  assert.ok(wide.includes(`${A}Account Session:${R} ${T}work${R}`));
   const compact = renderMenu({ ...model(), selected: 0 }, 40, named).join("\n");
   assert.ok(compact.includes(`${A}Default:${R} ${T}personal${R}`));
-  assert.ok(compact.includes(`${A}email:${R} ${T}hidden${R}`));
+  assert.ok(compact.includes(`${A}Session:${R} ${T}work${R}`));
 });
 
 test("S42 hits: one entry per rendered line with multi-line feedback, in the compact layout and with scrolling", () => {
@@ -304,7 +304,7 @@ test("S10 hints: r rename is listed and the wide hints take three lines that fit
   assert.equal(hintLines.length, 3, "three hint lines");
   assert.doesNotMatch(hintLines.join("\n"), /…/, "no hint is cut at the 60 columns of the panel's minimum width");
   const open = renderMenu({ ...m, row: 1 }, 60, identityTheme).map(strip).join("\n");
-  assert.match(open, /│ e email {2}o open in tab {2}esc close +│/);
+  assert.match(open, /│ e email {2}o open in tab {2}x logout {2}esc close +│/);
   for (const width of WIDTHS) for (const line of renderMenu({ ...m, row: 1 }, width, identityTheme)) assert.ok(visibleWidth(line) <= width, `width ${width}`);
 });
 
@@ -313,4 +313,66 @@ test("S10 hints: compact layout lists r rename too", () => {
   assert.match(text, /n new r rename d del/);
   assert.match(text, /s session e email/);
   assert.match(text, /esc close/);
+});
+
+test("hints go on one line when they fit and the frame and separators use the theme's border accent", () => {
+  const m = { ...model(), selected: 0 };
+  const lines = renderMenu(m, 200, taggedTheme).map(strip);
+  assert.ok(lines.some((l) => /↑↓ profile  →← providers  enter select  n new  r rename  d delete  s set session  e email  esc close/.test(l)));
+  const colors: string[] = [];
+  renderMenu(m, 100, { fg: (c, t) => (colors.push(c), t) });
+  assert.ok(colors.includes("borderAccent") && !colors.includes("border"));
+});
+
+test("the header shows no session account when none is active", () => {
+  const m = model();
+  assert.doesNotMatch(renderMenu({ ...m, sessionName: null }, 100, identityTheme).join("\n"), /Session:/);
+  assert.doesNotMatch(renderMenu({ ...model({ sessionMode: false }) }, 100, identityTheme).join("\n"), /Session:/, "global mode");
+});
+
+test("hints use short labels on one line when the full ones do not fit", () => {
+  const plain = renderMenu({ ...model(), selected: 0 }, 100, identityTheme).map(strip);
+  assert.ok(plain.some((l) => /↑↓ profile  →← providers  ⏎ ok  n new  r rename  d del  s session  e email  esc close/.test(l)));
+});
+
+test("a detected Claude login shows its email only when email display is on, masked", () => {
+  const detected = [{ kind: "claude" as const, providers: ["claude"], email: "maria.lopez@company.com" }];
+  const hidden = renderMenu({ ...model(), detected }, 100, identityTheme).join("\n");
+  assert.match(hidden, /Detected login: Claude Bridge · press i to adopt it as a new profile/);
+  assert.doesNotMatch(hidden, /mar\*|maria/);
+  const shown = renderMenu({ ...model({ showEmail: true }), detected }, 100, identityTheme).join("\n");
+  assert.match(shown, /Claude Bridge \(mar\*{4}@company\.com\)/);
+});
+
+test("every profile lists the providers logged in anywhere, logged out where it has no entry", () => {
+  const { agentDir, store, liveAuthPath } = globalSetup();
+  writeAuthFile(liveAuthPath, { "google-antigravity": { type: "oauth", access: "a", refresh: "r", expires: 1 } });
+  const m = buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir });
+  for (const p of m.profiles) {
+    const row = p.providers.find((x) => x.provider === "google-antigravity");
+    assert.ok(row, `${p.name} lists it`);
+    assert.equal(row.loggedIn, p.active, `${p.name}: logged in only where the entry exists`);
+  }
+  assert.deepEqual(m.profiles[0].providers.map((x) => x.provider).sort(), m.profiles[1].providers.map((x) => x.provider).sort(), "same rows in every profile");
+});
+
+test("the providers /login offers are listed for every profile, logged in or not, with pi's names", () => {
+  const { agentDir, store, liveAuthPath } = globalSetup();
+  const loginProviders = [{ id: "github-copilot", name: "GitHub Copilot" }, { id: "openai-codex", name: "ChatGPT Plus/Pro" }];
+  const m = buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir, loginProviders });
+  for (const p of m.profiles) {
+    const copilot = p.providers.find((x) => x.provider === "github-copilot");
+    assert.deepEqual(copilot && [copilot.label, copilot.loggedIn], ["GitHub Copilot", false], `${p.name}: offered, not logged in`);
+    assert.equal(p.providers.find((x) => x.provider === "openai-codex")?.label, "Codex", "known labels are kept");
+  }
+});
+
+test("the providers with a login come first in every profile, then the ones without", () => {
+  const { agentDir, store, liveAuthPath } = globalSetup();
+  const loginProviders = [{ id: "github-copilot", name: "GitHub Copilot" }];
+  const m = buildMenuModel({ store, liveAuthPath, showEmail: false, homeDir: agentDir, loginProviders });
+  for (const p of m.profiles) {
+    const flags = p.providers.map((x) => x.loggedIn);
+    assert.deepEqual(flags, [...flags].sort((a, b) => Number(b) - Number(a)), `${p.name}: logged in first`);
+  }
 });

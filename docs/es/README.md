@@ -20,7 +20,6 @@ gentle-accounts mantiene **perfiles** con nombre (por ejemplo `work` y `personal
 | [Cómo funciona](how-it-works.md) | Estructura en disco, el algoritmo de cambio, `CLAUDE_CONFIG_DIR`, la barra de estado y la seguridad. |
 | [Solución de problemas](troubleshooting.md) | Síntomas, causas y soluciones. |
 | [Desarrollo](development.md) | Tests, CI, Conventional Commits, releases, protección de ramas y la imagen de vista previa social. |
-| [Antigravity](antigravity.md) | Plan (no implementado) para varias cuentas de Antigravity (Google). |
 
 ## Por dónde empezar
 

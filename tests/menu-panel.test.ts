@@ -193,7 +193,7 @@ test("S35 mouse: clicks outside the rows, other buttons and other events change 
   assert.deepEqual(panel.handleMouse(mouse(lines.length - 2)), { handled: true }, "hints");
   assert.deepEqual(panel.handleMouse(mouse(999)), { handled: true }, "below the panel");
   assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { button: "right" })), undefined);
-  for (const type of ["release", "move", "drag"]) assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { type })), undefined, type);
+  for (const type of ["release", "drag"]) assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { type })), undefined, type);
   assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { type: "press", button: "right" })), undefined, "a right press stays with pi");
   assert.equal(panel.render(W).join("\n"), before, "nothing moved");
   assert.deepEqual(actions, []);
@@ -272,4 +272,43 @@ test("S10 panel: r asks to rename the selected profile, from the profile row or 
 test("S10 panel: with no profiles r does nothing, and it ends the panel only once", () => {
   assert.deepEqual(run(["r"], model([], 0)).actions, []);
   assert.deepEqual(run(["r", "r", "n", KEYS.esc]).actions, [{ type: "rename", profile: "work", row: 0 }]);
+});
+
+test("i adopts only while a login is detected, and the panel shows the hint and the detected line", () => {
+  assert.deepEqual(run(["i"]).actions, [], "nothing detected: the key does nothing");
+  const detected = { ...model(), detected: [{ kind: "live" as const, providers: ["openai-codex"] }] };
+  const r = run(["i"], detected);
+  assert.deepEqual(r.actions, [{ type: "adopt", row: 0 }]);
+  assert.match(r.text(), /Detected login: Codex/);
+  assert.match(r.text(), /i adopt/);
+  assert.doesNotMatch(run([]).text(), /Detected login|i adopt/);
+});
+
+test("x logs out only on a logged-in provider row", () => {
+  const m = model();
+  m.profiles[1].providers[1].loggedIn = true;
+  assert.deepEqual(run(["x"], m).actions, [], "profile row: nothing");
+  assert.deepEqual(run([KEYS.right, "x"], m).actions, [], "logged-out provider row: nothing");
+  const r = run([KEYS.right, KEYS.down, "x"], m);
+  assert.deepEqual(r.actions, [{ type: "logout", profile: "work", provider: "openai-codex", row: 2 }]);
+  assert.match(run([KEYS.right, KEYS.down], m).text(), /x logout/);
+  assert.doesNotMatch(run([], m).text(), /x logout/);
+});
+
+test("S36 mouse: moving the pointer over a row highlights it without acting, and a click then lands on it", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  const move = (y: number): Mouse => ({ type: "move", button: "none", x: 10, y, width: W });
+  assert.deepEqual(panel.handleMouse(move(lineOf(panel, /zeta/))), { handled: true, render: true }, "pi redraws only when asked");
+  assert.match(panel.render(W).join("\n"), /▸ ○ zeta/);
+  assert.deepEqual(panel.handleMouse(move(lineOf(panel, /zeta/))), { handled: true, render: false }, "same row: nothing to redraw");
+  assert.deepEqual(panel.handleMouse(move(0)), { handled: true, render: false }, "the frame does not hover");
+  assert.deepEqual(actions, [], "hover never acts");
+  // With the providers open, hovering another profile must not collapse them.
+  panel.handleInput(KEYS.right);
+  const before = panel.render(W).join("\n");
+  panel.handleMouse(move(lineOf(panel, /personal/)));
+  assert.equal(panel.render(W).join("\n"), before);
+  panel.handleMouse(move(lineOf(panel, /Codex/)));
+  assert.match(panel.render(W).join("\n"), /▸ .* Codex/);
 });

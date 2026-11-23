@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 // S25: docs/es and docs/en hold the same files and only differ in prose.
-const FILES = ["README.md", "install.md", "workflow.md", "commands.md", "how-it-works.md", "troubleshooting.md", "development.md", "antigravity.md"];
+const FILES = ["README.md", "install.md", "workflow.md", "commands.md", "how-it-works.md", "troubleshooting.md", "development.md"];
 const LANGS = ["es", "en"] as const;
 // Produced by the assets task (S24); checked only once assets/ exists.
 const PENDING_ASSETS = new Set(["logo.svg", "hero-status-bar.svg", "workflow-switch.svg", "workflow-login.svg", "how-it-works.svg"].map((f) => `../../assets/${f}`));

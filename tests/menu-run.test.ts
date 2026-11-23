@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -9,7 +9,7 @@ import { resolveContext } from "../src/session-home.ts";
 import { settingsPath } from "../src/settings.ts";
 import { claudeLoginCommand, loginHint } from "../src/login.ts";
 import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
-import { OVERLAY_OPTIONS, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
+import { OVERLAY_OPTIONS, loginProviders, saveCredential, menuAvailable, menuOverlayOptions, runAccountsMenu, sidebarRightMargin } from "../src/menu/run.ts";
 import type { AccountsMenuPanel, MenuAction } from "../src/menu/panel.ts";
 import { identityTheme } from "../src/menu/view.ts";
 import type { OpenTabResult, TabCommand } from "../src/terminal.ts";
@@ -27,7 +27,7 @@ function setup() {
 }
 
 /** Fake `ctx.ui.custom`: renders each opened panel and returns the next scripted action (or undefined). */
-function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string; terminal?: unknown } = {}) {
+function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confirm?: boolean; input?: string; hasUI?: boolean; mode?: string; select?: string; terminal?: unknown; oauth?: boolean } = {}) {
   const frames: string[] = [];
   const notes: { message: string; type?: string }[] = [];
   const options: unknown[] = [];
@@ -39,7 +39,7 @@ function fakeCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; confir
     hasUI: o.hasUI ?? true,
     mode: o.mode ?? "tui",
     isIdle: () => o.idle ?? true,
-    modelRegistry: { refresh: async () => void refreshed++ },
+    modelRegistry: { refresh: async () => void refreshed++, getProvider: (id: string) => (o.oauth === false ? undefined : { auth: { oauth: { id } } }) },
     ui: {
       notify: (message: string, type?: string) => notes.push({ message, type }),
       confirm: async () => o.confirm ?? false,
@@ -162,7 +162,7 @@ test("S31 run: startup toggles set and clear; email toggles and refreshes the st
   assert.match(feedbackOf(c.frames[2]), /Session profile cleared\. New sessions start on the last used profile\./);
   assert.equal(store.startup(), null);
   assert.match(feedbackOf(c.frames[3]), /Email display set to shown\. The status bar shows the full email\./);
-  assert.match(c.frames[3], /email: shown/);
+  assert.doesNotMatch(c.frames[3], /Session:/, "global mode: no session account");
   assert.equal(JSON.parse(readFileSync(settingsPath(agentDir), "utf8")).showEmail, false);
   assert.match(feedbackOf(c.frames[4]), /Email display set to hidden/);
   assert.deepEqual(log, ["work", "work"]);
@@ -183,14 +183,70 @@ test("S31 run: a failing write shows feedback in the panel instead of aborting t
   }
 });
 
-test("S31 run: /login prefill for the pi providers on the active profile only", async () => {
+test("S37 run: Enter on a Codex/Anthropic row logs in directly on the active profile and keeps the profile's own copy", async () => {
+  const { agentDir, store } = setup();
+  const live = join(agentDir, "auth.json");
+  const calls: unknown[] = [];
+  const credential = { type: "oauth", access: "a", refresh: "r", expires: 1 };
+  const c = fakeCtx([{ type: "login", profile: "work", provider: "openai-codex", row: 2 }, { type: "close" }], { select: "In this terminal" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), oauthLogin: async (p) => (calls.push(p), credential) });
+  assert.deepEqual(calls, [{ id: "openai-codex" }]);
+  assert.match(feedbackOf(c.frames[1]), /Logged Codex into profile "work"\./);
+  assert.deepEqual(JSON.parse(readFileSync(live, "utf8"))["openai-codex"], credential);
+  assert.deepEqual(JSON.parse(readFileSync(store.authPath("work"), "utf8"))["openai-codex"], credential);
+  assert.equal(c.editor(), undefined, "no /login prefill");
+  assert.equal(c.refreshed(), 1);
+});
+
+test("S37 run: on another profile it switches first, then logs in, and the previous profile keeps its account", async () => {
+  const { agentDir, store } = setup();
+  const live = join(agentDir, "auth.json");
+  writeFileSync(live, JSON.stringify({ "openai-codex": { type: "oauth", access: "work-a", refresh: "work-r", expires: 5, accountId: "W" } }));
+  const credential = { type: "oauth", access: "p", refresh: "pr", expires: 9, accountId: "P" };
+  const c = fakeCtx([{ type: "login", profile: "personal", provider: "openai-codex", row: 2 }, { type: "close" }], { select: "In this terminal" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), oauthLogin: async () => credential });
+  assert.equal(store.current(), "personal");
+  assert.deepEqual(JSON.parse(readFileSync(live, "utf8"))["openai-codex"], credential);
+  assert.deepEqual(JSON.parse(readFileSync(store.authPath("personal"), "utf8"))["openai-codex"], credential);
+  assert.equal(JSON.parse(readFileSync(store.authPath("work"), "utf8"))["openai-codex"].accountId, "W");
+});
+
+test("S37 run: a cancelled or failed login shows the error and leaves the credentials untouched", async () => {
+  const { agentDir, store } = setup();
+  const live = join(agentDir, "auth.json");
+  const before = existsSync(live) ? readFileSync(live, "utf8") : null;
+  const c = fakeCtx([{ type: "login", profile: "work", provider: "anthropic", row: 3 }, { type: "close" }], { select: "In this terminal" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), oauthLogin: async () => { throw new Error("login cancelled"); } });
+  assert.match(feedbackOf(c.frames[1]), /Could not log Anthropic in: login cancelled/);
+  assert.equal(existsSync(live) ? readFileSync(live, "utf8") : null, before);
+  assert.equal(JSON.parse(readFileSync(store.authPath("work"), "utf8"))["anthropic"], undefined);
+});
+
+test("S37 run: a provider without an OAuth login points to /login and changes nothing", async () => {
   const { agentDir } = setup();
-  const c = fakeCtx([{ type: "login", profile: "personal", provider: "anthropic", row: 3 }, { type: "login", profile: "work", provider: "openai-codex", row: 2 }]);
+  const c = fakeCtx([{ type: "login", profile: "work", provider: "anthropic", row: 3 }, { type: "close" }], { oauth: false, select: "In this terminal" });
   await runAccountsMenu(c.ctx, deps(agentDir));
-  assert.match(feedbackOf(c.frames[1]), /Switch to "personal" first/);
-  assert.equal(c.frames.length, 2, "the /login prefill closes the panel");
-  assert.equal(c.editor(), "/login");
-  assert.deepEqual(c.notes, [{ message: 'Press Enter to run /login and choose Codex for profile "work".', type: "info" }]);
+  assert.match(feedbackOf(c.frames[1]), /has no OAuth login here: run \/login/);
+});
+
+test("S39 run: Codex/Anthropic offer the same choices as Claude; a new tab or the command starts a session on the profile", async () => {
+  const { agentDir } = setup();
+  const r = runners({ tab: { ok: true, terminal: "iTerm2" } as never });
+  const tab = fakeCtx([{ type: "login", profile: "personal", provider: "openai-codex", row: 2 }, { type: "close" }], { select: "In a new terminal tab" });
+  await runAccountsMenu(tab.ctx, { ...deps(agentDir), ...r, cwd: "/proj" });
+  assert.deepEqual(tab.selects(), [{ title: 'Log profile "personal" into Codex', options: ["In a new terminal tab", "In this terminal (recommended)", "Show the command"] }]);
+  assert.deepEqual(r.tabs, [{ cwd: "/proj", command: { argv: ["gentle-accounts", "personal"], env: {} } }]);
+  assert.match(feedbackOf(tab.frames[1]), /Opened "personal" in a new terminal tab \(iTerm2\): type \/login there and choose Codex\./);
+
+  const shown = fakeCtx([{ type: "login", profile: "personal", provider: "anthropic", row: 3 }, { type: "close" }], { select: "Show the command" });
+  await runAccountsMenu(shown.ctx, { ...deps(agentDir), ...runners() });
+  assert.match(shown.notes[0].message, /\$ gentle-accounts personal/);
+  assert.match(shown.notes[0].message, /type \/login and choose Anthropic/);
+
+  const none = fakeCtx([{ type: "login", profile: "personal", provider: "anthropic", row: 3 }, { type: "close" }], { select: undefined });
+  const r2 = runners();
+  await runAccountsMenu(none.ctx, { ...deps(agentDir), ...r2, oauthLogin: async () => { throw new Error("must not run"); } });
+  assert.equal(r2.tabs.length, 0, "cancelling the choice does nothing");
 });
 
 function runners(o: { tab?: OpenTabResult; here?: unknown } = {}) {
@@ -211,7 +267,7 @@ test("S32 run: Enter on Claude asks where; Show the command prints the S22 hint 
   const r = runners();
   const c = fakeCtx([CLAUDE, { type: "close" }], { select: "Show the command" });
   await runAccountsMenu(c.ctx, { ...deps(agentDir), ...r, cwd: "/proj" });
-  assert.deepEqual(c.selects(), [{ title: 'Log profile "personal" into Claude Code', options: ["In a new terminal tab", "In this terminal", "Show the command"] }]);
+  assert.deepEqual(c.selects(), [{ title: 'Log profile "personal" into Claude Code', options: ["In a new terminal tab (recommended)", "In this terminal", "Show the command"] }]);
   const hint = loginHint("personal", claudeLoginCommand(store.claudeConfigEnv("personal"), "linux"), "linux");
   for (const line of hint.split("\n").filter(Boolean)) assert.ok(feedbackOf(c.frames[1]).includes(line.trimEnd().slice(0, 100)), line);
   assert.deepEqual(c.notes, [{ message: hint, type: "info" }]);
@@ -397,4 +453,103 @@ test("S10 run: a profile that is not the current one gets the plain message", as
   await runAccountsMenu(c.ctx, deps(agentDir));
   assert.match(feedbackOf(c.frames[1]), /^Renamed profile "personal" to "home"\.$/m);
   assert.deepEqual(store.list(), ["home", "work"]);
+});
+
+test("adopt: a live login of another account becomes a new profile, and a cancelled name does nothing", async () => {
+  const { agentDir, store } = setup();
+  const codex = (accountId: string) => ({ type: "oauth", access: "a", refresh: "r", expires: 1, accountId });
+  writeFileSync(store.authPath("work"), JSON.stringify({ "openai-codex": codex("A") }));
+  writeFileSync(join(agentDir, "auth.json"), JSON.stringify({ "openai-codex": codex("B") }));
+  const none = fakeCtx([{ type: "adopt", row: 0 }, { type: "close" }], { input: undefined });
+  await runAccountsMenu(none.ctx, deps(agentDir));
+  assert.equal(store.exists("second"), false);
+  assert.match(none.frames[0], /Detected login: Codex/);
+  const ok = fakeCtx([{ type: "adopt", row: 0 }, { type: "close" }], { input: "second" });
+  await runAccountsMenu(ok.ctx, deps(agentDir));
+  assert.match(feedbackOf(ok.frames[1]), /Adopted the detected login as profile "second"\./);
+  assert.equal(store.current(), "second");
+  assert.deepEqual(JSON.parse(readFileSync(store.authPath("work"), "utf8"))["openai-codex"], codex("A"), "work keeps its own account");
+  assert.doesNotMatch(ok.frames[1], /Detected login/, "nothing left to adopt");
+});
+
+test("loginProviders keeps the registry providers that have an OAuth method and never throws", () => {
+  const registry = {
+    getAll: () => [{ provider: "github-copilot" }, { provider: "github-copilot" }, { provider: "google" }, { provider: "openai-codex" }],
+    getProvider: (id: string) => ({ google: { auth: { apiKey: {} } }, "github-copilot": { name: "GitHub Copilot", auth: { oauth: {} } }, "openai-codex": { auth: { oauth: {} } } } as Record<string, unknown>)[id],
+  };
+  assert.deepEqual(loginProviders({ modelRegistry: registry } as never), [{ id: "github-copilot", name: "GitHub Copilot" }, { id: "openai-codex", name: "openai-codex" }]);
+  assert.deepEqual(loginProviders({} as never), []);
+});
+
+test("logout: confirms, forgets the provider in that profile only", async () => {
+  const { agentDir, store } = setup();
+  const tok = { type: "oauth", access: "a", refresh: "r", expires: 1 };
+  writeFileSync(store.authPath("personal"), JSON.stringify({ "openai-codex": tok }));
+  writeFileSync(join(agentDir, "auth.json"), JSON.stringify({ anthropic: tok }));
+  const no = fakeCtx([{ type: "logout", profile: "personal", provider: "openai-codex", row: 1 }, { type: "close" }], { confirm: false });
+  await runAccountsMenu(no.ctx, deps(agentDir));
+  assert.ok("openai-codex" in JSON.parse(readFileSync(store.authPath("personal"), "utf8")), "declined: nothing changes");
+  const yes = fakeCtx([{ type: "logout", profile: "personal", provider: "openai-codex", row: 1 }, { type: "close" }], { confirm: true });
+  await runAccountsMenu(yes.ctx, deps(agentDir));
+  assert.deepEqual(JSON.parse(readFileSync(store.authPath("personal"), "utf8")), {});
+  assert.match(feedbackOf(yes.frames[1]), /Logged "openai-codex" out of profile "personal"\./);
+  assert.deepEqual(JSON.parse(readFileSync(join(agentDir, "auth.json"), "utf8")), { anthropic: tok }, "the live file of another profile is untouched");
+});
+
+test("S38 run: x on Claude confirms, runs claude auth logout with the profile's dir and refreshes", async () => {
+  const { agentDir, store } = setup();
+  const envs: (string | undefined)[] = [];
+  const log: string[] = [];
+  const c = fakeCtx([{ type: "logout", profile: "personal", provider: "claude", row: 1 }, { type: "close" }], { confirm: true });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir, log), claudeLogout: async (env) => (envs.push(env.CLAUDE_CONFIG_DIR), { ok: true, message: "" }) });
+  assert.deepEqual(envs, [store.claudeConfigEnv("personal")]);
+  assert.match(feedbackOf(c.frames[1]), /Logged Claude Code out of profile "personal"\./);
+  assert.deepEqual(log, ["work"], "the status refreshes");
+});
+
+test("S38 run: declining, or a failing claude auth logout, changes nothing and reports it", async () => {
+  const { agentDir } = setup();
+  const calls: number[] = [];
+  const no = fakeCtx([{ type: "logout", profile: "personal", provider: "claude", row: 1 }, { type: "close" }], { confirm: false });
+  await runAccountsMenu(no.ctx, { ...deps(agentDir), claudeLogout: async () => (calls.push(1), { ok: true, message: "" }) });
+  assert.equal(calls.length, 0);
+  const bad = fakeCtx([{ type: "logout", profile: "personal", provider: "claude", row: 1 }, { type: "close" }], { confirm: true });
+  await runAccountsMenu(bad.ctx, { ...deps(agentDir), claudeLogout: async () => ({ ok: false, message: "claude auth logout failed (1)" }) });
+  assert.match(feedbackOf(bad.frames[1]), /claude auth logout failed \(1\)/);
+});
+
+test("S40 run: saveCredential writes both copies, and puts the profile copy back when the live write fails", { skip: process.platform === "win32" }, () => {
+  const { agentDir, store } = setup();
+  const live = join(agentDir, "auth.json");
+  const snap = store.authPath("work");
+  writeFileSync(live, JSON.stringify({ google: "k" }));
+  writeFileSync(snap, JSON.stringify({ anthropic: { type: "oauth", access: "old" } }));
+  const cred = { type: "oauth", access: "new" };
+  saveCredential(live, snap, "anthropic", cred);
+  assert.deepEqual(JSON.parse(readFileSync(live, "utf8")), { google: "k", anthropic: cred });
+  assert.deepEqual(JSON.parse(readFileSync(snap, "utf8")), { anthropic: cred });
+  // A failing live write (read-only directory for the live file) restores the profile copy.
+  const roDir = join(agentDir, "ro");
+  mkdirSync(roDir);
+  const roLive = join(roDir, "auth.json");
+  writeFileSync(roLive, "{}");
+  chmodSync(roDir, 0o500);
+  try {
+    writeFileSync(snap, JSON.stringify({ anthropic: { type: "oauth", access: "keep" } }));
+    assert.throws(() => saveCredential(roLive, snap, "anthropic", cred));
+    assert.equal(JSON.parse(readFileSync(snap, "utf8")).anthropic.access, "keep");
+  } finally {
+    chmodSync(roDir, 0o700);
+  }
+});
+
+test("S40 run: logging Claude out of the default folder names the profiles that share it", async () => {
+  const { agentDir, store } = setup();
+  store.create("shared", { claudeDefault: true });
+  store.create("twin", { claudeDefault: true });
+  const c = fakeCtx([{ type: "logout", profile: "shared", provider: "claude", row: 1 }, { type: "close" }], { confirm: false });
+  const asked: string[] = [];
+  (c.ctx.ui as { confirm: unknown }).confirm = async (_t: string, m: string) => (asked.push(m), false);
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), claudeLogout: async () => ({ ok: true, message: "" }) });
+  assert.match(asked[0], /default folder, so these profiles are logged out too: twin\./);
 });

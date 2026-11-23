@@ -96,6 +96,21 @@ On macOS, Claude Code stores the login in the keychain, and the entry depends on
 
 So `default` gets the `claude-default` marker and the variable is removed while it is active, in the extension and in the child environment of the launcher. `/gentle:accounts current` shows `CLAUDE_CONFIG_DIR=(unset: Claude Code default)`, and the login command for `default` is plain `claude auth login`. The same measurement was not repeated on Linux or Windows (not verified).
 
+## Detected logins
+
+A login made with `/login` in pi or Gentle Shell while a profile is active is saved into that profile, so the menu looks for logins that no profile owns and offers them with `i`:
+
+- A Claude account in `~/.claude` that no profile uses. Adopting it creates a profile on Claude Code's default dir; nothing is copied or moved.
+- A Codex account in the live `auth.json` whose `accountId` differs from the one in the active profile's snapshot and is in no other profile. Adopting it copies that entry into a new profile and makes it current. The previous profile keeps its own account.
+
+Anthropic entries carry no account id, so a new Anthropic login cannot be told apart from a token refresh and is not detected. Detection is read-only, runs only outside launcher sessions, and an unreadable `auth.json` detects nothing.
+
+## Logging a provider out
+
+`x` on a logged-in provider row removes that provider's entry from the profile's `auth.json`, and from the live `auth.json` too when the profile is the current one. Other profiles and API keys are not touched, and every file is read before any is written, so a corrupt file changes nothing. The token is only forgotten on this machine; it is not revoked at the provider.
+
+Claude's login lives in its own config dir, which can be the default one shared with other tools, so the menu asks to confirm (and warns when the folder is shared) and runs `claude auth logout` with the profile's `CLAUDE_CONFIG_DIR`. With email display on, Codex and the other OAuth providers also show the account email when the credential carries one (read locally from the saved token; never verified).
+
 ## The status bar
 
 The extension shows the account with pi's `setStatus`, under the key `gentle-accounts`. Gentle Shell shows it in its status bar and sidebar.
@@ -106,7 +121,7 @@ The extension shows the account with pi's `setStatus`, under the key `gentle-acc
 The icon tells the two states apart at a glance: `👤` means a Claude login was detected for the profile, `🔒` means it was not.
 - No active profile: the status is cleared.
 
-Email display: while hidden, no email appears anywhere, not even masked; only `showEmail` set to `true` shows the full address.
+Email display: while hidden, no email appears anywhere, not even masked. With `showEmail` set to `true` the status bar shows the full address and the menu shows it masked after three characters (`mar****@company.com`). The status bar text uses the theme colors: `muted` for the label, `accent` for the profile, `text` for the email and `warning` for `not logged in`.
 
 Detection:
 
@@ -131,10 +146,10 @@ Codex shows no email, because pi stores only an opaque account id for it (from t
 
 ## Not supported on purpose
 
-- Running pi's `/login` from the extension: the accounts menu writes `/login` in the editor and you press Enter.
+- Logging in from the extension uses the provider's own OAuth flow, so providers without an OAuth login (and the `/login` list itself) stay in pi.
 - Adding entries to Gentle Shell's command menu: it is a fixed list that extensions cannot extend, so the entry points are `/gentle:accounts` (and its menu) and the status bar.
 - Switching during an agent turn.
 - Deleting the active profile, or deleting from the launcher.
 - Renaming a profile that a running launcher session uses: close the session first.
-- Swapping API-key providers other than `openai-codex` and `anthropic` (OAuth providers and Claude through `CLAUDE_CONFIG_DIR` are swapped). Antigravity is only a plan for now: see [Antigravity](antigravity.md).
+- Swapping API-key providers other than `openai-codex` and `anthropic` (OAuth providers and Claude through `CLAUDE_CONFIG_DIR` are swapped).
 - The old `/profile` command: it was renamed to `/gentle:accounts`.

@@ -5,7 +5,7 @@ import type { ProfileStore } from "./store.ts";
 export const STATUS_KEY = PLUGIN_LABEL;
 export const REFRESH_MS = 60_000;
 
-export type StatusCtx = { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void } };
+export type StatusCtx = { hasUI?: boolean; ui?: { setStatus?: (key: string, text: string | undefined) => void; theme?: { fg(color: string, text: string): string } } };
 export type TimerHandle = { unref?: () => unknown };
 
 export interface StatusBarOptions {
@@ -58,7 +58,7 @@ export function createStatusBar(options: StatusBarOptions): StatusBar {
         const account = await queryClaudeAccount({ claudeConfigDir: s.claudeConfigEnv(current), homeDir: homedir(), run: options.runClaudeStatus });
         if (gen !== generation || s.current() !== current) return;
         lastAccount = { store: s.currentPath, profile: current, account };
-        ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: options.showEmail() }));
+        ctx.ui.setStatus(STATUS_KEY, statusText(current, account, { showEmail: options.showEmail(), theme: ctx.ui.theme }));
       } finally {
         if (gen === generation) inFlight = null;
       }

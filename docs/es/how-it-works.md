@@ -96,6 +96,21 @@ En macOS, Claude Code guarda el inicio de sesión en el llavero, y la entrada de
 
 Así que `default` recibe el marcador `claude-default` y la variable se elimina mientras está activo, en la extensión y en el entorno del proceso hijo del launcher. `/gentle:accounts current` muestra `CLAUDE_CONFIG_DIR=(unset: Claude Code default)`, y el comando de inicio de sesión para `default` es simplemente `claude auth login`. La misma medición no se repitió en Linux ni en Windows (no verificado).
 
+## Logins detectados
+
+Un login hecho con `/login` en pi o Gentle Shell mientras hay un perfil activo se guarda en ese perfil, así que el menú busca logins que ningún perfil tiene y los ofrece con `i`:
+
+- Una cuenta de Claude en `~/.claude` que ningún perfil usa. Adoptarla crea un perfil con el directorio por defecto de Claude Code; no se copia ni se mueve nada.
+- Una cuenta de Codex en el `auth.json` en vivo cuyo `accountId` difiere del que está en el snapshot del perfil activo y no está en ningún otro perfil. Adoptarla copia esa entrada a un perfil nuevo y lo deja como actual. El perfil anterior conserva su cuenta.
+
+Las entradas de Anthropic no traen un id de cuenta, así que un login nuevo de Anthropic no se distingue de un refresco de token y no se detecta. La detección es de solo lectura, corre solo fuera de las sesiones del launcher y un `auth.json` ilegible no detecta nada.
+
+## Cerrar la sesión de un proveedor
+
+`x` en una fila de proveedor con sesión borra la entrada de ese proveedor del `auth.json` del perfil, y también del `auth.json` activo cuando el perfil es el actual. Los demás perfiles y las claves de API no se tocan, y se leen todos los archivos antes de escribir ninguno, así que un archivo corrupto no cambia nada. El token solo se olvida en esta máquina; no se revoca en el proveedor.
+
+La sesión de Claude vive en su propio directorio de configuración, que puede ser el predeterminado compartido con otras herramientas, así que el menú pide confirmación (y avisa si la carpeta es compartida) y ejecuta `claude auth logout` con el `CLAUDE_CONFIG_DIR` del perfil. Con la visualización de email activada, Codex y los demás proveedores OAuth también muestran el email de la cuenta cuando la credencial lo trae (se lee localmente del token guardado; nunca se verifica).
+
 ## La barra de estado
 
 La extensión muestra la cuenta con `setStatus` de pi, bajo la clave `gentle-accounts`. Gentle Shell la muestra en su barra de estado y en la barra lateral.
@@ -106,7 +121,7 @@ La extensión muestra la cuenta con `setStatus` de pi, bajo la clave `gentle-acc
 El ícono distingue los dos estados de un vistazo: `👤` indica que se detectó un inicio de sesión de Claude para el perfil y `🔒` que no se detectó.
 - Sin perfil activo: el estado se borra.
 
-Visualización del correo: mientras está oculto no aparece ningún correo en ninguna parte, ni siquiera enmascarado; solo `showEmail` en `true` muestra la dirección completa.
+Visualización del correo: mientras está oculto no aparece ningún correo en ninguna parte, ni siquiera enmascarado. Con `showEmail` en `true` la barra de estado muestra la dirección completa y el menú la muestra enmascarada después de tres caracteres (`mar****@company.com`). El texto de la barra de estado usa los colores del tema: `muted` para la etiqueta, `accent` para el perfil, `text` para el correo y `warning` para `not logged in`.
 
 Detección:
 
@@ -131,10 +146,10 @@ Codex no muestra correo, porque pi solo guarda un identificador de cuenta opaco 
 
 ## Lo que no se soporta a propósito
 
-- Ejecutar el `/login` de pi desde la extensión: el menú de cuentas escribe `/login` en el editor y usted presiona Enter.
+- El login desde la extensión usa el flujo OAuth propio del proveedor, así que los proveedores sin login OAuth (y la lista de `/login`) siguen en pi.
 - Agregar entradas al menú de comandos de Gentle Shell: es una lista fija que las extensiones no pueden ampliar, así que los puntos de entrada son `/gentle:accounts` (y su menú) y la barra de estado.
 - Cambiar de perfil durante un turno del agente.
 - Borrar el perfil activo, o borrar desde el launcher.
 - Renombrar un perfil que usa una sesión en marcha del launcher: cierre la sesión primero.
-- Intercambiar proveedores con clave de API distintos de `openai-codex` y `anthropic` (los proveedores OAuth y Claude mediante `CLAUDE_CONFIG_DIR` sí se intercambian). Antigravity por ahora es solo un plan: consulte [Antigravity](antigravity.md).
+- Intercambiar proveedores con clave de API distintos de `openai-codex` y `anthropic` (los proveedores OAuth y Claude mediante `CLAUDE_CONFIG_DIR` sí se intercambian).
 - El antiguo comando `/profile`: se renombró a `/gentle:accounts`.
