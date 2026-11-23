@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameS
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
-import { isAuthLinked, pointAuthAt } from "./auth-link.ts";
+import { isAuthLinked, pointAuthAt, realpathLoose } from "./auth-link.ts";
 
 const LOCK_ERRORS = new Set(["EPERM", "EACCES", "EBUSY"]);
 
@@ -246,7 +246,8 @@ export class ProfileStore {
       }
       // The linked credentials file points into the old folder, which no longer exists: follow the move (last step).
       const live = join(this.agentDir, "auth.json");
-      if (isAuthLinked(live) && resolve(dirname(live), readlinkSync(live)) === resolve(oldDir, "auth.json")) {
+      // Compared without symlinks (the folder just moved away, and the link may spell the agent folder through an alias).
+      if (isAuthLinked(live) && realpathLoose(resolve(dirname(live), readlinkSync(live))) === realpathLoose(join(oldDir, "auth.json"))) {
         pointAuthAt(live, join(newDir, "auth.json"));
       }
     } catch (error) {

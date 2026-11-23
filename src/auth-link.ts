@@ -1,6 +1,20 @@
-import { lstatSync, readlinkSync, renameSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, readlinkSync, realpathSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+
+/**
+ * `path` with every existing ancestor resolved through symlinks (an alias of the agent folder, /var versus /private/var)
+ * and the missing tail kept as written: the spelling-independent form of a path whose last folders were just moved away.
+ */
+export function realpathLoose(path: string): string {
+  const missing: string[] = [];
+  let current = resolve(path);
+  while (!existsSync(current) && dirname(current) !== current) {
+    missing.unshift(basename(current));
+    current = dirname(current);
+  }
+  return join(realpathSync(current), ...missing);
+}
 
 /** True when `path` is a symbolic link (a dangling one included); false for a file, a directory or a missing path. */
 export function isAuthLinked(path: string): boolean {
