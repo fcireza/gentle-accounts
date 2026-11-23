@@ -13,13 +13,19 @@ export function isAuthLinked(path: string): boolean {
 
 /**
  * Where a write to `path` really lands: the link target when `path` is a symlink (followed through
- * chains), `path` itself otherwise. A write-then-rename on the link would replace it by a regular file.
+ * chains), `path` itself otherwise. A write-then-rename on the link would replace it by a regular file,
+ * so a cycle or a chain longer than the cap throws instead of returning a path that is still a link.
  */
 export function resolveAuthTarget(path: string): string {
   let current = path;
-  for (let hops = 0; hops < 8 && isAuthLinked(current); hops++) current = resolve(dirname(current), readlinkSync(current));
+  for (let hops = 0; isAuthLinked(current); hops++) {
+    if (hops >= MAX_LINK_HOPS) throw new Error(`Cannot resolve ${path}: too many links`);
+    current = resolve(dirname(current), readlinkSync(current));
+  }
   return current;
 }
+
+const MAX_LINK_HOPS = 8;
 
 /**
  * Makes `linkPath` a symlink to `target`, replacing an existing link atomically (the link is built next

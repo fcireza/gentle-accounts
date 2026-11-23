@@ -128,15 +128,16 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
 
 /**
  * Switch on a linked auth.json (S1, S2): the link already is the outgoing profile's file, so rotated
- * tokens are in place and nothing is copied back. The non-OAuth entries (api keys) are global: they
- * replace the incoming file's ones, then the link moves. Every file is read before any write.
+ * tokens are in place and nothing is copied back. The non-OAuth entries (api keys) are global: the live
+ * ones win over the incoming file's on a conflict, and an api key only the incoming file has is kept (a
+ * switch never deletes a key), then the link moves. Every file is read before any write.
  */
 function switchLinked({ store, liveAuthPath, env, to }: SwitchOptions, from: string | null): SwitchResult {
   const live = readAuthFile(liveAuthPath);
   const incoming = readAuthFile(store.authPath(to));
   const covered = coveredProviders(live, incoming);
   const next: AuthData = {};
-  for (const [provider, entry] of Object.entries(incoming)) if (covered.includes(provider)) next[provider] = entry;
+  for (const [provider, entry] of Object.entries(incoming)) next[provider] = entry;
   for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
   if (JSON.stringify(next) !== JSON.stringify(incoming)) writeAuthFile(store.authPath(to), next);
   pointAuthAt(liveAuthPath, store.authPath(to));

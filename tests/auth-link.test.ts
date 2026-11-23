@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lstatSync, mkdtempSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, switchProfile, writeAuthFile } from "../src/auth-sync.ts";
-import { isAuthLinked, pointAuthAt } from "../src/auth-link.ts";
+import { isAuthLinked, pointAuthAt, resolveAuthTarget } from "../src/auth-link.ts";
 
 // S3: Windows keeps the copy model, so the symlink behaviour is only exercised on POSIX.
 const posix = { skip: process.platform === "win32" };
@@ -116,4 +116,70 @@ test("S3: a regular auth.json keeps the copy model, even next to a leftover link
   assert.equal(isAuthLinked(liveAuthPath), false);
   assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": codexWork });
   assert.deepEqual(readAuthFile(liveAuthPath), { "openai-codex": codexPersonal });
+});
+
+test("S2: a switch keeps an API key that exists only in the incoming file, and the live one wins on a conflict", posix, () => {
+  const { store, liveAuthPath } = setup();
+  store.setCurrent("work");
+  const onlyPersonal = { type: "api_key", key: "p-only" };
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork, google: googleKey });
+  writeAuthFile(store.authPath("personal"), { "openai-codex": codexPersonal, google: staleGoogleKey, mistral: onlyPersonal });
+  pointAuthAt(liveAuthPath, store.authPath("work"));
+
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": codexPersonal, google: googleKey, mistral: onlyPersonal });
+});
+
+test("S2: a dangling live link never strips the incoming file's API keys", posix, () => {
+  const { agentDir, store, liveAuthPath } = setup();
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("personal"), { "openai-codex": codexPersonal, google: googleKey });
+  symlinkSync(join(agentDir, "gone.json"), liveAuthPath);
+
+  switchProfile({ store, liveAuthPath, env: {}, to: "personal" });
+
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("personal"));
+  assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": codexPersonal, google: googleKey });
+});
+
+test("S5: writeAuthFile follows a relative two-hop chain and leaves both links in place", posix, () => {
+  const { agentDir, store, liveAuthPath } = setup();
+  symlinkSync("hop.json", liveAuthPath);
+  symlinkSync(join("profiles", "work", "auth.json"), join(agentDir, "hop.json"));
+
+  writeAuthFile(liveAuthPath, { "openai-codex": codexWork });
+
+  assert.equal(lstatSync(liveAuthPath).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(agentDir, "hop.json")).isSymbolicLink(), true);
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": codexWork });
+});
+
+test("S5: a link cycle or an over-long chain throws instead of replacing the link by a regular file", posix, () => {
+  const { agentDir, liveAuthPath } = setup();
+  symlinkSync("b.json", liveAuthPath);
+  symlinkSync("auth.json", join(agentDir, "b.json"));
+
+  assert.throws(() => resolveAuthTarget(liveAuthPath), /too many links/);
+  assert.throws(() => writeAuthFile(liveAuthPath, { google: googleKey }), /too many links/);
+  assert.equal(lstatSync(liveAuthPath).isSymbolicLink(), true);
+});
+
+test("S1: when the link cannot be moved the switch throws and the link, current and live file stay", posix, () => {
+  if (process.getuid?.() === 0) return; // root ignores directory permissions
+  const { agentDir, store, liveAuthPath } = setup();
+  store.setCurrent("work");
+  writeAuthFile(store.authPath("work"), { "openai-codex": codexWork });
+  writeAuthFile(store.authPath("personal"), { "openai-codex": codexPersonal });
+  pointAuthAt(liveAuthPath, store.authPath("work"));
+  chmodSync(agentDir, 0o500);
+  try {
+    assert.throws(() => switchProfile({ store, liveAuthPath, env: {}, to: "personal" }));
+  } finally {
+    chmodSync(agentDir, 0o700);
+  }
+
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("work"));
+  assert.equal(store.current(), "work");
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": codexWork });
 });
