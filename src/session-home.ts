@@ -133,6 +133,17 @@ export interface BuildOptions {
   uid?: number;
 }
 
+/**
+ * The profile file with the shared file's global (non-covered, e.g. api key) entries added, the shared ones
+ * winning on a conflict and nothing deleted; null when that changes nothing.
+ */
+function withGlobalEntries(live: AuthData, own: AuthData): AuthData | null {
+  const covered = coveredProviders(live, own);
+  const next: AuthData = { ...own };
+  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
+  return JSON.stringify(next) !== JSON.stringify(own) ? next : null;
+}
+
 export function buildSessionHome(options: BuildOptions): { home: string; marker: SessionMarker } {
   const fs = options.fs ?? nodeFs;
   const platform = options.platform ?? process.platform;
@@ -144,12 +155,7 @@ export function buildSessionHome(options: BuildOptions): { home: string; marker:
   let linked: AuthData | null = null;
   // A profile without its file yet (the first-run `default`) has nothing to link to: it keeps the copy.
   if (platform !== "win32" && store.exists(options.profile)) {
-    const live = readAuthFile(join(shared, "auth.json"));
-    const own = readAuthFile(store.authPath(options.profile));
-    const covered = coveredProviders(live, own);
-    const next: AuthData = { ...own };
-    for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
-    linked = JSON.stringify(next) !== JSON.stringify(own) ? next : null;
+    linked = withGlobalEntries(readAuthFile(join(shared, "auth.json")), readAuthFile(store.authPath(options.profile)));
   }
   const settingsPath = join(shared, "settings.json");
   // pi resolves relative package paths against the agent dir as it was given (before realpath):
@@ -175,7 +181,11 @@ export function buildSessionHome(options: BuildOptions): { home: string; marker:
       }
     }
     // The link exists first: a failed link leaves the profile file as it was (copy fallback). Writes go through the link.
-    if (isLinked && linked !== null) writeAuthFile(store.authPath(options.profile), linked);
+    if (isLinked && linked !== null) {
+      // Read again right before writing: another session on this profile may have rotated its token since the first read.
+      const fresh = withGlobalEntries(readAuthFile(join(shared, "auth.json")), readAuthFile(store.authPath(options.profile)));
+      if (fresh !== null) writeAuthFile(store.authPath(options.profile), fresh);
+    }
     if (!isLinked) writeAuthFile(join(home, "auth.json"), auth);
     if (settings !== null) fs.writeFileSync(join(home, "settings.json"), settings, { mode: 0o600 });
     fs.writeFileSync(join(home, SESSION_CURRENT), `${options.profile}\n`, { mode: 0o600 });
