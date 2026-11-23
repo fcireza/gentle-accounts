@@ -14,8 +14,8 @@ Risk: item 1 and item 2 (stored credentials). Own commit per task, native review
 
 ## Tasks
 
-- T1. S1, S4, S5: refactor (shared global-merge function, build structure, constants, test names). Route: delegated (context backstop). Commit: pending.
-- T2. S2, S3, S6: re-read in `switchLinked`, the two proofs, the doc sentence. Route: delegated. Commit: pending.
+- T1. S1, S4, S5: refactor (shared global-merge function, build structure, constants, test names). Route: delegated (context backstop). Commit: 720fbc6. Done, native review approved with three non-blocking findings, handled in T2: `R2-001` (`globalEntriesToWrite` is only a gate, the written value is the second read: say so or rename), `R2-002` (the comment "everything is read before the home exists" is no longer true on the link-failure fallback, where `sessionAuth` runs after the home exists), `R3-late-copy-fallback-read` (add a test that a throw in that late read leaves no home behind).
+- T2. S2, S3, S6, plus the three T1 review findings above: re-read in `switchLinked`, the proofs of the second read, the clarified comments and name, the doc sentence. Route: delegated. Commit: pending.
 
 ## Log
 
