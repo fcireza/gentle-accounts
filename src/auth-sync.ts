@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { ProfileStore, isAlreadyExistsError, writeFileAtomic } from "./store.ts";
+import { isAuthLinked, pointAuthAt, resolveAuthTarget } from "./auth-link.ts";
 
 /** Base providers whose credentials always belong to a profile, whatever the entry type. */
 export const COVERED_PROVIDERS = ["openai-codex", "anthropic"] as const;
@@ -40,7 +41,8 @@ export function readAuthFile(path: string): AuthData {
 
 /** Write then rename, so a reader never sees a partial file; pi reloads auth.json by file revision. */
 export function writeAuthFile(path: string, data: AuthData): void {
-  writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
+  // A linked auth.json is written through to its target: the rename must not replace the link.
+  writeFileAtomic(resolveAuthTarget(path), `${JSON.stringify(data, null, 2)}\n`);
 }
 
 /** Copies the covered provider entries of `source` into `target`, removing entries absent in `source`. */
@@ -109,6 +111,8 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
   const from = store.current();
   if (from === to) return { status: "noop", from, to };
 
+  if (isAuthLinked(liveAuthPath)) return switchLinked({ store, liveAuthPath, env, to }, from);
+
   // Read every file before writing any, so a corrupt file fails without touching the others.
   const live = readAuthFile(liveAuthPath);
   const incoming = readAuthFile(store.authPath(to));
@@ -117,6 +121,25 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
     writeAuthFile(store.authPath(from), snapshotOutgoing(live, outgoing, incoming));
   }
   writeAuthFile(liveAuthPath, transferCovered(incoming, live));
+  applyClaudeConfigEnv(env, store.claudeConfigEnv(to));
+  store.setCurrent(to);
+  return { status: "switched", from, to };
+}
+
+/**
+ * Switch on a linked auth.json (S1, S2): the link already is the outgoing profile's file, so rotated
+ * tokens are in place and nothing is copied back. The non-OAuth entries (api keys) are global: they
+ * replace the incoming file's ones, then the link moves. Every file is read before any write.
+ */
+function switchLinked({ store, liveAuthPath, env, to }: SwitchOptions, from: string | null): SwitchResult {
+  const live = readAuthFile(liveAuthPath);
+  const incoming = readAuthFile(store.authPath(to));
+  const covered = coveredProviders(live, incoming);
+  const next: AuthData = {};
+  for (const [provider, entry] of Object.entries(incoming)) if (covered.includes(provider)) next[provider] = entry;
+  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
+  if (JSON.stringify(next) !== JSON.stringify(incoming)) writeAuthFile(store.authPath(to), next);
+  pointAuthAt(liveAuthPath, store.authPath(to));
   applyClaudeConfigEnv(env, store.claudeConfigEnv(to));
   store.setCurrent(to);
   return { status: "switched", from, to };
