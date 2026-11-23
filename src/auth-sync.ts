@@ -55,6 +55,18 @@ export function transferCovered(source: AuthData, target: AuthData): AuthData {
   return next;
 }
 
+/**
+ * The profile file `own` with the global entries of `live` (non-covered providers, e.g. api keys) added: the live
+ * ones win on a conflict, an entry only `own` has is kept, nothing is deleted. Always a new object; key order is
+ * `own`'s, then the live entries it lacked.
+ */
+export function withGlobalEntries(live: AuthData, own: AuthData): AuthData {
+  const covered = coveredProviders(live, own);
+  const next: AuthData = { ...own };
+  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
+  return next;
+}
+
 /** Fails (before any state changes) when the target profile's auth.json is unreadable. */
 export function assertProfileReadable(store: ProfileStore, name: string): void {
   store.assertExists(name);
@@ -98,6 +110,8 @@ export interface SwitchOptions {
   liveAuthPath: string;
   env: Env;
   to: string;
+  /** Test seam: called after the first read of the incoming file and right before the second one. */
+  beforeProfileWrite?: () => void;
 }
 
 export type SwitchResult = { status: "switched" | "noop"; from: string | null; to: string };
@@ -106,12 +120,12 @@ export type SwitchResult = { status: "switched" | "noop"; from: string | null; t
  * Snapshot the active profile's live credentials, load the target profile's credentials into
  * pi's live auth.json, point CLAUDE_CONFIG_DIR at the target's Claude dir and record it as current.
  */
-export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): SwitchResult {
+export function switchProfile({ store, liveAuthPath, env, to, beforeProfileWrite }: SwitchOptions): SwitchResult {
   store.assertExists(to);
   const from = store.current();
   if (from === to) return { status: "noop", from, to };
 
-  if (isAuthLinked(liveAuthPath)) return switchLinked({ store, liveAuthPath, env, to }, from);
+  if (isAuthLinked(liveAuthPath)) return switchLinked({ store, liveAuthPath, env, to, beforeProfileWrite }, from);
 
   // Read every file before writing any, so a corrupt file fails without touching the others.
   const live = readAuthFile(liveAuthPath);
@@ -130,16 +144,18 @@ export function switchProfile({ store, liveAuthPath, env, to }: SwitchOptions): 
  * Switch on a linked auth.json (S1, S2): the link already is the outgoing profile's file, so rotated
  * tokens are in place and nothing is copied back. The non-OAuth entries (api keys) are global: the live
  * ones win over the incoming file's on a conflict, and an api key only the incoming file has is kept (a
- * switch never deletes a key), then the link moves. Every file is read before any write.
+ * switch never deletes a key), then the link moves. Every file is read before any write; the incoming file is read once more right before its write.
  */
-function switchLinked({ store, liveAuthPath, env, to }: SwitchOptions, from: string | null): SwitchResult {
+function switchLinked({ store, liveAuthPath, env, to, beforeProfileWrite }: SwitchOptions, from: string | null): SwitchResult {
   const live = readAuthFile(liveAuthPath);
   const incoming = readAuthFile(store.authPath(to));
-  const covered = coveredProviders(live, incoming);
-  const next: AuthData = {};
-  for (const [provider, entry] of Object.entries(incoming)) next[provider] = entry;
-  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) next[provider] = entry;
-  if (JSON.stringify(next) !== JSON.stringify(incoming)) writeAuthFile(store.authPath(to), next);
+  if (JSON.stringify(withGlobalEntries(live, incoming)) !== JSON.stringify(incoming)) {
+    beforeProfileWrite?.();
+    // Read again right before writing: another live session may have rotated its token since the first read (no lock, the window only narrows).
+    const fresh = readAuthFile(store.authPath(to));
+    const next = withGlobalEntries(live, fresh);
+    if (JSON.stringify(next) !== JSON.stringify(fresh)) writeAuthFile(store.authPath(to), next);
+  }
   pointAuthAt(liveAuthPath, store.authPath(to));
   applyClaudeConfigEnv(env, store.claudeConfigEnv(to));
   store.setCurrent(to);

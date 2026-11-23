@@ -65,7 +65,7 @@ When credentials are merged (a private copy merged back, a migration, or a save 
 
 Known limit: Codex and Anthropic OAuth logins use rotating refresh tokens. Using the SAME account in two live sessions at once can make one of them invalidate the token the other holds, and that session then has to log in again. Prefer a different account (profile) per session.
 
-Known limit: a session build that adds global keys can still race a token rotation by another live session on the same profile, because there is no lock.
+Known limit: a session build that adds global keys, and a profile switch that does, can still race a token rotation by another live session on the same profile, because there is no lock. Re-reading the profile file right before writing narrows that window, it does not remove it.
 
 ## Switching, step by step
 

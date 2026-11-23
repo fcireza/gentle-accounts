@@ -1,5 +1,5 @@
 import { ProfileStore } from "./store.ts";
-import { coveredProviders, pickFreshest, readAuthFile, writeAuthFile, type AuthData } from "./auth-sync.ts";
+import { coveredProviders, pickFreshest, readAuthFile, withGlobalEntries, writeAuthFile } from "./auth-sync.ts";
 import { isAuthLinked, pointAuthAt } from "./auth-link.ts";
 
 export interface MigrateOptions {
@@ -25,10 +25,9 @@ export function migrateToLinkedAuth({ store, liveAuthPath, platform = process.pl
 
   const live = readAuthFile(liveAuthPath);
   const profile = readAuthFile(store.authPath(current));
-  const covered = coveredProviders(live, profile);
-  const merged: AuthData = { ...profile };
-  for (const [provider, entry] of Object.entries(live)) if (!covered.includes(provider)) merged[provider] = entry;
-  for (const provider of covered) {
+  const merged = withGlobalEntries(live, profile);
+  // The migration's own rule: per covered provider the fresher OAuth entry wins.
+  for (const provider of coveredProviders(live, profile)) {
     const entry = pickFreshest(live[provider], profile[provider]);
     if (entry !== undefined) merged[provider] = entry;
   }

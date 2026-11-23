@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, writeAuthFile } from "../src/auth-sync.ts";
 import {
@@ -34,12 +34,11 @@ const buildCopySessionHome: typeof buildLinkedSessionHome = (options) =>
     fs: options.fs ?? ({
       ...fs,
       symlinkSync: (target: string, path: string, ...rest: unknown[]) => {
-        if (String(path).endsWith("auth.json") && !String(path).includes("auth.json.")) throw new Error("EPERM");
+        if (basename(String(path)) === "auth.json") throw new Error("EPERM");
         return (fs.symlinkSync as (...a: unknown[]) => void)(target, path, ...rest);
       },
     } as typeof fs),
   });
-const buildSessionHome = buildLinkedSessionHome;
 
 function sandbox() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "gentle-accounts-sh-")));
@@ -75,7 +74,7 @@ function sandbox() {
 test("S30: build creates the recipe: links, private auth.json, absolute settings, current and marker", () => {
   const { shared, base, store } = sandbox();
   writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, anthropic: { type: "api_key", key: "live" } });
-  const { home, marker } = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, pid: 4242 });
+  const { home, marker } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, pid: 4242 });
   assert.equal(home.startsWith(base), true);
   if (process.platform !== "win32") assert.equal(statSync(home).mode & 0o777, 0o700); // Windows has no POSIX modes
   assert.deepEqual(readdirSync(home).sort(), [SESSION_MARKER, SESSION_CURRENT, "AGENTS.md", "auth.json", "models-store.json", "profiles", "sessions", "settings.json", "skills"].sort());
@@ -112,9 +111,9 @@ test("S30: build creates the recipe: links, private auth.json, absolute settings
 
 test("S30: re-scan at build time picks up new shared entries", () => {
   const { shared, base } = sandbox();
-  const a = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const a = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   writeFileSync(join(shared, "new-file.json"), "{}");
-  const b = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const b = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.equal(existsSync(join(a.home, "new-file.json")), false);
   if (process.platform === "win32") assert.equal(existsSync(join(b.home, "new-file.json")), true);
   else assert.equal(lstatSync(join(b.home, "new-file.json")).isSymbolicLink(), true);
@@ -136,7 +135,7 @@ test("S30: no shared auth.json and an empty snapshot give {}; no shared settings
   const { shared, base, store } = sandbox();
   rmSync(join(shared, "settings.json"));
   store.create("empty");
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "empty", baseDir: base });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "empty", baseDir: base });
   assert.deepEqual(readAuthFile(join(home, "auth.json")), {});
   assert.equal(existsSync(join(home, "settings.json")), false);
 });
@@ -160,7 +159,7 @@ test("S30: win32 links directories as absolute junctions and files as hard links
       fs.copyFileSync(src, dest);
     },
   } as unknown as typeof fs;
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, platform: "win32", fs: facade });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, platform: "win32", fs: facade });
   const real = realpathSync(shared);
   assert.deepEqual(calls.sort(), [
     `copy ${join(real, "AGENTS.md")}`,
@@ -179,7 +178,7 @@ test("S30: win32 links directories as absolute junctions and files as hard links
 
 test("S30: removal never follows links: every shared file and folder stays intact", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   mkdirSync(join(home, "auth.json.lock")); // pi's lock dir left behind
   mkdirSync(join(home, "real-dir"));
   fs.symlinkSync(join(shared, "skills"), join(home, "real-dir", "nested-link"));
@@ -245,8 +244,8 @@ test("S30: marker and current reads are tolerant", () => {
 
 test("S30: the sweeper finishes dead-pid homes, leaves alive and unreadable ones", () => {
   const { shared, base, store } = sandbox();
-  const dead = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999001 });
-  const alive = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, pid: 999002 });
+  const dead = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999001 });
+  const alive = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base, pid: 999002 });
   const broken = join(base, "broken");
   mkdirSync(broken);
   writeFileSync(join(broken, SESSION_MARKER), "{bad");
@@ -264,7 +263,7 @@ test("S30: the sweeper finishes dead-pid homes, leaves alive and unreadable ones
 test("S30: resolveContext uses the session paths with a marker and the global ones without", () => {
   const { shared, base, store } = sandbox();
   store.setCurrent("personal");
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   const s = resolveContext(home);
   assert.equal(s.session?.profile, "work");
   assert.equal(s.sharedDir, realpathSync(shared));
@@ -287,7 +286,7 @@ test("S30: relative packages resolve against the agent dir as given, also when i
   fs.symlinkSync(shared, join(root, "a", "b", "link"));
   writeFileSync(join(shared, "settings.json"), JSON.stringify({ packages: ["../../ext"] }));
   const via = join(root, "a", "b", "link");
-  const { home, marker } = buildSessionHome({ sharedAgentDir: via, profile: "work", baseDir: base });
+  const { home, marker } = buildLinkedSessionHome({ sharedAgentDir: via, profile: "work", baseDir: base });
   assert.deepEqual(JSON.parse(readFileSync(join(home, "settings.json"), "utf8")).packages, [join(root, "a", "ext")]);
   assert.equal(marker.sharedAgentDir, shared);
 });
@@ -337,7 +336,7 @@ test("S30: a profile that is not the global current uses only its snapshot, even
   store.setCurrent("work");
   writeAuthFile(store.authPath("personal"), { "openai-codex": oauth("snap", 1) });
   writeAuthFile(join(shared, "auth.json"), { ...GLOBAL, "openai-codex": oauth("live", 99) });
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "personal", baseDir: base });
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { ...GLOBAL, "openai-codex": oauth("snap", 1) });
 });
 
@@ -370,7 +369,7 @@ test("S30: copy-back: a fresher private oauth entry wins; ties and api keys take
     [{ type: "api_key", key: "mine" }, { type: "api_key", key: "snap" }, { type: "api_key", key: "mine" }],
   ];
   for (const [mine, snap, expected] of cases) {
-    const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+    const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
     writeAuthFile(store.authPath("work"), { anthropic: snap });
     writeAuthFile(join(home, "auth.json"), { anthropic: mine });
     assert.equal(finishSessionHome(home, { sharedAgentDir: shared, stderr: () => {} }), true);
@@ -390,7 +389,7 @@ test("S30: copy-back adds a provider missing in the snapshot, drops one missing 
 
 test("S30: recordSessionChildPid rewrites the marker keeping every field and tolerates failures", () => {
   const { shared, base, root } = sandbox();
-  const { home, marker } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 11 });
+  const { home, marker } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 11 });
   assert.equal(readSessionMarker(home)?.childPid, undefined);
   recordSessionChildPid(home, 4321);
   assert.deepEqual(readSessionMarker(home), { ...marker, childPid: 4321 });
@@ -400,7 +399,7 @@ test("S30: recordSessionChildPid rewrites the marker keeping every field and tol
 
 test("S30: the sweeper keeps a home whose child is alive even when the launcher is dead; both dead sweeps it", () => {
   const { shared, base, store } = sandbox();
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999101 });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999101 });
   recordSessionChildPid(home, 999102);
   writeAuthFile(join(home, "auth.json"), { anthropic: oauth("in-use", 70) });
   const before = readFileSync(store.authPath("work"), "utf8");
@@ -416,7 +415,7 @@ test("S30: the sweeper keeps a home whose child is alive even when the launcher 
 test("S30: a dangling symlink in the shared dir is linked as is and does not break the build", { skip: process.platform === "win32" }, () => {
   const { root, shared, base } = sandbox();
   fs.symlinkSync(join(root, "nowhere"), join(shared, "dangling"));
-  const { home } = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
+  const { home } = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base });
   assert.equal(lstatSync(join(home, "dangling")).isSymbolicLink(), true);
   assert.equal(fs.readlinkSync(join(home, "dangling")), join(realpathSync(shared), "dangling"));
 });
@@ -425,7 +424,7 @@ test("S30: a failed build leaves no home behind (corrupt shared auth.json)", () 
   const { shared, base } = sandbox();
   mkdirSync(base, { mode: 0o700 });
   writeFileSync(join(shared, "auth.json"), "{corrupt");
-  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }), /Cannot parse/);
+  assert.throws(() => buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }), /Cannot parse/);
   assert.deepEqual(readdirSync(base), []);
 });
 
@@ -440,7 +439,7 @@ test("S30: a failure after the home exists removes it without following links", 
     },
   } as unknown as typeof fs;
   mkdirSync(base, { mode: 0o700 });
-  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, fs: facade }), /disk full/);
+  assert.throws(() => buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, fs: facade }), /disk full/);
   assert.deepEqual(readdirSync(base), []);
   assert.equal(readFileSync(join(shared, "skills", "s.md"), "utf8"), "skill");
 });
@@ -450,7 +449,7 @@ test("S30: invalid JSON in the shared settings.json fails the build with a clear
   mkdirSync(base, { mode: 0o700 });
   writeFileSync(join(shared, "settings.json"), "{bad");
   assert.throws(
-    () => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }),
+    () => buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base }),
     (e: Error) => e.message.startsWith(`gentle-accounts: cannot read ${join(realpathSync(shared), "settings.json")}: `),
   );
   assert.deepEqual(readdirSync(base), []);
@@ -469,20 +468,20 @@ test("S30: the base dir is created 0700 and refused when it is a symlink, world 
   const link = join(root, "link");
   fs.symlinkSync(fresh, link);
   assert.throws(() => ensureBaseDir(link), { message: `gentle-accounts: refusing to use ${link}: it is a symbolic link` });
-  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: link }), /refusing to use/);
+  assert.throws(() => buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: link }), /refusing to use/);
   assert.deepEqual(readdirSync(fresh), []);
   const open = join(root, "open");
   mkdirSync(open);
   fs.chmodSync(open, 0o777);
   assert.throws(() => ensureBaseDir(open), { message: `gentle-accounts: refusing to use ${open}: it is group or world writable` });
   assert.throws(() => ensureBaseDir(fresh, { uid: process.getuid!() + 1 }), { message: `gentle-accounts: refusing to use ${fresh}: it is owned by another user` });
-  assert.throws(() => buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: fresh, uid: process.getuid!() + 1 }), /owned by another user/);
+  assert.throws(() => buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: fresh, uid: process.getuid!() + 1 }), /owned by another user/);
   assert.deepEqual(readdirSync(fresh), []);
 });
 
 test("S30: the sweeper checks the base dir and ignores markers of another agent dir", { skip: process.platform === "win32" }, () => {
   const { root, shared, base, store } = sandbox();
-  const dead = buildSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999201 });
+  const dead = buildLinkedSessionHome({ sharedAgentDir: shared, profile: "work", baseDir: base, pid: 999201 });
   writeAuthFile(join(dead.home, "auth.json"), { anthropic: oauth("x", 3) });
   const before = readFileSync(store.authPath("work"), "utf8");
   const err: string[] = [];
