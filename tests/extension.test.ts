@@ -9,7 +9,7 @@ import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type SpawnCall } from "../src/cli.ts";
 import { SESSION_CURRENT, buildSessionHome } from "../src/session-home.ts";
-import { readlinkSync, realpathSync } from "node:fs";
+import { lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { claudeLoginCommand } from "../src/login.ts";
 
@@ -1022,9 +1022,14 @@ test("S4: a corrupt credentials file is reported and nothing is linked", linkedO
   store.create("work");
   store.setCurrent("work");
   writeFileSync(liveAuthPath, "{broken");
+  const profileBefore = readFileSync(store.authPath("work"), "utf8");
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
   assert.equal(c.notes.length, 1);
   assert.equal(c.notes[0].type, "error");
+  assert.match(c.notes[0].message, /^gentle-accounts: Cannot parse .*auth\.json/);
+  // readFileSync follows links, so prove the file is still a regular one and the profile file was not touched.
+  assert.equal(lstatSync(liveAuthPath).isSymbolicLink(), false);
   assert.equal(readFileSync(liveAuthPath, "utf8"), "{broken");
+  assert.equal(readFileSync(store.authPath("work"), "utf8"), profileBefore);
 });
