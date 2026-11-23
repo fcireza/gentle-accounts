@@ -1,6 +1,9 @@
 import { applyClaudeConfigEnv, pickFreshest, readAuthFile, transferCovered, writeAuthFile, type AuthData, type Env } from "./auth-sync.ts";
 import type { DetectedLogin } from "./detect.ts";
 import { ProfileStore } from "./store.ts";
+import { isAuthLinked } from "./auth-link.ts";
+
+export const LINKED_ADOPT_MESSAGE = "Cannot adopt a live login while the credentials file is linked to a profile: a login made there is saved in the current profile.";
 
 export const ADOPTED_MESSAGE = (name: string): string => `Adopted the detected login as profile "${name}".`;
 
@@ -25,6 +28,8 @@ export function adoptLogin({ store, liveAuthPath, env, login, name }: AdoptOptio
       store.create(name, { claudeDefault: true });
       return { ok: true, message: ADOPTED_MESSAGE(name) };
     }
+    // A linked live file is the current profile's own file: there is no separate login to adopt (S5).
+    if (isAuthLinked(liveAuthPath)) return { ok: false, message: LINKED_ADOPT_MESSAGE };
     // Read every file before writing any, so a corrupt file fails without touching the others.
     const live = readAuthFile(liveAuthPath);
     const previous = store.current();

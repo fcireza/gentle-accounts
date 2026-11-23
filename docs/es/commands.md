@@ -43,7 +43,7 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `n` | Perfil nuevo (pide el nombre con `New profile name`; mismos mensajes que `create`). |
 | `d` | Borra el perfil seleccionado (misma confirmación y rechazos que `delete`). |
 | `r` | Renombra el perfil seleccionado (pide el nuevo nombre con `Rename profile "<name>" to`, con el nombre actual ya escrito; una respuesta vacía, igual o cancelada no hace nada; mismos mensajes que `rename`). |
-| `i` | Adopta el login detectado como un perfil nuevo (pide un nombre con `Name for the detected login`). Solo mientras el menú muestra una línea `Detected login:`; el hint `i adopt` aparece solo entonces. |
+| `i` | Adopta el login detectado como un perfil nuevo (pide un nombre con `Name for the detected login`). Solo mientras el menú muestra una línea `Detected login:`; el hint `i adopt` aparece solo entonces. Un login en vivo no se puede adoptar mientras el archivo de credenciales está enlazado (macOS y Linux): responde `Cannot adopt a live login while the credentials file is linked to a profile: a login made there is saved in the current profile.` Adoptar un login de Claude detectado sigue funcionando. |
 | `s` | Define el perfil seleccionado como perfil de sesión, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
@@ -271,7 +271,7 @@ gentle-accounts email hide   # back to hiding the email
 
 ### `gentle-accounts <name> [args...]`
 
-Inicia `gentle-shell` en `<name>` dentro de una carpeta del agente privada para esa sesión, sin cambiar el perfil activo global: la sesión recibe su propio `auth.json` con las credenciales del perfil, el `CLAUDE_CONFIG_DIR` del perfil (eliminado para `default`) y `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. Los argumentos restantes se pasan a `gentle-shell`. Al terminar, las credenciales de la sesión se copian de vuelta al perfil y la carpeta privada se elimina. Consulte [Cómo funciona](how-it-works.md). Primero crea `default` si no hay un perfil activo. En Windows `gentle-shell` y `claude` se inician a través de la shell para que se resuelvan los shims `.cmd`.
+Inicia `gentle-shell` en `<name>` dentro de una carpeta del agente privada para esa sesión, sin cambiar el perfil activo global: la sesión recibe su propio `auth.json`, un enlace al archivo propio del perfil en macOS y Linux y una copia privada en Windows o si el enlace falla, el `CLAUDE_CONFIG_DIR` del perfil (eliminado para `default`) y `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. Los argumentos restantes se pasan a `gentle-shell`. Al terminar, la carpeta privada se elimina; una copia privada se fusiona antes en el perfil, un enlace no necesita nada. Consulte [Cómo funciona](how-it-works.md). Primero crea `default` si no hay un perfil activo. En Windows `gentle-shell` y `claude` se inician a través de la shell para que se resuelvan los shims `.cmd`.
 
 - Perfil inexistente: `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`, código 1.
 - `--home`, `--link` o `--isolated` en los argumentos: `gentle-accounts manages the agent home; do not pass --home, --link or --isolated.`, código 1.

@@ -31,6 +31,16 @@ profiles/
 
 Todas las rutas se construyen con las funciones de `path` de Node, así que la misma estructura funciona en Linux, macOS y Windows.
 
+## El archivo de credenciales enlazado
+
+En macOS y Linux el archivo de credenciales que lee pi (`auth.json` en la carpeta del agente) es un enlace al archivo propio del perfil actual, `profiles/<name>/auth.json`:
+
+- Cambiar de perfil reapunta el enlace. No se copian credenciales OAuth en ningún sentido, y un token que pi rota se guarda directamente en el archivo del perfil.
+- La primera vez que la extensión arranca fuera de una sesión del launcher, un archivo regular existente se migra una sola vez: su contenido pasa al archivo del perfil actual (gana la entrada OAuth más reciente de cada proveedor) y el enlace lo reemplaza. Muestra `Each profile now keeps its own logins: the credentials file is linked to profile "<name>".`
+- Las claves de API (proveedores que no son OAuth, como `google`) siguen siendo globales: en un cambio de perfil se llevan al perfil al que cambia. Las activas ganan en un conflicto, una clave que solo tiene ese perfil se conserva y un cambio nunca borra una clave.
+- Un `/login` hecho directamente en pi, fuera del menú de cuentas, se guarda en el perfil ACTUAL y reemplaza allí el token de ese proveedor. Un login que pertenece a otra cuenta debe hacerse desde el menú de cuentas (cambia primero al perfil) o en una sesión iniciada con `gentle-accounts <profile>`.
+- Si no se puede crear el enlace, o en Windows, nada cambia: se mantiene el modelo de copias, donde las credenciales se guardan en el perfil saliente y se cargan desde el entrante, como describe el resto de esta página.
+
 ## El perfil de sesión al iniciar la sesión
 
 Al iniciar la sesión, la extensión primero crea `default` si no hay un perfil activo, o aplica el `CLAUDE_CONFIG_DIR` del perfil activo. Luego, si hay un perfil de sesión definido y no es el activo, cambia a él con el mismo cambio seguro que `/gentle:accounts <name>`: lee todos los archivos antes de escribir alguno, guarda las credenciales cubiertas del perfil que deja y define o elimina `CLAUDE_CONFIG_DIR` (eliminado para `default`). Después muestra `Started on profile "<name>" (session profile).`. Si el perfil de sesión ya es el activo, nada cambia. Si no puede leer un archivo, muestra `gentle-accounts: <message>` (error), nada cambia y la sesión sigue funcionando con el último perfil usado.
@@ -39,21 +49,23 @@ El cambio al perfil de sesión se omite si `GENTLE_ACCOUNTS_LAUNCH_PROFILE` est�
 
 ### Una cuenta distinta en cada sesión
 
-Una sesión iniciada sin el launcher usa el perfil global: `profiles/current` y el único `auth.json` que comparten todas esas sesiones. Cambiar de perfil en una de ellas cambia las credenciales cubiertas (Codex, Anthropic y cualquier otro inicio de sesión OAuth) que leen las demás.
+Una sesión iniciada sin el launcher usa el perfil global: `profiles/current` y el único `auth.json` que comparten todas esas sesiones. Cambiar de perfil en una de ellas cambia las credenciales cubiertas (Codex, Anthropic y cualquier otro inicio de sesión OAuth) que leen las demás: en macOS y Linux el enlace compartido pasa a apuntar al archivo de otro perfil.
 
 Una sesión iniciada con `gentle-accounts <name>` recibe en cambio su propia carpeta del agente privada, así que varios proyectos pueden funcionar al mismo tiempo con una cuenta distinta cada uno:
 
 1. El launcher crea `<tmp>/gentle-accounts-<uid>/<uuid>` (`<tmp>/gentle-accounts/<uuid>` en Windows) con permisos `0700`. En POSIX rechaza una carpeta base que sea un enlace simbólico, que pertenezca a otro usuario o que el grupo u otros puedan escribir: `gentle-accounts: refusing to use <path>: <reason>`.
 2. Cada entrada de la carpeta del agente compartida se enlaza dentro de ella, excepto `auth.json`, `settings.json`, `auth.json.*`, `*.lock` y los nombres que empiezan con `.gentle-` (en Windows las carpetas pasan a ser junctions y los archivos usan un enlace duro o, si no se puede, una copia).
-3. La carpeta recibe su propio `auth.json` (`0600`) con las credenciales del perfil, su propio `settings.json` (una copia del compartido con las rutas relativas de paquetes convertidas en absolutas) y un marcador `.gentle-accounts-session.json`.
+3. La carpeta recibe su propio `auth.json`: en macOS y Linux un enlace al archivo propio de ese perfil, así que dos sesiones en el mismo perfil comparten un solo archivo y ven el token rotado por la otra; en Windows, o si el enlace falla, una copia privada (`0600`) de las credenciales del perfil. También recibe su propio `settings.json` (una copia del compartido con las rutas relativas de paquetes convertidas en absolutas) y un marcador `.gentle-accounts-session.json`.
 4. Ejecuta `gentle-shell --home <home>` con `GENTLE_SHELL_NO_AUTO_SETUP=1`, `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>` y el `CLAUDE_CONFIG_DIR` del perfil.
-5. Cuando gentle-shell termina (con cualquier código, con Ctrl+C o con una señal de cierre), el launcher copia las entradas cubiertas de la sesión de vuelta al perfil y elimina la carpeta sin seguir enlaces. El siguiente inicio también limpia las carpetas cuyos procesos del launcher y de gentle-shell ya no existen.
+5. Cuando gentle-shell termina (con cualquier código, con Ctrl+C o con una señal de cierre), el launcher elimina la carpeta sin seguir enlaces. Con un enlace no hay nada que copiar de vuelta; una copia privada se fusiona antes, con sus entradas cubiertas pasando al perfil. El siguiente inicio también limpia las carpetas cuyos procesos del launcher y de gentle-shell ya no existen.
 
 Dentro de esa sesión, la extensión lee los perfiles de la carpeta del agente compartida, pero las credenciales vivas son el `auth.json` de la carpeta privada y el perfil actual de la sesión se guarda en ella (`.gentle-accounts-current`), nunca en `profiles/current`. Un cambio de perfil dentro de la sesión solo afecta a esa sesión. El perfil de sesión no se aplica allí; el menú muestra el modo `session home`.
 
-Al copiar las credenciales de vuelta, o al guardarlas en un cambio de perfil, gana el inicio de sesión más reciente de cada proveedor: se conserva la entrada OAuth que vence más tarde, así que una sesión que termina después nunca sobrescribe un token que otra sesión renovó.
+Al fusionar credenciales (una copia privada de vuelta, una migración o un guardado en un cambio de perfil con el modelo de copias), gana el inicio de sesión más reciente de cada proveedor: se conserva la entrada OAuth que vence más tarde, así que una sesión que termina después nunca sobrescribe un token que otra sesión renovó.
 
 Límite conocido: los inicios de sesión OAuth de Codex y Anthropic usan refresh tokens rotativos. Usar la MISMA cuenta en dos sesiones abiertas a la vez puede hacer que una invalide el token que tiene la otra, y esa sesión tendrá que iniciar sesión de nuevo. Es preferible usar una cuenta (perfil) distinta en cada sesión.
+
+Límite conocido: una construcción de sesión que agrega claves globales aún puede competir con una rotación de token hecha por otra sesión abierta en el mismo perfil, porque no hay bloqueo.
 
 ## El cambio de perfil, paso a paso
 
@@ -63,12 +75,12 @@ Límite conocido: los inicios de sesión OAuth de Codex y Anthropic usan refresh
 2. Si no hay un perfil activo, crear primero `default` con los inicios de sesión actuales (consulte [Flujo de trabajo](workflow.md)).
 3. Si el destino ya está activo, detenerse con `Already on profile "<name>".`
 4. Leer todos los archivos antes de escribir alguno: el `auth.json` activo de pi, el `auth.json` del destino y el `auth.json` del perfil saliente. Un archivo corrupto detiene el cambio con `Cannot parse <path>: <reason>` y no se escribe nada.
-5. Guardar el saliente: copiar las entradas cubiertas activas al `auth.json` del perfil saliente (una entrada que falta en el archivo activo se elimina de la copia).
-6. Cargar el entrante: copiar las entradas cubiertas del destino al `auth.json` activo de pi, eliminando las que el destino no tiene. Las entradas con clave de API de otros proveedores quedan como estaban.
+5. Archivo enlazado (macOS y Linux): apuntar el enlace al archivo propio del destino. No se copian credenciales OAuth en ningún sentido. Modelo de copias (Windows, o no se pudo crear el enlace): guardar el saliente, copiando las entradas cubiertas activas al `auth.json` del perfil saliente (una entrada que falta en el archivo activo se elimina de la copia guardada).
+6. Archivo enlazado: llevar las claves de API (entradas que no son OAuth) al archivo del destino; las activas ganan en un conflicto, una clave que solo tiene el destino se conserva y nunca se borra una clave. Modelo de copias: cargar el entrante, copiando las entradas cubiertas del destino al `auth.json` activo de pi y eliminando las que el destino no tiene; las entradas con clave de API de otros proveedores quedan como estaban.
 7. Definir `CLAUDE_CONFIG_DIR` con la carpeta de Claude del destino, o borrar la variable para un perfil en la carpeta predeterminada de Claude Code (se borra; nunca se le asigna el texto `undefined`).
 8. Escribir el nombre del destino en `profiles/current`.
 
-Cada `auth.json` se escribe en un archivo temporal a su lado y luego se renombra sobre el original, así un lector nunca ve un archivo a medio escribir. pi recarga `auth.json` cuando cambia. Los archivos se crean con permisos `0600` y las carpetas de perfil con `0700`, en los sistemas que los respetan.
+Cada `auth.json` se escribe en un archivo temporal a su lado y luego se renombra sobre el original, así un lector nunca ve un archivo a medio escribir. Una escritura en el archivo de credenciales enlazado pasa por el enlace al archivo al que apunta; nunca reemplaza el enlace. pi recarga `auth.json` cuando cambia. Los archivos se crean con permisos `0600` y las carpetas de perfil con `0700`, en los sistemas que los respetan.
 
 En la extensión, el cambio además recarga el registro de modelos de pi y actualiza la barra de estado. El launcher no cambia de perfil: crea una carpeta privada para la sesión (consulte la sección anterior).
 
@@ -98,10 +110,10 @@ Así que `default` recibe el marcador `claude-default` y la variable se elimina 
 
 ## Logins detectados
 
-Un login hecho con `/login` en pi o Gentle Shell mientras hay un perfil activo se guarda en ese perfil, así que el menú busca logins que ningún perfil tiene y los ofrece con `i`:
+El menú busca logins que ningún perfil tiene y los ofrece con `i`:
 
-- Una cuenta de Claude en `~/.claude` que ningún perfil usa. Adoptarla crea un perfil con el directorio por defecto de Claude Code; no se copia ni se mueve nada.
-- Una cuenta de Codex en el `auth.json` en vivo cuyo `accountId` difiere del que está en el snapshot del perfil activo y no está en ningún otro perfil. Adoptarla copia esa entrada a un perfil nuevo y lo deja como actual. El perfil anterior conserva su cuenta.
+- Una cuenta de Claude en `~/.claude` que ningún perfil usa. Adoptarla crea un perfil con el directorio por defecto de Claude Code; no se copia ni se mueve nada. Esto sigue funcionando con el archivo enlazado.
+- Una cuenta de Codex en el `auth.json` en vivo cuyo `accountId` difiere del que está en la copia guardada del perfil activo y no está en ningún otro perfil. Adoptarla copia esa entrada a un perfil nuevo y lo deja como actual. El perfil anterior conserva su cuenta. Los logins detectados ya no se pueden adoptar mientras el archivo de credenciales está enlazado: un `/login` hecho directamente en pi se guarda en el perfil actual, así que el menú lo rechaza con `Cannot adopt a live login while the credentials file is linked to a profile: a login made there is saved in the current profile.` Inicie la otra cuenta desde el menú de cuentas o en una sesión iniciada con `gentle-accounts <profile>`.
 
 Las entradas de Anthropic no traen un id de cuenta, así que un login nuevo de Anthropic no se distingue de un refresco de token y no se detecta. La detección es de solo lectura, corre solo fuera de las sesiones del launcher y un `auth.json` ilegible no detecta nada.
 

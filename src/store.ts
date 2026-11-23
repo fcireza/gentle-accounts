@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+import { isAuthLinked, pointAuthAt, realpathLoose } from "./auth-link.ts";
 
 const LOCK_ERRORS = new Set(["EPERM", "EACCES", "EBUSY"]);
 
@@ -242,6 +243,12 @@ export class ProfileStore {
           overrideBefore = readFileSync(override, "utf8");
           writeFileAtomic(override, `${newDir}${value.slice(oldDir.length)}\n`);
         }
+      }
+      // The linked credentials file points into the old folder, which no longer exists: follow the move (last step).
+      const live = join(this.agentDir, "auth.json");
+      // Compared without symlinks (the folder just moved away, and the link may spell the agent folder through an alias).
+      if (isAuthLinked(live) && realpathLoose(resolve(dirname(live), readlinkSync(live))) === realpathLoose(join(oldDir, "auth.json"))) {
+        pointAuthAt(live, join(newDir, "auth.json"));
       }
     } catch (error) {
       // Best effort, in reverse: the override, the pointers already moved, then the folder itself.

@@ -43,7 +43,7 @@ Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:prof
 | `n` | New profile (asks for a name with `New profile name`; same messages as `create`). |
 | `d` | Delete the selected profile (same confirmation and refusals as `delete`). |
 | `r` | Rename the selected profile (asks for the new name with `Rename profile "<name>" to`, the old name prefilled; an empty, unchanged or cancelled answer does nothing; same messages as `rename`). |
-| `i` | Adopt the detected login as a new profile (asks for a name with `Name for the detected login`). Only while the menu shows a `Detected login:` line; the key hint `i adopt` appears only then. |
+| `i` | Adopt the detected login as a new profile (asks for a name with `Name for the detected login`). Only while the menu shows a `Detected login:` line; the key hint `i adopt` appears only then. A live login cannot be adopted while the credentials file is linked (macOS and Linux): it answers `Cannot adopt a live login while the credentials file is linked to a profile: a login made there is saved in the current profile.` Adopting a detected Claude login still works. |
 | `s` | Set the selected profile as the session profile, or clear it when it already is. |
 | `e` | Toggle the email display (same messages as `email show` and `email hide`). |
 | `o` | Open this project with the selected profile in a new terminal tab. Only on a provider row with a login; the key hint `o open in tab` appears only there. |
@@ -271,7 +271,7 @@ gentle-accounts email hide   # back to hiding the email
 
 ### `gentle-accounts <name> [args...]`
 
-Starts `gentle-shell` on `<name>` in a private session home, without changing the global active profile: the session gets its own `auth.json` with the profile's credentials, `CLAUDE_CONFIG_DIR` for the profile (removed for `default`) and `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. The remaining arguments are passed to `gentle-shell`. When it exits, the session's credentials are copied back into the profile and the home is removed. See [How it works](how-it-works.md). It creates `default` first when no profile is active. On Windows `gentle-shell` and `claude` start through the shell so `.cmd` shims resolve.
+Starts `gentle-shell` on `<name>` in a private session home, without changing the global active profile: the session gets its own `auth.json`, a link to the profile's own file on macOS and Linux and a private copy on Windows or if linking fails, `CLAUDE_CONFIG_DIR` for the profile (removed for `default`) and `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. The remaining arguments are passed to `gentle-shell`. When it exits the home is removed; a private copy is merged back into the profile first, a link needs nothing. See [How it works](how-it-works.md). It creates `default` first when no profile is active. On Windows `gentle-shell` and `claude` start through the shell so `.cmd` shims resolve.
 
 - Missing profile: `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`, exit 1.
 - `--home`, `--link` or `--isolated` in the arguments: `gentle-accounts manages the agent home; do not pass --home, --link or --isolated.`, exit 1.

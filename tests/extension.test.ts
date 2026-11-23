@@ -9,7 +9,7 @@ import { ProfileStore } from "../src/store.ts";
 import { readAuthFile, writeAuthFile, LAUNCH_PROFILE_ENV } from "../src/auth-sync.ts";
 import { runCli, type SpawnCall } from "../src/cli.ts";
 import { SESSION_CURRENT, buildSessionHome } from "../src/session-home.ts";
-import { realpathSync } from "node:fs";
+import { lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { claudeLoginCommand } from "../src/login.ts";
 
@@ -42,6 +42,16 @@ function fakeCtx(overrides: { hasUI?: boolean; idle?: boolean; select?: string; 
     modelRegistry: { refresh: async () => void refreshed++ },
   } as unknown as ExtensionCommandContext;
   return { ctx, notes, statuses, refreshed: () => refreshed };
+}
+
+/** Drops the one-time migration note (S4, POSIX): tests that are not about it assert only their own notes. */
+const quiet = (notes: { message: string; type?: string }[]) => notes.filter((n) => !n.message.startsWith("Each profile now keeps its own logins"));
+
+/** The credentials file keeps its content. Byte-exact on win32; on POSIX the one-time migration (S4) re-serializes it into the profile file, so the data is compared. */
+function assertAuthContent(path: string, original: string): void {
+  const now = readFileSync(path, "utf8");
+  if (process.platform === "win32") assert.equal(now, original);
+  else assert.deepEqual(JSON.parse(now), JSON.parse(original));
 }
 
 type Runner = (env: Record<string, string | undefined>) => Promise<string>;
@@ -97,7 +107,7 @@ test("S19: /gentle:accounts help uses the new command name only", async () => {
 test("session_start wraps the live login into a default profile and leaves CLAUDE_CONFIG_DIR unset (S16)", async () => {
   const { store, events, liveAuthPath } = setup();
   writeFileSync(liveAuthPath, JSON.stringify({ anthropic: { type: "api_key", key: "k" } }));
-  await events.get("session_start")!({}, {});
+  await events.get("session_start")!({}, fakeCtx().ctx);
   assert.equal(store.current(), "default");
   assert.deepEqual(readAuthFile(store.authPath("default")), { anthropic: { type: "api_key", key: "k" } });
   assert.equal("CLAUDE_CONFIG_DIR" in process.env, false);
@@ -107,7 +117,7 @@ test("session_start on a later run only applies the current profile's env", asyn
   const { store, events } = setup();
   store.create("work");
   store.setCurrent("work");
-  await events.get("session_start")!({}, {});
+  await events.get("session_start")!({}, fakeCtx().ctx);
   assert.deepEqual(store.list(), ["work"]);
   assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
 });
@@ -492,7 +502,7 @@ test("S27: session_start switches to the session profile and notifies", async ()
   writeFileSync(store.authPath("work"), JSON.stringify({ anthropic: { type: "api_key", key: "w" } }));
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
-  assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (session profile).', type: "info" }]);
+  assert.deepEqual(quiet(c.notes), [{ message: 'Started on profile "work" (session profile).', type: "info" }]);
   assert.equal(store.current(), "work");
   assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "w" } });
   assert.deepEqual(readAuthFile(store.authPath("personal")), { anthropic: { type: "api_key", key: "p" } });
@@ -512,13 +522,13 @@ test("S27: the session profile is applied only when the process starts, not on n
     const c = fakeCtx();
     await events.get("session_start")!({ type: "session_start", reason }, c.ctx);
     assert.equal(store.current(), "personal", reason);
-    assert.deepEqual(c.notes, [], reason);
+    assert.deepEqual(quiet(c.notes), [], reason);
     assert.deepEqual(readAuthFile(liveAuthPath), { anthropic: { type: "api_key", key: "p" } }, reason);
   }
   const c = fakeCtx();
   await events.get("session_start")!({ type: "session_start", reason: "startup" }, c.ctx);
   assert.equal(store.current(), "work");
-  assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (session profile).', type: "info" }]);
+  assert.deepEqual(quiet(c.notes), [{ message: 'Started on profile "work" (session profile).', type: "info" }]);
 });
 
 test("S27: session_start with the session profile already active changes nothing", async () => {
@@ -529,8 +539,8 @@ test("S27: session_start with the session profile already active changes nothing
   writeFileSync(liveAuthPath, '{"anthropic":{"type":"api_key","key":"w"}}');
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
-  assert.deepEqual(c.notes, []);
-  assert.equal(readFileSync(liveAuthPath, "utf8"), '{"anthropic":{"type":"api_key","key":"w"}}');
+  assert.deepEqual(quiet(c.notes), []);
+  assertAuthContent(liveAuthPath, '{"anthropic":{"type":"api_key","key":"w"}}');
   assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("work"));
   assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: work · not logged in" }]);
 });
@@ -545,11 +555,11 @@ test("S27: session_start with a corrupt startup target notifies an error and kee
   writeFileSync(liveAuthPath, "{}");
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
-  assert.equal(c.notes.length, 1);
-  assert.equal(c.notes[0].type, "error");
-  assert.match(c.notes[0].message, /^gentle-accounts: Cannot parse/);
+  assert.equal(quiet(c.notes).length, 1);
+  assert.equal(quiet(c.notes)[0].type, "error");
+  assert.match(quiet(c.notes)[0].message, /^gentle-accounts: Cannot parse/);
   assert.equal(store.current(), "personal");
-  assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+  assertAuthContent(liveAuthPath, "{}");
   const l = fakeCtx();
   await profile.handler("list", l.ctx);
   assert.deepEqual(l.notes, [{ message: "* personal\n  work", type: "info" }]);
@@ -583,9 +593,9 @@ test("S27: session_start launched by `gentle-accounts personal` (env var set) sk
   try {
     const c = fakeCtx();
     await events.get("session_start")!({}, c.ctx);
-    assert.deepEqual(c.notes, []);
+    assert.deepEqual(quiet(c.notes), []);
     assert.equal(store.current(), "personal");
-    assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+    assertAuthContent(liveAuthPath, "{}");
     assert.equal(process.env.CLAUDE_CONFIG_DIR, store.claudeDir("personal"));
     assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
   } finally {
@@ -599,7 +609,7 @@ test("S27: an empty launch variable does not skip the startup switch", async () 
   try {
     const c = fakeCtx();
     await events.get("session_start")!({}, c.ctx);
-    assert.deepEqual(c.notes, [{ message: 'Started on profile "work" (session profile).', type: "info" }]);
+    assert.deepEqual(quiet(c.notes), [{ message: 'Started on profile "work" (session profile).', type: "info" }]);
     assert.equal(store.current(), "work");
   } finally {
     delete process.env[LAUNCH_PROFILE_ENV];
@@ -639,9 +649,9 @@ test("S27: a startup file naming a deleted profile warns at session_start and ch
   writeFileSync(store.startupPath, "ghost\n");
   const c = fakeCtx();
   await events.get("session_start")!({}, c.ctx);
-  assert.deepEqual(c.notes, [{ message: 'Session profile "ghost" does not exist; starting on the last used profile.', type: "warning" }]);
+  assert.deepEqual(quiet(c.notes), [{ message: 'Session profile "ghost" does not exist; starting on the last used profile.', type: "warning" }]);
   assert.equal(store.current(), "personal");
-  assert.equal(readFileSync(liveAuthPath, "utf8"), "{}");
+  assertAuthContent(liveAuthPath, "{}");
   assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
   const l = fakeCtx();
   await profile.handler("list", l.ctx);
@@ -662,7 +672,7 @@ test("S29: /gentle:accounts email shows, sets, warns on usage, and refreshes the
   await profile.handler("current", c.ctx);
   await profile.handler("email hide", c.ctx);
   await profile.handler("email maybe", c.ctx);
-  assert.deepEqual(c.notes, [
+  assert.deepEqual(quiet(c.notes), [
     { message: "Email display: hidden (not shown in the status bar)", type: "info" },
     { message: "Email display set to shown. The status bar shows the full email.", type: "info" },
     { message: "Email display: shown (full email in the status bar)", type: "info" },
@@ -728,7 +738,11 @@ function sessionSetup(profile = "work") {
   process.env.PI_CODING_AGENT_DIR = home;
   const globalFiles = [join(shared, "auth.json"), store.currentPath, store.authPath("work"), store.authPath("personal")];
   const before = Object.fromEntries(globalFiles.map((p) => [p, sha(p)]));
-  const unchanged = () => assert.deepEqual(Object.fromEntries(globalFiles.map((p) => [p, sha(p)])), before);
+  // `except` names files a test expects to change: every other global file must keep its hash.
+  const unchanged = (except: string[] = []) => {
+    const kept = globalFiles.filter((p) => !except.includes(p));
+    assert.deepEqual(Object.fromEntries(kept.map((p) => [p, sha(p)])), Object.fromEntries(kept.map((p) => [p, before[p]])));
+  };
   return { ...env, shared, store, home, unchanged };
 }
 
@@ -755,7 +769,14 @@ test("S30: a switch inside a session rewrites only H/auth.json and the session c
   assert.equal(readFileSync(join(home, SESSION_CURRENT), "utf8"), "personal\n");
   assert.deepEqual(readAuthFile(join(home, "auth.json")), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: { type: "api_key", key: "o" } });
   assert.deepEqual(c.statuses, [{ key: "gentle-accounts", text: "🔒 gentle-accounts: personal · not logged in" }]);
-  unchanged();
+  if (process.platform === "win32") {
+    unchanged();
+  } else {
+    // S2: the linked switch carries the global api key into the arriving profile's own file, and nothing else changes.
+    unchanged([store.authPath("personal")]);
+    assert.deepEqual(readAuthFile(store.authPath("personal")), { "openai-codex": { type: "oauth", access: "p", refresh: "p", expires: 1 }, other: { type: "api_key", key: "o" } });
+    assert.equal(readlinkSync(join(home, "auth.json")), store.authPath("personal"));
+  }
   assert.equal(store.current(), "personal");
   const cur = fakeCtx();
   await profile.handler("current", cur.ctx);
@@ -964,4 +985,51 @@ test("S1 rename command: help and completions list rename", async () => {
   await profile.handler("help", c.ctx);
   assert.match(c.notes[0].message, /^\/gentle:accounts rename <old> <new> +rename a profile \(its logins move with it\)$/m);
   assert.deepEqual((profile.getArgumentCompletions!("ren") as { value: string }[]).map((x) => x.value), ["rename"]);
+});
+
+// ---- S4: the one-time migration of the credentials file to a link (POSIX only, S3) ----
+const linkedOnly = { skip: process.platform === "win32" };
+
+test("S4: session_start turns a regular credentials file into a link to the current profile's file and says so once", linkedOnly, async () => {
+  const { store, events, liveAuthPath } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  writeFileSync(liveAuthPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "a", refresh: "r", expires: 1 }, google: { type: "api_key", key: "g" } }));
+  const first = fakeCtx();
+  await events.get("session_start")!({}, first.ctx);
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("work"));
+  assert.deepEqual(readAuthFile(store.authPath("work")), { "openai-codex": { type: "oauth", access: "a", refresh: "r", expires: 1 }, google: { type: "api_key", key: "g" } });
+  assert.deepEqual(first.notes, [{ message: 'Each profile now keeps its own logins: the credentials file is linked to profile "work".', type: "info" }]);
+  const second = fakeCtx();
+  await events.get("session_start")!({}, second.ctx);
+  assert.deepEqual(second.notes, []);
+  assert.equal(readlinkSync(liveAuthPath), store.authPath("work"));
+});
+
+test("S4: session_start in a launcher session home never migrates the shared credentials file", linkedOnly, async () => {
+  const { store, events, shared } = sessionSetup("work");
+  const sharedAuth = join(shared, "auth.json");
+  const before = readFileSync(sharedAuth, "utf8");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.equal(readFileSync(sharedAuth, "utf8"), before);
+  assert.equal(readlinkSync(join(process.env.PI_CODING_AGENT_DIR!, "auth.json")), store.authPath("work"));
+  assert.deepEqual(c.notes, []);
+});
+
+test("S4: a corrupt credentials file is reported and nothing is linked", linkedOnly, async () => {
+  const { store, events, liveAuthPath } = setup();
+  store.create("work");
+  store.setCurrent("work");
+  writeFileSync(liveAuthPath, "{broken");
+  const profileBefore = readFileSync(store.authPath("work"), "utf8");
+  const c = fakeCtx();
+  await events.get("session_start")!({}, c.ctx);
+  assert.equal(c.notes.length, 1);
+  assert.equal(c.notes[0].type, "error");
+  assert.match(c.notes[0].message, /^gentle-accounts: Cannot parse .*auth\.json/);
+  // readFileSync follows links, so prove the file is still a regular one and the profile file was not touched.
+  assert.equal(lstatSync(liveAuthPath).isSymbolicLink(), false);
+  assert.equal(readFileSync(liveAuthPath, "utf8"), "{broken");
+  assert.equal(readFileSync(store.authPath("work"), "utf8"), profileBefore);
 });

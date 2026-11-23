@@ -3,6 +3,7 @@ import { PLUGIN_LABEL, type ClaudeStatusRunner } from "./account.ts";
 import { createStatusBar, type TimerHandle } from "./status-bar.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, SESSION_PROFILE_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
+import { migrateToLinkedAuth } from "./auth-migrate.ts";
 import { menuAvailable, runAccountsMenu, type MenuFlows, type Report } from "./menu/run.ts";
 import type { Feedback } from "./menu/view.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
@@ -133,6 +134,11 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     try {
       if (ensureDefaultProfile({ store: s, liveAuthPath: liveAuthPath(), env: process.env }) === null) {
         applyCurrentProfileEnv(s, process.env);
+      }
+      // S4: once, the regular credentials file becomes a link to the current profile's file. A session home never does it:
+      // its file is already a link built by the launcher and the shared file is not its to change.
+      if (!session && migrateToLinkedAuth({ store: s, liveAuthPath: liveAuthPath() }).status === "migrated") {
+        ctx.ui.notify(`Each profile now keeps its own logins: the credentials file is linked to profile "${s.current()}".`, "info");
       }
     } catch (error) {
       // A corrupt auth.json must not break session start; the user still gets a clear message.
