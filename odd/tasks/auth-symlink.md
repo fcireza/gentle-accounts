@@ -15,7 +15,7 @@ Risk: item 1 (rewrites stored credentials, migrates the live auth.json) and item
 
 ## Tasks
 
-- T1. S1, S2, S5: link-aware auth module (point, switch, carry non-OAuth) with tests. Route: inline. Commit: af6dc2f. Done.
+- T1. S1, S2, S5: link-aware auth module (point, switch, carry non-OAuth) with tests. Route: inline. Commit: db1ec6e. Done.
 - T2. S4: migration of the live file and POSIX fallback (S3). Route: inline. Commit: pending.
 - T3. S5, S6: move `adoptLogin`, `logoutProvider`, `saveCredential` and the session home to the single-file model. Route: inline. Commit: pending.
 - T4. S7: docs en/es and README. Route: inline. Commit: pending.
