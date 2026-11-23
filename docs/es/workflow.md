@@ -10,7 +10,7 @@ Qué encontrará aquí: escenarios completos desde el primer inicio hasta renomb
 
 Después de instalar, reinicie Gentle Shell o pi. Al iniciar la sesión, si todavía no hay un perfil activo, la extensión agrupa sus inicios de sesión actuales en un perfil llamado `default`:
 
-- Las credenciales de cuenta actuales (Codex, Anthropic y cualquier otro login oauth) del `auth.json` de pi se copian a `profiles/default/auth.json`.
+- Las credenciales de cuenta actuales (Codex, Anthropic y cualquier otro login oauth) del `auth.json` de pi pasan a `profiles/default/auth.json`; en macOS y Linux `auth.json` pasa entonces a ser un enlace a ese archivo (consulte [Cómo funciona](how-it-works.md)).
 - El inicio de sesión de Claude Code no se mueve ni se copia. `default` sigue usando la carpeta predeterminada de Claude Code, y `CLAUDE_CONFIG_DIR` queda **sin definir** mientras está activo. Consulte [Cómo funciona](how-it-works.md) para saber por qué.
 - Si había definido `CLAUDE_CONFIG_DIR` por su cuenta, esa carpeta se registra (no se copia) y se conserva.
 
@@ -102,7 +102,7 @@ Codex (`openai-codex`) y Anthropic (el proveedor nativo `anthropic` de pi) usan 
 /login
 ```
 
-pi escribe las credenciales en su `auth.json` activo. Se guardan en el `auth.json` del perfil activo la próxima vez que cambie a otro perfil (con `/gentle:accounts <name>` o con el launcher). Hasta entonces solo están en el `auth.json` de pi. Los proveedores con clave de API siguen siendo globales y nunca se tocan; todo otro proveedor de cuenta (oauth) pertenece al perfil.
+pi escribe las credenciales en su `auth.json`. En macOS y Linux ese archivo es un enlace al `auth.json` propio del perfil activo, así que el login se guarda enseguida en el perfil activo y reemplaza allí el token de ese proveedor. Un login que pertenece a otra cuenta debe hacerse desde el menú de cuentas (cambia primero al perfil) o en una sesión iniciada con `gentle-accounts <name>`. En Windows, o si no se pudo crear el enlace, las credenciales solo están en el `auth.json` de pi hasta que cambie a otro perfil (con `/gentle:accounts <name>` o con el launcher), lo que las guarda en el perfil. Los proveedores con clave de API siguen siendo globales: un cambio los lleva al perfil al que cambia; todo otro proveedor de cuenta (oauth) pertenece al perfil.
 
 ## 4. Cambiar de un perfil a otro
 
@@ -141,7 +141,7 @@ Con el alias del launcher, inicie Gentle Shell directamente en un perfil. Los ar
 gentle-accounts work
 ```
 
-El launcher no cambia el perfil global. Le da a la sesión una carpeta del agente privada con las credenciales del perfil, inicia `gentle-shell` en ella con `CLAUDE_CONFIG_DIR` definido para ese perfil (eliminado para `default`) y, cuando gentle-shell termina, copia las credenciales de la sesión de vuelta al perfil. Consulte la sección 10.
+El launcher no cambia el perfil global. Le da a la sesión una carpeta del agente privada con las credenciales del perfil, inicia `gentle-shell` en ella con `CLAUDE_CONFIG_DIR` definido para ese perfil (eliminado para `default`) y, cuando gentle-shell termina, la elimina. En macOS y Linux el archivo de credenciales de esa carpeta es un enlace al archivo propio del perfil, así que no se copia nada de vuelta; en Windows, o si el enlace falla, es una copia privada que se fusiona de vuelta en el perfil. Consulte la sección 10.
 
 ## 6. Elegir el perfil con el que empiezan las sesiones nuevas
 
@@ -222,7 +222,7 @@ El menú lista los perfiles: `●` marca el perfil activo en esta sesión, `○`
 
 Dos cosas que hace el menú por usted:
 
-- Un login hecho con `/login` fuera de los perfiles muestra una línea `Detected login:`; presione `i`, escriba un nombre y pasa a ser un perfil nuevo. El perfil anterior conserva su propia cuenta.
+- Un login de Claude detectado muestra una línea `Detected login:`; presione `i`, escriba un nombre y pasa a ser un perfil nuevo. Mientras el archivo de credenciales está enlazado (macOS y Linux), un login hecho con `/login` directamente en pi se guarda en el perfil actual y no se puede adoptar; inicie la otra cuenta desde este menú.
 - `x` en una fila de proveedor pide confirmación y borra las credenciales de ese proveedor solo de ese perfil. Claude pide confirmación y ejecuta `claude auth logout` para el perfil.
 
 Iniciar sesión desde una fila de proveedor:

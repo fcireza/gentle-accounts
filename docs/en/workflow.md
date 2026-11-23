@@ -10,7 +10,7 @@ What you will find here: worked scenarios from the first start to renaming and d
 
 After installing, restart Gentle Shell or pi. On session start, when no profile is active yet, the extension wraps your current logins into a profile called `default`:
 
-- Your current account credentials (Codex, Anthropic and any other oauth login) in pi's `auth.json` are copied into `profiles/default/auth.json`.
+- Your current account credentials (Codex, Anthropic and any other oauth login) in pi's `auth.json` go into `profiles/default/auth.json`; on macOS and Linux `auth.json` then becomes a link to that file (see [How it works](how-it-works.md)).
 - Your Claude Code login is not moved or copied. `default` keeps using Claude Code's own default folder, and `CLAUDE_CONFIG_DIR` is left **unset** while it is active. See [How it works](how-it-works.md) for why.
 - If you had set `CLAUDE_CONFIG_DIR` yourself, that folder is recorded (not copied) and kept.
 
@@ -102,7 +102,7 @@ Codex (`openai-codex`) and Anthropic (pi's native `anthropic` provider) use pi's
 /login
 ```
 
-pi writes the credentials into its live `auth.json`. They are saved into the active profile's `auth.json` the next time you switch away from that profile (with `/gentle:accounts <name>` or the launcher). Until then they only live in pi's `auth.json`. Api-key providers stay global and are never touched; every other account (oauth) provider belongs to the profile.
+pi writes the credentials into its `auth.json`. On macOS and Linux that file is a link to the active profile's own `auth.json`, so the login is saved in the active profile right away and replaces that provider's token there. A login that belongs to another account must be done from the accounts menu (it switches to the profile first) or in a session started with `gentle-accounts <name>`. On Windows, or if the link could not be made, the credentials only live in pi's `auth.json` until you switch away from that profile (with `/gentle:accounts <name>` or the launcher), which saves them into the profile. Api-key providers stay global: a switch carries them to the profile you switch to; every other account (oauth) provider belongs to the profile.
 
 ## 4. Switching back and forth
 
@@ -141,7 +141,7 @@ With the launcher alias, start Gentle Shell already on a profile. Extra argument
 gentle-accounts work
 ```
 
-The launcher does not change the global profile. It gives the session a private agent home with the profile's credentials, starts `gentle-shell` on it with `CLAUDE_CONFIG_DIR` set for that profile (removed for `default`), and when gentle-shell exits copies the session's credentials back into the profile. See section 10.
+The launcher does not change the global profile. It gives the session a private agent home with the profile's credentials, starts `gentle-shell` on it with `CLAUDE_CONFIG_DIR` set for that profile (removed for `default`), and when gentle-shell exits removes it. On macOS and Linux the home's credentials file is a link to the profile's own file, so nothing is copied back; on Windows, or if linking fails, it is a private copy that is merged back into the profile. See section 10.
 
 ## 6. Choose the profile new sessions start on
 
@@ -222,7 +222,7 @@ The menu lists the profiles: `‚óè` marks the profile active in this session, `‚ó
 
 Two things the menu does for you:
 
-- A login made with `/login` outside the profiles shows a `Detected login:` line; press `i`, type a name and it becomes a new profile. The previous profile keeps its own account.
+- A detected Claude login shows a `Detected login:` line; press `i`, type a name and it becomes a new profile. While the credentials file is linked (macOS and Linux) a login made with `/login` directly in pi is saved in the current profile and cannot be adopted; log the other account in from this menu instead.
 - `x` on a provider row asks to confirm and removes that provider's credentials from that profile only. Claude asks to confirm and runs `claude auth logout` for the profile.
 
 Logging in from a provider row:

@@ -32,7 +32,7 @@ Claude Code guarda una sola sesión por equipo, y pi guarda las credenciales de 
 
 ## Cómo funciona
 
-1. Cada perfil (`work`, `personal`…) guarda su propio login: su carpeta de Claude Code (`CLAUDE_CONFIG_DIR`) y sus credenciales OAuth del `auth.json` de pi.
+1. Cada perfil (`work`, `personal`…) guarda su propio login: su carpeta de Claude Code (`CLAUDE_CONFIG_DIR`) y su propio archivo de credenciales OAuth. En macOS y Linux el `auth.json` de pi es un enlace al archivo del perfil actual, así que no se copia nada al cambiar; en Windows las credenciales se siguen copiando. Un `/login` hecho directamente en pi se guarda en el perfil actual: inicie la otra cuenta desde el menú de cuentas o con `gentle-accounts <profile>`.
 2. Cambiar de perfil, con `/gentle:accounts <name>` o desde el menú, intercambia esa carpeta y esas credenciales y actualiza la barra de estado.
 3. Cada proveedor se inicia sesión una sola vez por perfil; después el perfil lo recuerda, sin volver a loguearte mientras el token siga vivo.
 4. `gentle-accounts <profile>` abre una sesión con una carpeta del agente privada, así dos proyectos usan dos cuentas a la vez. Evite la MISMA cuenta en dos sesiones: los refresh tokens rotan y una puede invalidarse.

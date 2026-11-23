@@ -30,7 +30,7 @@ Claude Code keeps one login per machine, and pi keeps your Codex and Anthropic c
 
 ## How it works
 
-1. Each profile (`work`, `personal`…) keeps its own login: its Claude Code folder (`CLAUDE_CONFIG_DIR`) and its OAuth credentials from pi's `auth.json`.
+1. Each profile (`work`, `personal`…) keeps its own login: its Claude Code folder (`CLAUDE_CONFIG_DIR`) and its own OAuth credentials file. On macOS and Linux pi's `auth.json` is a link to the current profile's file, so nothing is copied when you switch; on Windows the credentials are still copied. A `/login` made directly in pi is saved in the current profile: log another account in from the accounts menu or with `gentle-accounts <profile>`.
 2. Switching profile, with `/gentle:accounts <name>` or from the menu, swaps that folder and those credentials and refreshes the status bar.
 3. You log each provider in once per profile; after that the profile remembers it, with no new login while the token is alive.
 4. `gentle-accounts <profile>` starts a session with a private agent folder, so two projects use two accounts at the same time. Avoid the SAME account in two sessions: refresh tokens rotate and one can be invalidated.
