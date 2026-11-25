@@ -515,3 +515,43 @@ test("S1 cli rename: missing or extra words print the usage and exit 1; the help
   assert.match(out.at(-1)!, /^  gentle-accounts rename <old> <new> +rename a profile \(its logins move with it\)$/m);
   assert.deepEqual(store.list(), ["work"]);
 });
+
+test("GENTLE_ACCOUNTS_PROFILE: no profile argument launches that profile with every argument passed to gentle-shell", async () => {
+  const { store, canonical, env, spawns, homes, deps } = setup();
+  store.create("work");
+  store.create("personal");
+  store.setCurrent("work");
+  env.GENTLE_ACCOUNTS_PROFILE = "personal";
+
+  assert.equal(await runCli(["--flag", "x"], deps), 0);
+
+  assert.equal(spawns.length, 1);
+  assert.deepEqual(spawns[0].args.slice(2), ["--flag", "x"]);
+  assert.equal(spawns[0].env[LAUNCH_PROFILE_ENV], "personal");
+  assert.equal(spawns[0].env.CLAUDE_CONFIG_DIR, canonical.claudeDir("personal"));
+  assert.equal(homes[0].current, "personal\n");
+  assert.equal(store.current(), "work"); // the global profile is untouched
+
+  spawns.length = 0;
+  assert.equal(await runCli([], deps), 0); // also with no argument at all
+  assert.deepEqual(spawns[0].args.slice(2), []);
+  assert.equal(spawns[0].env[LAUNCH_PROFILE_ENV], "personal");
+});
+
+test("GENTLE_ACCOUNTS_PROFILE: an explicit <name> wins and unknown names or empty values keep the old behavior", async () => {
+  const { store, env, err, spawns, deps } = setup();
+  store.create("work");
+  store.create("personal");
+  env.GENTLE_ACCOUNTS_PROFILE = "personal";
+  assert.equal(await runCli(["work"], deps), 0);
+  assert.equal(spawns[0].env[LAUNCH_PROFILE_ENV], "work");
+
+  env.GENTLE_ACCOUNTS_PROFILE = "ghost";
+  assert.equal(await runCli(["--flag"], deps), 1);
+  assert.match(err.at(-1)!, /Profile "ghost" does not exist/);
+
+  env.GENTLE_ACCOUNTS_PROFILE = "";
+  err.length = 0;
+  assert.equal(await runCli([], deps), 1); // usage, as before
+  assert.match(err[0], /Usage:/);
+});
