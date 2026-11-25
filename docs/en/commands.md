@@ -188,8 +188,6 @@ It only shows usage that was already seen: whenever the active account's Anthrop
 - Any other argument: `Usage: /gentle:accounts usage [on|off]` (warning). Nothing changes.
 - Settings file cannot be written: `Could not save the account usage setting (<code>).` (error). Nothing changes.
 
-The `Gentle Accounts` card: while the usage box is enabled and the session has a UI, a small framed card sits below the editor. It shows `Default` (the profile new sessions start on, or `none`), `Session` (the profile this session uses) and `Usage`, one row per profile (at most 5, then `+N more`): `●` for the profile this session uses and `○` for the others, with its last seen numbers such as `Claude Bridge 5h 62% · 7d 20%`, or `no usage yet`. The numbers are the last ones seen, not live. It refreshes after each turn, response, switch, rename, create, delete and usage change, and it disappears with `/gentle:accounts usage off` (or `gentle-accounts usage off`). Long rows are cut with an ellipsis, never wrapped.
-
 The setting is the key `usageBox` of `profiles/settings.json` (see [How it works](how-it-works.md)); it is enabled by default.
 
 ### `/gentle:accounts help`

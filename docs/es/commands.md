@@ -188,8 +188,6 @@ Solo muestra el uso que ya se vio: cada vez que la respuesta de Anthropic o de C
 - Cualquier otro argumento: `Usage: /gentle:accounts usage [on|off]` (advertencia). Nada cambia.
 - No se puede escribir el archivo de configuración: `Could not save the account usage setting (<code>).` (error). Nada cambia.
 
-La tarjeta `Gentle Accounts`: mientras la caja de uso está activada y la sesión tiene interfaz, una pequeña tarjeta con marco queda bajo el editor. Muestra `Default` (el perfil en que empiezan las sesiones nuevas, o `none`), `Session` (el perfil que usa esta sesión) y `Usage`, una fila por perfil (como máximo 5, luego `+N more`): `●` para el perfil que usa esta sesión y `○` para los demás, con sus últimos números vistos, por ejemplo `Claude Bridge 5h 62% · 7d 20%`, o `no usage yet`. Los números son los últimos vistos, no en vivo. Se actualiza tras cada turno, respuesta, cambio, renombrado, creación, borrado y cambio de uso, y desaparece con `/gentle:accounts usage off` (o `gentle-accounts usage off`). Las filas largas se cortan con puntos suspensivos, nunca se parten.
-
 La opción es la clave `usageBox` de `profiles/settings.json` (vea [How it works](how-it-works.md)); está activada de forma predeterminada.
 
 ### `/gentle:accounts help`

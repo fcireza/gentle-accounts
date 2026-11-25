@@ -11,7 +11,6 @@ import { renameProfile } from "./rename.ts";
 import { getShowEmail, getUsageBox, runEmailCommand, runUsageCommand, settingsPath } from "./settings.ts";
 import { resolveContext } from "./session-home.ts";
 import { captureUsage } from "./usage.ts";
-import { buildAccountsCardModel, renderAccountsCard } from "./accounts-card.ts";
 import { NATIVE_USAGE_UNAVAILABLE_MESSAGE, openNativeUsage } from "./usage-chain.ts";
 import { buildUsageModel, renderUsageBox } from "./usage-view.ts";
 
@@ -135,33 +134,6 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
   const statusBar = createStatusBar({ store, showEmail, runClaudeStatus: deps.runClaudeStatus, startTimer, stopTimer });
   const updateStatus = statusBar.update;
 
-  // The "Gentle Accounts" card: a widget below the editor, only while the usage box is on. Cosmetic: never throws.
-  const WIDGET_KEY = "gentle-accounts";
-  type CardCtx = { hasUI?: boolean; ui?: { setWidget?: (key: string, content: unknown, options?: unknown) => void } };
-  const refreshCard = (ctx: unknown): void => {
-    try {
-      const c = ctx as CardCtx | undefined;
-      if (!c?.hasUI || !c.ui?.setWidget) return;
-      if (!getUsageBox(settingsPath(context().sharedDir))) return void c.ui.setWidget(WIDGET_KEY, undefined);
-      c.ui.setWidget(
-        WIDGET_KEY,
-        (_tui: unknown, theme: { fg(color: string, text: string): string; bold?(text: string): string }) => ({
-          render: (width: number) => {
-            try {
-              return renderAccountsCard(buildAccountsCardModel(store()), width, theme);
-            } catch {
-              return [];
-            }
-          },
-          invalidate: () => {},
-        }),
-        { placement: "belowEditor" },
-      );
-    } catch {
-      // The card is cosmetic; never break the caller.
-    }
-  };
-
   pi.on("session_start", async (event, ctx) => {
     const { store: s, session } = context();
     try {
@@ -196,14 +168,11 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       ctx.ui.notify(`${PLUGIN_LABEL}: ${(error as Error).message}`, "error");
     }
     statusBar.start();
-    refreshCard(ctx);
     await updateStatus(ctx, s);
-    refreshCard(ctx);
   });
 
   pi.on("agent_end", async (_event, ctx) => {
     await updateStatus(ctx, store());
-    refreshCard(ctx);
   });
 
   // Per-account usage: what each response already reported, filed under the current profile. No request is made and
@@ -213,7 +182,6 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     if (!e?.headers) return;
     const served = (ctx as { model?: { provider?: string } } | undefined)?.model?.provider;
     captureUsage({ store: store(), settingsFile: settingsPath(context().sharedDir), headers: e.headers, servedProvider: served, now: Date.now() });
-    refreshCard(ctx);
   });
 
   pi.on("session_shutdown", () => {
@@ -227,23 +195,6 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       return names.length ? names.map((value) => ({ value, label: value })) : null;
     },
     handler: async (args, ctx) => {
-      try {
-        await handle(args, ctx);
-      } finally {
-        refreshCard(ctx);
-      }
-    },
-  });
-
-  // Native usage first (it resolves when its overlay closes), then the account usage overlay.
-  async function usageAll(ctx: ExtensionCommandContext, s: ProfileStore): Promise<void> {
-    if (!getUsageBox(settingsPath(context().sharedDir))) return notify(ctx, "Account usage box is disabled. Enable it with /gentle:accounts usage on.", "warning");
-    if ((await openNativeUsage(pi)) === "unavailable") notify(ctx, NATIVE_USAGE_UNAVAILABLE_MESSAGE);
-    if (menuAvailable(ctx)) return showUsageBox(ctx, s);
-    return notify(ctx, renderUsageBox(buildUsageModel(s, Date.now()), 80).join("\n"));
-  }
-
-  async function handle(args: string, ctx: ExtensionCommandContext): Promise<void> {
       const s = store();
       const [sub = "", arg = "", arg2 = "", ...extra] = args.trim().split(/\s+/);
 
@@ -316,10 +267,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
               ...COMMAND_FLOWS,
               switchTo: (c, st, live, target, report) => switchFlow({ ctx: c, store: st, liveAuthPath: live, target, report, refreshStatus: () => updateStatus(c, st) }),
             } satisfies MenuFlows,
-            refreshStatus: async (c, st) => {
-              await updateStatus(c, st);
-              refreshCard(c);
-            },
+            refreshStatus: (c, st) => updateStatus(c, st),
             activeClaude: (st) => statusBar.cachedAccount(st),
             openUsageAll: (c) => usageAll(c, s),
           });
@@ -337,5 +285,14 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         target = picked.replace(/ \(active\)$/, "");
       }
       await switchFlow({ ctx, store: s, liveAuthPath: liveAuthPath(), target, report: (m, t) => notify(ctx, m, t), refreshStatus: () => updateStatus(ctx, s) });
+    },
+  });
+
+  // Native usage first (it resolves when its overlay closes), then the account usage overlay.
+  async function usageAll(ctx: ExtensionCommandContext, s: ProfileStore): Promise<void> {
+    if (!getUsageBox(settingsPath(context().sharedDir))) return notify(ctx, "Account usage box is disabled. Enable it with /gentle:accounts usage on.", "warning");
+    if ((await openNativeUsage(pi)) === "unavailable") notify(ctx, NATIVE_USAGE_UNAVAILABLE_MESSAGE);
+    if (menuAvailable(ctx)) return showUsageBox(ctx, s);
+    return notify(ctx, renderUsageBox(buildUsageModel(s, Date.now()), 80).join("\n"));
   }
 }
