@@ -9,6 +9,7 @@ export type MenuAction =
   | { type: "delete"; profile: string; row: number }
   | { type: "rename"; profile: string; row: number }
   | { type: "startup"; profile: string; row: number }
+  | { type: "use"; profile: string; row: number }
   | { type: "email"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
   | { type: "adopt"; row: number }
@@ -216,6 +217,9 @@ export class AccountsMenuPanel {
         if (name) return this.finish({ type: "delete", profile: name, row });
         return;
       case "char:u":
+        if (name) return this.finish({ type: "use", profile: name, row });
+        return;
+      case "char:f":
         if (name) return this.finish({ type: "startup", profile: name, row });
         return;
       case "char:r":

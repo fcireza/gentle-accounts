@@ -258,7 +258,7 @@ test("S37 render: in the key hints the keys use the theme's accent and the text 
   const wide = renderMenu(m, 200, named).join("\n");
   assert.ok(wide.includes(`${key("↑↓", "profile")}  ${key("→←", "providers")}  ${key("enter", "select")}`));
   
-  assert.ok(wide.includes(`${key("n", "new")}  ${key("r", "rename")}  ${key("d", "delete")}  ${key("u", "use session")}  ${key("e", "email")}  ${key("esc", "close")}`));
+  assert.ok(wide.includes(`${key("n", "new")}  ${key("r", "rename")}  ${key("d", "delete")}  ${key("u", "use session")}  ${key("f", "default")}  ${key("e", "email")}  ${key("esc", "close")}`));
   assert.ok(!wide.includes(`${A}o${R}`), "no open hint off a logged-in provider");
   assert.ok(renderMenu({ ...m, row: 1 }, 200, named).join("\n").includes(key("o", "open in tab")));
   assert.ok(renderMenu(m, 40, named).join("\n").includes(key("⏎", "ok")), "compact layout too");
@@ -300,9 +300,9 @@ test("S10 hints: r rename is listed and the hints take two lines (arrows, then c
   const plain = renderMenu(m, 60, identityTheme).map(strip);
   const text = plain.join("\n");
   assert.match(text, /│ ↑↓ profile {2}→← providers {2}enter select +│/);
-  assert.match(text, /│ n new {2}r rename {2}d del {2}u session {2}e email {2}esc close +│/);
-  const hintLines = plain.filter((l) => /↑↓ profile|n new  r rename|e email/.test(l));
-  assert.equal(hintLines.length, 2, "two hint lines");
+  for (const hint of ["n new", "r rename", "d delete", "u use session", "f default", "e email", "esc close"]) assert.ok(text.includes(hint), hint);
+  const hintLines = plain.filter((l) => /↑↓ profile|n new|u use session|e email/.test(l));
+  assert.equal(hintLines.length, 3, "the arrows, then the commands wrapped in groups");
   assert.doesNotMatch(hintLines.join("\n"), /…/, "no hint is cut at the 60 columns of the panel's minimum width");
   const open = renderMenu({ ...m, row: 1 }, 60, identityTheme).map(strip).join("\n");
   assert.match(open, /o open/);
@@ -313,7 +313,7 @@ test("S10 hints: r rename is listed and the hints take two lines (arrows, then c
 test("S10 hints: compact layout lists r rename too", () => {
   const text = renderMenu({ ...model(), selected: 0 }, 40, identityTheme).map(strip).join("\n");
   assert.match(text, /n new r rename d del/);
-  assert.match(text, /u session e email/);
+  assert.match(text, /u use f default e email/);
   assert.match(text, /esc close/);
 });
 
@@ -321,7 +321,7 @@ test("hints go on one line when they fit and the frame and separators use the th
   const m = { ...model(), selected: 0 };
   const lines = renderMenu(m, 200, taggedTheme).map(strip);
   assert.ok(lines.some((l) => /↑↓ profile  →← providers  enter select +│/.test(l)));
-  assert.ok(lines.some((l) => /n new  r rename  d delete  u use session  e email  esc close/.test(l)));
+  assert.ok(lines.some((l) => /n new  r rename  d delete  u use session  f default  e email  esc close/.test(l)));
   const colors: string[] = [];
   renderMenu(m, 100, { fg: (c, t) => (colors.push(c), t) });
   assert.ok(colors.includes("borderAccent") && !colors.includes("border"));
@@ -334,8 +334,8 @@ test("the header shows no session account when none is active, and the active on
 });
 
 test("hints use short labels on one line when the full ones do not fit", () => {
-  const plain = renderMenu({ ...model(), selected: 0 }, 60, identityTheme).map(strip);
-  assert.ok(plain.some((l) => /n new  r rename  d del  u session  e email  esc close/.test(l)));
+  const plain = renderMenu({ ...model(), selected: 0 }, 70, identityTheme).map(strip);
+  assert.ok(plain.some((l) => /n new  r rename  d del  u session  f default  e email  esc close/.test(l)));
 });
 
 test("a detected Claude login shows its email only when email display is on, masked", () => {

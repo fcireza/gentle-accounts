@@ -553,3 +553,64 @@ test("S40 run: logging Claude out of the default folder names the profiles that 
   await runAccountsMenu(c.ctx, { ...deps(agentDir), claudeLogout: async () => ({ ok: true, message: "" }) });
   assert.match(asked[0], /default folder, so these profiles are logged out too: twin\./);
 });
+
+// -- u: use a profile for this chat only ---------------------------------------------------------------------------
+
+function useCtx(script: (MenuAction | undefined)[], o: { idle?: boolean; sessionFile?: string } = {}) {
+  const c = fakeCtx(script, { idle: o.idle });
+  let shutdowns = 0;
+  Object.assign(c.ctx, { shutdown: () => void shutdowns++, sessionManager: { getSessionFile: () => o.sessionFile } });
+  return { ...c, shutdowns: () => shutdowns };
+}
+
+test("u: outside a session home the chat continues in a launcher session on that profile, then this window ends", async () => {
+  const { agentDir, store } = setup();
+  const calls: string[][] = [];
+  const c = useCtx([{ type: "use", profile: "personal", row: 0 }], { sessionFile: "/tmp/chat.jsonl" });
+  await runAccountsMenu(c.ctx, { ...deps(agentDir), relaunch: async (_ctx, args) => (calls.push(args), { code: 0, signal: null }) });
+  assert.deepEqual(calls, [["personal", "--session", "/tmp/chat.jsonl"]]);
+  assert.equal(c.shutdowns(), 1);
+  assert.equal(c.frames.length, 1, "the menu does not reopen");
+  assert.equal(store.current(), "work", "the shared profile is untouched");
+});
+
+test("u: without a session file the profile still starts, and a failed start keeps the menu open with feedback", async () => {
+  const { agentDir } = setup();
+  const calls: string[][] = [];
+  const ok = useCtx([{ type: "use", profile: "personal", row: 0 }]);
+  await runAccountsMenu(ok.ctx, { ...deps(agentDir), relaunch: async (_c, args) => (calls.push(args), { code: 0, signal: null }) });
+  assert.deepEqual(calls, [["personal"]]);
+
+  const bad = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(bad.ctx, { ...deps(agentDir), relaunch: async () => ({ error: new Error("spawn gentle-accounts ENOENT") }) });
+  assert.equal(bad.shutdowns(), 0);
+  assert.match(feedbackOf(bad.frames[1]), /Could not start gentle-accounts: spawn gentle-accounts ENOENT\. Is it on your PATH\?/);
+});
+
+test("u: refuses while a turn runs and on Windows, without starting anything", async () => {
+  const { agentDir } = setup();
+  let started = 0;
+  const relaunch = async () => (started++, { code: 0, signal: null as null });
+  const busy = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }], { idle: false });
+  await runAccountsMenu(busy.ctx, { ...deps(agentDir), relaunch });
+  assert.match(feedbackOf(busy.frames[1]), /Wait for the current turn to finish/);
+  const win = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(win.ctx, { ...deps(agentDir), platform: "win32", relaunch });
+  assert.match(feedbackOf(win.frames[1]), /not supported on Windows yet/);
+  assert.equal(started, 0);
+  assert.equal(busy.shutdowns() + win.shutdowns(), 0);
+});
+
+test("u: inside a session home it is the session's own switch, with no relaunch", async () => {
+  const { agentDir } = setup();
+  const { buildSessionHome } = await import("../src/session-home.ts");
+  const base = mkdtempSync(join(tmpdir(), "gentle-accounts-menu-base-"));
+  const { home } = buildSessionHome({ sharedAgentDir: agentDir, profile: "work", baseDir: base });
+  let started = 0;
+  const c = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(c.ctx, { ...deps(home), relaunch: async () => (started++, { code: 0, signal: null }) });
+  assert.equal(started, 0);
+  assert.equal(c.shutdowns(), 0);
+  assert.equal(readFileSync(join(home, ".gentle-accounts-current"), "utf8").trim(), "personal");
+  assert.equal(new ProfileStore(agentDir).current(), "work", "the shared current profile is untouched");
+});

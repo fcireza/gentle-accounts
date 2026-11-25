@@ -72,7 +72,8 @@ test("S31 panel: a profile without providers does not expand", () => {
 test("S31 panel: shortcut keys produce tagged actions for the selected profile", () => {
   assert.deepEqual(run(["n"]).actions, [{ type: "create", profile: "work", row: 0 }]);
   assert.deepEqual(run([KEYS.down, "d"]).actions, [{ type: "delete", profile: "zeta", row: 0 }]);
-  assert.deepEqual(run(["u"]).actions, [{ type: "startup", profile: "work", row: 0 }]);
+  assert.deepEqual(run(["u"]).actions, [{ type: "use", profile: "work", row: 0 }]);
+  assert.deepEqual(run(["f"]).actions, [{ type: "startup", profile: "work", row: 0 }]);
   assert.deepEqual(run([KEYS.right, "e"]).actions, [{ type: "email", profile: "work", row: 1 }]);
   assert.deepEqual(run(["o"]).actions, [], "open needs a logged-in provider row");
   assert.deepEqual(run([KEYS.right, "o"]).actions, [], "a provider that is not logged in does not open");
@@ -329,7 +330,8 @@ test("mouse: clicking a key hint acts like pressing that key", () => {
     ["n new", { type: "create", profile: "work", row: 0 }],
     ["r rename", { type: "rename", profile: "work", row: 0 }],
     ["d delete", { type: "delete", profile: "work", row: 0 }],
-    ["u use session", { type: "startup", profile: "work", row: 0 }],
+    ["u use session", { type: "use", profile: "work", row: 0 }],
+    ["f default", { type: "startup", profile: "work", row: 0 }],
     ["e email", { type: "email", profile: "work", row: 0 }],
     ["esc close", { type: "close" }],
   ];
