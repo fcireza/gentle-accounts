@@ -50,7 +50,7 @@ API-key providers stay global; every account (OAuth) provider belongs to the pro
 
 ## Commands
 
-The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles and, with `→`, their providers; `Enter` switches or logs in, `n` creates, `r` renames, `d` deletes, `s` sets the session profile, `e` toggles the email, `g` opens the account usage box, `x` logs a provider out, `i` adopts a detected login, `o` opens the project with that profile in a tab and `Esc` closes. In `fullscreen` the mouse and the wheel work too.
+The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles and, with `→`, their providers; `Enter` switches or logs in, `n` creates, `r` renames, `d` deletes, `u` uses a profile for this chat only, `f` sets the default profile, `e` toggles the email, `g` opens the account usage box, `x` logs a provider out, `i` adopts a detected login, `o` opens the project with that profile in a tab and `Esc` closes. In `fullscreen` the mouse and the wheel work too: every key hint is clickable and lights up under the pointer.
 
 | Command | What it does |
 | --- | --- |

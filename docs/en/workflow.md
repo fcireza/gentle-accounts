@@ -218,7 +218,7 @@ Open the menu (or run `/gentle:accounts` with no argument):
 /gentle:accounts menu
 ```
 
-The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the session profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, the ones with a login first. Every provider that `/login` offers is listed, with or without an account, and the email appears masked (`mar****@company.com`) when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `r` to rename, `d` to delete, `s` for the session profile, `e` for the email display, `g` for the account usage box, `i` to adopt a detected login, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, `x` (on a logged-in provider row) to log that provider out of the profile, and `Esc` to close. Every key and message is in [Commands](commands.md).
+The menu lists the profiles: `●` marks the profile active in this session, `○` the others and `★` the default (session) profile. Press `→` on a profile to open a row per provider with `●` logged in or `○` not logged in, the ones with a login first. Every provider that `/login` offers is listed, with or without an account, and the email appears masked (`mar****@company.com`) when the email display is shown; `←` closes them. Move with the arrows (or `h` `j` `k` `l`), press `Enter` on a profile to switch or on a provider row to log in, `n` to create, `r` to rename, `d` to delete, `u` to use a profile for this chat only, `f` for the default profile, `e` for the email display, `g` for the account usage box, `i` to adopt a detected login, `o` (on a logged-in provider row) to open this project with the selected profile in a new terminal tab, `x` (on a logged-in provider row) to log that provider out of the profile, and `Esc` to close. Every key and message is in [Commands](commands.md).
 
 Two things the menu does for you:
 
@@ -240,5 +240,9 @@ gentle-accounts personal
 ```
 
 Each session gets a private agent home, so a switch or a login in one does not change the other. Sessions started without the launcher still use the global profile. From the menu, `o` opens the current project with the selected profile in a new tab; when it cannot open a tab it shows the command to run, for example `Open this project with "personal" in a new terminal: gentle-accounts personal`.
+
+In a window that was not started with the launcher, `u` in the menu moves this chat to its own account: it continues in `gentle-accounts <profile> --session <this chat>` in the same terminal (a private session home) and this window closes when it ends, so the other windows keep their account. It needs a chat with a session file and `gentle-accounts` on the `PATH`.
+
+Tools that start the agent for you, for example one pane per project, cannot pass a profile name. Set `GENTLE_ACCOUNTS_PROFILE=<name>` in that pane and use `gentle-accounts` as the agent command: without a `<name>` it starts that profile in its own private home. An explicit `<name>` wins.
 
 Prefer a different account per session: OAuth refresh tokens rotate, so the SAME account in two live sessions can invalidate the token one of them holds, and that session has to log in again. Details in [How it works](how-it-works.md).

@@ -74,6 +74,7 @@ Switches to `<name>`: saves the account credentials (Codex, Anthropic and any ot
 - Success: `Switched to profile "<name>". Claude Code dir: <dir>`, where `<dir>` is the profile's Claude folder or `(unset: Claude Code default)`.
 - Already active: `Already on profile "<name>".`
 - Invalid name: the invalid name message above (error).
+- Without a `<name>` (no arguments, or a first argument that starts with `-` other than `--help` and `-h`) and with `GENTLE_ACCOUNTS_PROFILE` set to a non-blank value, that profile is started and every argument goes to `gentle-shell`; an explicit `<name>` wins, and a blank value is ignored. This is for tools that start the agent for you, for example one pane per project.
 - Missing profile: `Profile "<name>" does not exist.` (error).
 - Agent busy: `Wait for the current turn to finish before switching profiles.` (warning). The idle check runs before anything is read or written, so nothing changes.
 - Unreadable credentials file: the error message, for example `Cannot parse <path>: <reason>` (error). Every file is read before any is written, so nothing changes.
@@ -236,12 +237,14 @@ The optional launcher (`bin/gentle-accounts.mjs`). It needs Node 22.18 or newer;
 | `gentle-accounts email [show\|hide]` | shows or sets the email display | 0, or 1 on a usage error |
 | `gentle-accounts usage [on\|off]` | shows or sets the account usage box | 0, or 1 on a usage error |
 | `gentle-accounts <name> [args...]` | starts `gentle-shell` | exit code of `gentle-shell`, or 1 on error |
+| `gentle-accounts [args...]` with `GENTLE_ACCOUNTS_PROFILE` set | same, on the profile named by the variable | exit code of `gentle-shell`, or 1 on error |
 
 Usage text:
 
 ```
 Usage:
   gentle-accounts <name> [gentle-shell args...]   start gentle-shell with profile <name>
+  gentle-accounts [gentle-shell args...]          same, with the profile named by $GENTLE_ACCOUNTS_PROFILE
   gentle-accounts list                            list profiles (* marks the active one)
   gentle-accounts current                         print the active profile
   gentle-accounts create <name>                   create an empty profile

@@ -236,12 +236,14 @@ El launcher opcional (`bin/gentle-accounts.mjs`). Necesita Node 22.18 o posterio
 | `gentle-accounts email [show\|hide]` | muestra o define la visualización del correo | 0, o 1 si hay error de uso |
 | `gentle-accounts usage [on\|off]` | muestra o define el cuadro de uso de las cuentas | 0, o 1 si hay error de uso |
 | `gentle-accounts <name> [args...]` | inicia `gentle-shell` | código de salida de `gentle-shell`, o 1 si hay error |
+| `gentle-accounts [args...]` con `GENTLE_ACCOUNTS_PROFILE` definida | lo mismo, con el perfil que nombra la variable | código de salida de `gentle-shell`, o 1 si hay error |
 
 Texto de uso:
 
 ```
 Usage:
   gentle-accounts <name> [gentle-shell args...]   start gentle-shell with profile <name>
+  gentle-accounts [gentle-shell args...]          same, with the profile named by $GENTLE_ACCOUNTS_PROFILE
   gentle-accounts list                            list profiles (* marks the active one)
   gentle-accounts current                         print the active profile
   gentle-accounts create <name>                   create an empty profile
@@ -301,6 +303,7 @@ Igual que `/gentle:accounts usage on` y `off`, con los mismos mensajes, en stdou
 
 Inicia `gentle-shell` en `<name>` dentro de una carpeta del agente privada para esa sesión, sin cambiar el perfil activo global: la sesión recibe su propio `auth.json`, un enlace al archivo propio del perfil en macOS y Linux y una copia privada en Windows o si el enlace falla, el `CLAUDE_CONFIG_DIR` del perfil (eliminado para `default`) y `GENTLE_ACCOUNTS_LAUNCH_PROFILE=<name>`. Los argumentos restantes se pasan a `gentle-shell`. Al terminar, la carpeta privada se elimina; una copia privada se fusiona antes en el perfil, un enlace no necesita nada. Consulte [Cómo funciona](how-it-works.md). Primero crea `default` si no hay un perfil activo. En Windows `gentle-shell` y `claude` se inician a través de la shell para que se resuelvan los shims `.cmd`.
 
+- Sin `<name>` (sin argumentos, o un primer argumento que empiece con `-` distinto de `--help` y `-h`) y con `GENTLE_ACCOUNTS_PROFILE` definida con un valor no vacío, se inicia ese perfil y todos los argumentos van a `gentle-shell`; un `<name>` explícito gana y un valor vacío se ignora. Sirve para las herramientas que arrancan el agente por usted, por ejemplo un panel por proyecto.
 - Perfil inexistente: `Profile "<name>" does not exist. Create it with: gentle-accounts create <name>`, código 1.
 - `--home`, `--link` o `--isolated` en los argumentos: `gentle-accounts manages the agent home; do not pass --home, --link or --isolated.`, código 1.
 - Archivo de credenciales ilegible: el mensaje de error, código 1, nada cambia.
