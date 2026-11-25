@@ -239,9 +239,19 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
           }
           // pi's agent dir is fixed when it starts: the chat continues in a launcher session (private home) on the profile.
           const sessionFile = (ctx as { sessionManager?: { getSessionFile?: () => string | undefined } }).sessionManager?.getSessionFile?.();
-          const result = await relaunch(ctx, [action.profile, ...(sessionFile ? ["--session", sessionFile] : [])]);
+          // Without a session file (an ephemeral chat) the conversation could not follow: refuse instead of losing it.
+          if (!sessionFile) {
+            set(`This chat has no session file, so it cannot continue on another account. Open the project with "${action.profile}" in a new tab with o: gentle-accounts ${action.profile}`, "warning");
+            break;
+          }
+          const result = await relaunch(ctx, [action.profile, "--session", sessionFile]);
           if ("error" in result) {
             set(`Could not start gentle-accounts: ${errorText(result.error)}. Is it on your PATH?`, "error");
+            break;
+          }
+          // A launcher that failed (unknown profile, killed) did not take the chat: keep this window and say so.
+          if (result.code !== 0) {
+            set(`gentle-accounts ended ${result.code === null ? `by ${result.signal ?? "a signal"}` : `with code ${result.code}`}; this window keeps its current account.`, "error");
             break;
           }
           // The chat lived on in the private session; this window still points at the shared account, so it ends with it.

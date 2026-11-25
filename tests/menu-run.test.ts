@@ -574,17 +574,29 @@ test("u: outside a session home the chat continues in a launcher session on that
   assert.equal(store.current(), "work", "the shared profile is untouched");
 });
 
-test("u: without a session file the profile still starts, and a failed start keeps the menu open with feedback", async () => {
+test("u: refuses without a session file, and a launcher that fails to start or ends badly keeps the window open with feedback", async () => {
   const { agentDir } = setup();
-  const calls: string[][] = [];
-  const ok = useCtx([{ type: "use", profile: "personal", row: 0 }]);
-  await runAccountsMenu(ok.ctx, { ...deps(agentDir), relaunch: async (_c, args) => (calls.push(args), { code: 0, signal: null }) });
-  assert.deepEqual(calls, [["personal"]]);
+  let started = 0;
+  const none = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(none.ctx, { ...deps(agentDir), relaunch: async () => (started++, { code: 0, signal: null }) });
+  assert.equal(started, 0);
+  assert.equal(none.shutdowns(), 0);
+  assert.match(feedbackOf(none.frames[1]), /This chat has no session file, so it cannot continue on another account/);
 
-  const bad = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }]);
+  const bad = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }], { sessionFile: "/tmp/c.jsonl" });
   await runAccountsMenu(bad.ctx, { ...deps(agentDir), relaunch: async () => ({ error: new Error("spawn gentle-accounts ENOENT") }) });
   assert.equal(bad.shutdowns(), 0);
   assert.match(feedbackOf(bad.frames[1]), /Could not start gentle-accounts: spawn gentle-accounts ENOENT\. Is it on your PATH\?/);
+
+  const code = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }], { sessionFile: "/tmp/c.jsonl" });
+  await runAccountsMenu(code.ctx, { ...deps(agentDir), relaunch: async () => ({ code: 1, signal: null }) });
+  assert.equal(code.shutdowns(), 0);
+  assert.match(feedbackOf(code.frames[1]), /gentle-accounts ended with code 1; this window keeps its current account\./);
+
+  const killed = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }], { sessionFile: "/tmp/c.jsonl" });
+  await runAccountsMenu(killed.ctx, { ...deps(agentDir), relaunch: async () => ({ code: null, signal: "SIGTERM" as const }) });
+  assert.equal(killed.shutdowns(), 0);
+  assert.match(feedbackOf(killed.frames[1]), /ended by SIGTERM/);
 });
 
 test("u: refuses while a turn runs and on Windows, without starting anything", async () => {
