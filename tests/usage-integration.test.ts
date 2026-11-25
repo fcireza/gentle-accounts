@@ -153,7 +153,7 @@ test("S2 command: without the TUI, usage prints the same box as plain text", asy
   assert.match(c.notes[0].message, /no usage seen yet/);
 });
 
-test("S4 extension: it registers no usage source, emits no usage event and sets no widget", async () => {
+test("S4 extension: it registers no usage source, emits no usage event and only ever sets the gentle-accounts widget", async () => {
   const { handler, events, calls } = setup();
   const c = fakeCtx({ tui: true });
   await events.get("after_provider_response")!({ headers: HEADERS }, { model: { provider: "anthropic" } });
@@ -163,7 +163,30 @@ test("S4 extension: it registers no usage source, emits no usage event and sets 
   assert.deepEqual([...events.keys()].filter((name) => /usage/.test(name)), []);
   assert.deepEqual(calls.filter((call) => /usage/.test(call)), []);
   assert.equal(calls.some((call) => call.startsWith("emit:")), false);
-  assert.deepEqual(c.widgets, []);
+  assert.ok(c.widgets.length > 0);
+  for (const w of c.widgets as unknown[][]) assert.equal(w[0], "gentle-accounts");
+});
+
+test("S3 widget: registered below the editor on session_start with UI, removed when the box is off, never without UI", async () => {
+  const { handler, events, settings } = setup();
+  const none = fakeCtx();
+  await events.get("session_start")!({ reason: "startup" }, none.ctx);
+  assert.deepEqual(none.widgets, []);
+  const c = fakeCtx({ tui: true });
+  await events.get("session_start")!({ reason: "startup" }, c.ctx);
+  const first = c.widgets[c.widgets.length - 1] as [string, unknown, { placement: string }];
+  assert.equal(first[0], "gentle-accounts");
+  assert.equal(typeof first[1], "function");
+  assert.equal(first[2].placement, "belowEditor");
+  const comp = (first[1] as (t: unknown, th: unknown) => { render(w: number): string[] })({ requestRender() {} }, identityTheme);
+  assert.match(comp.render(60).join("\n"), /Gentle Accounts/);
+  await handler("usage off", c.ctx);
+  assert.deepEqual(c.widgets[c.widgets.length - 1], ["gentle-accounts", undefined]);
+  await handler("usage on", c.ctx);
+  assert.equal(typeof (c.widgets[c.widgets.length - 1] as unknown[])[1], "function");
+  setUsageBox(settings, false);
+  await events.get("agent_end")!({}, c.ctx);
+  assert.deepEqual(c.widgets[c.widgets.length - 1], ["gentle-accounts", undefined]);
 });
 
 test("S3 command: usage and its help line are in the slash USAGE and the CLI USAGE", async () => {
