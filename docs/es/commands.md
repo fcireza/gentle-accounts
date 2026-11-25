@@ -47,11 +47,12 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `u` | Use session: este chat usa solo el perfil seleccionado, sin cambiar las otras ventanas. Dentro de una sesión iniciada con `gentle-accounts` es el cambio propio de esa sesión. En una ventana normal la carpeta del agente de pi queda fija al arrancar, así que el chat sigue en `gentle-accounts <profile> --session <this chat>` en la misma terminal (una carpeta de sesión privada) y esta ventana se cierra cuando termina. Necesita `gentle-accounts` en el `PATH`, espera a que el turno esté en reposo necesita un chat con archivo de sesión (no efímero), deja esta ventana abierta con un mensaje si el launcher falla y todavía no está disponible en Windows. |
 | `f` | Default: define el perfil seleccionado como perfil por defecto (de sesión) `★`, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
+| `g` | Abre la superposición `Account Usage` (vea `/gentle:accounts usage`). Solo mientras el cuadro de uso está activado; la pista de tecla `g usage` aparece solo entonces. Al cerrarla vuelve al menú sobre el mismo perfil. |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
 | `x` | Cierra la sesión del proveedor seleccionado en ese perfil (pide confirmación; borra sus credenciales solo de ese perfil, el token solo se olvida en esta máquina). Solo en una fila de proveedor con sesión; para Claude pide confirmación y ejecuta `claude auth logout` con el `CLAUDE_CONFIG_DIR` del perfil, y en la carpeta predeterminada cierra la sesión de todos los perfiles que la comparten). |
 | `Esc` o `Ctrl+C` | Cierra. |
 
-Mouse, solo en modo `fullscreen` (en el modo normal la terminal es dueña del mouse y solo se usa el teclado): pasar el puntero sobre una fila o una pista de comando la ilumina (dentro del perfil abierto la sigue; los otros perfiles se seleccionan con un clic), un clic selecciona el perfil o proveedor bajo el puntero, un doble clic actúa como `Enter` y la rueda se mueve como `↑` `↓`. Un clic sobre una pista de teclas (`n`, `r`, `d`, `u`, `e`, `i`, `o`, `x`, `esc`) hace lo mismo que pulsar esa tecla; un clic sobre `Account Default` o `Account Session` selecciona ese perfil, sobre `↑ N more` / `↓ N more` selecciona el perfil oculto vecino y sobre la línea del login detectado lo adopta. Los clics sobre el marco y las líneas no hacen nada.
+Mouse, solo en modo `fullscreen` (en el modo normal la terminal es dueña del mouse y solo se usa el teclado): pasar el puntero sobre una fila o una pista de comando la ilumina (dentro del perfil abierto la sigue; los otros perfiles se seleccionan con un clic), un clic selecciona el perfil o proveedor bajo el puntero, un doble clic actúa como `Enter` y la rueda se mueve como `↑` `↓`. Un clic sobre una pista de teclas (`n`, `r`, `d`, `u`, `e`, `g`, `i`, `o`, `x`, `esc`) hace lo mismo que pulsar esa tecla; un clic sobre `Account Default` o `Account Session` selecciona ese perfil, sobre `↑ N more` / `↓ N more` selecciona el perfil oculto vecino y sobre la línea del login detectado lo adopta. Los clics sobre el marco y las líneas no hacen nada.
 
 Los mensajes aparecen dentro del menú, porque las notificaciones quedan ocultas detrás de él.
 
@@ -100,7 +101,7 @@ Crea un perfil vacío: una carpeta `claude/` y un `auth.json` sin credenciales. 
 - Éxito: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Ya existe: `Profile "<name>" already exists.` (error).
 - Nombre inválido: el mensaje de nombre inválido (error).
-- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `rename`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector. `session` y `rename` pasaron a ser palabras reservadas en esta versión: un perfil que ya había creado con uno de esos nombres sigue en disco, pero ya no se puede activar por nombre. `rename` todavía lo acepta como nombre anterior, por ejemplo `/gentle:accounts rename session work`.
+- Nombre reservado (`menu`, `list`, `current`, `create`, `delete`, `login`, `rename`, `session`, `startup`, `email`, `usage`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). Estas palabras son subcomandos, así que un perfil con uno de estos nombres no se podría activar con `/gentle:accounts <name>`. Un perfil que ya tiene un nombre así sigue funcionando desde el menú y el selector. `session` y `rename` pasaron a ser palabras reservadas en esta versión: un perfil que ya había creado con uno de esos nombres sigue en disco, pero ya no se puede activar por nombre. `rename` todavía lo acepta como nombre anterior, por ejemplo `/gentle:accounts rename session work`.
 - Sin nombre: el texto de uso (advertencia).
 
 ### `/gentle:accounts delete <name>`
@@ -172,6 +173,21 @@ Después de `show` o `hide` la barra de estado se actualiza de inmediato. La opc
 
 Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dirección completa, incluso al compartir pantalla, en capturas de pantalla y en grabaciones.
 
+### `/gentle:accounts usage [on|off]`
+
+Abre la superposición `Account Usage`: un panel con marco, con el mismo estilo del menú de cuentas, con un bloque por perfil. `●` marca el perfil que usa esta sesión y `○` los demás. Bajo cada perfil hay una fila por proveedor que ya informó su uso (nombre del proveedor, plan si se conoce y `updated <time> ago`) y, por cada ventana (`5h`, `week`...), un medidor de 10 celdas, el porcentaje usado y cuándo se reinicia. Un perfil sin datos muestra `no usage seen yet`. Se cierra con `Esc`, `Enter`, `Ctrl+C` o un clic en `esc close`. Sin la TUI se imprime el mismo cuadro como texto plano.
+
+Solo muestra el uso que ya se vio: cada vez que la respuesta de Anthropic o de Codex de la cuenta activa informa sus límites, los números (porcentaje usado, etiqueta de la ventana, hora de reinicio y cuándo se vieron) se guardan en la carpeta de ese perfil como `usage.json`. No hace ninguna petición propia y nunca lee ni guarda un token ni los encabezados, así que el uso llega solo mientras esa cuenta es la activa, y un perfil que no ha usado desde entonces muestra `no usage seen yet` o los últimos números que vio. Borrar un perfil los borra y renombrarlo los mueve. El panel propio de Gentle Shell, `/gentle:usage`, no cambia en nada: este cuadro es una superposición aparte y el uso nativo queda como está.
+
+- `/gentle:accounts usage`: abre la superposición.
+- `/gentle:accounts usage off`: desactiva el cuadro y muestra `Account usage box disabled. The native Gentle Shell usage is unchanged.` Mientras está desactivado no se captura nada, y el menú oculta la pista y la tecla `g usage`.
+- `/gentle:accounts usage on`: lo activa y muestra `Account usage box enabled.`
+- Estando desactivado, `/gentle:accounts usage` muestra `Account usage box is disabled. Enable it with /gentle:accounts usage on.` (advertencia).
+- Cualquier otro argumento: `Usage: /gentle:accounts usage [on|off]` (advertencia). Nada cambia.
+- No se puede escribir el archivo de configuración: `Could not save the account usage setting (<code>).` (error). Nada cambia.
+
+La opción es la clave `usageBox` de `profiles/settings.json` (vea [How it works](how-it-works.md)); está activada de forma predeterminada.
+
 ### `/gentle:accounts help`
 
 `help` y `--help` muestran el texto de uso:
@@ -188,6 +204,7 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
 /gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)
 /gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
+/gentle:accounts usage [on|off]         open the per-account usage box, or turn it on or off
 ```
 
 ### Hooks de la extensión
@@ -195,6 +212,7 @@ Advertencia: con `show`, cualquier persona que vea su pantalla puede leer la dir
 Además del comando, la extensión registra:
 
 - **Inicio de sesión**: crea `default` si no hay un perfil activo; si lo hay, define `CLAUDE_CONFIG_DIR` para el perfil activo salvo que el entorno ya lo defina; luego, si hay un perfil de sesión definido y no es el activo, cambia a él y muestra `Started on profile "<name>" (session profile).` (nunca en una sesión iniciada por el launcher); inicia un temporizador de 60 s para actualizar el estado y lo muestra. Si no puede leer un archivo de credenciales muestra `gentle-accounts: <message>` (error) y continúa.
+- **Respuesta del proveedor**: mientras el cuadro de uso está activado, guarda los límites que informó la respuesta bajo el perfil activo (vea `/gentle:accounts usage`).
 - **Fin del agente**: actualiza el estado después de cada turno del agente.
 - **Cierre de sesión**: detiene el temporizador de 60 s.
 
@@ -213,6 +231,7 @@ El launcher opcional (`bin/gentle-accounts.mjs`). Necesita Node 22.18 o posterio
 | `gentle-accounts login <name>` | ejecuta `claude auth login` | código de salida de `claude`, o 1 si hay error |
 | `gentle-accounts session [<name>\|last]` | muestra, define o borra el perfil de sesión | 0, o 1 si hay error |
 | `gentle-accounts email [show\|hide]` | muestra o define la visualización del correo | 0, o 1 si hay error de uso |
+| `gentle-accounts usage [on\|off]` | muestra o define el cuadro de uso de las cuentas | 0, o 1 si hay error de uso |
 | `gentle-accounts <name> [args...]` | inicia `gentle-shell` | código de salida de `gentle-shell`, o 1 si hay error |
 
 Texto de uso:
@@ -227,6 +246,7 @@ Usage:
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
   gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)
   gentle-accounts email [show|hide]               show or set whether the status bar shows the full email
+  gentle-accounts usage [on|off]                  show or set the per-account usage box of the accounts overlay
   gentle-accounts --help                          show this help
 ```
 
@@ -269,6 +289,10 @@ gentle-accounts email show   # full email in the status bar
 gentle-accounts email        # show the current value
 gentle-accounts email hide   # back to hiding the email
 ```
+
+### `gentle-accounts usage [on|off]`
+
+Igual que `/gentle:accounts usage on` y `off`, con los mismos mensajes, en stdout con código 0. Sin argumento imprime `Account usage box: enabled` o `Account usage box: disabled`. Cualquier otro argumento imprime `Usage: gentle-accounts usage [on|off]` en stderr y termina con código 1; si el archivo de configuración no se puede escribir imprime `Could not save the account usage setting (<code>).` en stderr y termina con código 1.
 
 ### `gentle-accounts <name> [args...]`
 
