@@ -75,7 +75,7 @@ const prefixed = (message: string) => (message.startsWith("gentle-accounts:") ? 
 export function runCli(argv: string[], deps: CliDeps): number | Promise<number> {
   const { store, stdout, stderr } = deps;
   // No `<name>` but GENTLE_ACCOUNTS_PROFILE set: that profile, every argument goes to gentle-shell. An explicit name wins.
-  const pinned = deps.env[PROFILE_ENV];
+  const pinned = deps.env[PROFILE_ENV]?.trim(); // a blank pin counts as unset
   const fromEnv = Boolean(pinned) && (argv.length === 0 || (argv[0].startsWith("-") && !["--help", "-h"].includes(argv[0])));
   const [first, second, ...rest] = fromEnv ? [pinned!, ...argv] : argv;
 

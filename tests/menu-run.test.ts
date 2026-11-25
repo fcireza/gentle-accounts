@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -625,4 +625,99 @@ test("u: inside a session home it is the session's own switch, with no relaunch"
   assert.equal(c.shutdowns(), 0);
   assert.equal(readFileSync(join(home, ".gentle-accounts-current"), "utf8").trim(), "personal");
   assert.equal(new ProfileStore(agentDir).current(), "work", "the shared current profile is untouched");
+});
+
+/** Recursive snapshot (relative path, type, mode, content or link target) of a directory. */
+function snapshotTree(root: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir).sort()) {
+      const full = join(dir, name);
+      const st = lstatSync(full);
+      const rel = full.slice(root.length);
+      const mode = (st.mode & 0o7777).toString(8);
+      if (st.isSymbolicLink()) out[rel] = `link ${mode} ${readlinkSync(full)}`;
+      else if (st.isDirectory()) (out[rel] = `dir ${mode}`, walk(full));
+      else out[rel] = `file ${mode} ${readFileSync(full, "utf8")}`;
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/** A ctx whose custom UI serves the scripted menu actions and awaits the terminal hand-over of the real relaunch. */
+function realRelaunchCtx(script: MenuAction[], sessionFile: string) {
+  const c = useCtx([], { sessionFile });
+  const tui = { stop() {}, start() {}, requestRender() {} };
+  (c.ctx.ui as unknown as { custom: unknown }).custom = (factory: (t: unknown, th: unknown, kb: unknown, done: (r: unknown) => void) => AccountsMenuPanel) =>
+    new Promise((resolve) => {
+      const panel = factory(c.ctx.hasUI ? { ...tui, terminal: undefined } : tui, identityTheme, {}, resolve);
+      const frame = panel.render(120);
+      if (frame.length > 0) (c.frames.push(frame.join("\n")), resolve(script.shift())); // the menu; the hand-over renders nothing and resolves itself
+    });
+  return c;
+}
+
+test("u safety: the real relaunch runs gentle-accounts with the exact argv, writes no shared state and closes only on exit 0", { skip: process.platform === "win32" }, async () => {
+  const { agentDir } = setup();
+  const work = mkdtempSync(join(tmpdir(), "gentle-accounts-fake-"));
+  const bin = join(work, "bin");
+  const empty = join(work, "empty");
+  mkdirSync(bin);
+  mkdirSync(empty);
+  const log = join(work, "argv.log");
+  const exitFile = join(work, "exit");
+  writeFileSync(join(bin, "gentle-accounts"), `#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a" >> '${log}'; done\nread code < '${exitFile}'\nexit "$code"\n`, { mode: 0o755 });
+  const session = "/tmp/dir with space/s;$(touch pwn).jsonl";
+  const originalPath = process.env.PATH;
+  const originalCwd = process.cwd();
+  const run = async (pathValue: string, exitCode: number) => {
+    writeFileSync(exitFile, `${exitCode}\n`);
+    process.env.PATH = pathValue;
+    const c = realRelaunchCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }], session);
+    await runAccountsMenu(c.ctx, deps(agentDir));
+    return c;
+  };
+  try {
+    const before = snapshotTree(agentDir);
+
+    const ok = await run(bin, 0);
+    assert.deepEqual(readFileSync(log, "utf8").split("\n").slice(0, -1), ["personal", "--session", session]);
+    assert.equal(ok.shutdowns(), 1);
+    assert.equal(existsSync(join(originalCwd, "pwn")), false);
+    assert.equal(existsSync(join(work, "pwn")), false);
+    assert.equal(existsSync(join(agentDir, "pwn")), false);
+
+    writeFileSync(log, "");
+    const failed = await run(bin, 1);
+    assert.deepEqual(readFileSync(log, "utf8").split("\n").slice(0, -1), ["personal", "--session", session]);
+    assert.equal(failed.shutdowns(), 0, "a failed launcher keeps the window open");
+    assert.match(feedbackOf(failed.frames.at(-1)!), /gentle-accounts ended with code 1; this window keeps its current account\./);
+
+    const missing = await run(empty, 0);
+    assert.equal(missing.shutdowns(), 0, "a missing gentle-accounts keeps the window open");
+    assert.match(feedbackOf(missing.frames.at(-1)!), /Could not start gentle-accounts/);
+
+    assert.deepEqual(snapshotTree(agentDir), before, "the agent dir is byte-identical, modes included");
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
+test("u safety: in a session home it repoints only that home's auth link and marker; shared state stays byte-identical", { skip: process.platform === "win32" }, async () => {
+  const { agentDir } = setup();
+  const { buildSessionHome } = await import("../src/session-home.ts");
+  const shared = new ProfileStore(realpathSync(agentDir));
+  writeFileSync(shared.authPath("work"), '{"anthropic":{"type":"api_key","key":"w"}}\n');
+  writeFileSync(shared.authPath("personal"), '{"openai-codex":{"type":"api_key","key":"p"}}\n');
+  const base = mkdtempSync(join(tmpdir(), "gentle-accounts-menu-base-"));
+  const { home } = buildSessionHome({ sharedAgentDir: agentDir, profile: "work", baseDir: base });
+  assert.equal(readlinkSync(join(home, "auth.json")), shared.authPath("work"));
+  const before = snapshotTree(realpathSync(agentDir));
+  const c = useCtx([{ type: "use", profile: "personal", row: 0 }, { type: "close" }]);
+  await runAccountsMenu(c.ctx, { ...deps(home), relaunch: async () => assert.fail("no relaunch inside a session home") });
+  assert.equal(readlinkSync(join(home, "auth.json")), shared.authPath("personal"));
+  assert.equal(readFileSync(join(home, ".gentle-accounts-current"), "utf8").trim(), "personal");
+  assert.equal(readFileSync(join(agentDir, "profiles", "current"), "utf8").trim(), "work");
+  assert.deepEqual(snapshotTree(realpathSync(agentDir)), before, "shared files, profiles/current included, are untouched");
 });

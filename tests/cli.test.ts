@@ -555,3 +555,37 @@ test("GENTLE_ACCOUNTS_PROFILE: an explicit <name> wins and unknown names or empt
   assert.equal(await runCli([], deps), 1); // usage, as before
   assert.match(err[0], /Usage:/);
 });
+
+test("GENTLE_ACCOUNTS_PROFILE: a blank or whitespace-only value behaves as unset and a padded name is trimmed", async () => {
+  const { store, env, err, spawns, deps } = setup();
+  store.create("personal");
+  for (const blank of ["", " ", " \t\n "]) {
+    env.GENTLE_ACCOUNTS_PROFILE = blank;
+    err.length = 0;
+    assert.equal(await runCli([], deps), 1, JSON.stringify(blank));
+    assert.match(err[0], /Usage:/);
+    err.length = 0;
+    assert.equal(await runCli(["--flag"], deps), 1);
+    assert.match(err.join("\n"), /^Profile "--flag" does not exist/); // exactly as with the pin unset, never the blank value
+  }
+  assert.equal(spawns.length, 0);
+
+  env.GENTLE_ACCOUNTS_PROFILE = "  personal ";
+  assert.equal(await runCli(["--flag"], deps), 0);
+  assert.equal(spawns.length, 1);
+  assert.equal(spawns[0].env[LAUNCH_PROFILE_ENV], "personal");
+  assert.deepEqual(spawns[0].args.slice(2), ["--flag"]);
+});
+
+test("a hand-made profile named usage is still listed and can be renamed", () => {
+  const { store, deps, out, err } = setup();
+  store.create("work");
+  mkdirSync(store.claudeDir("usage"), { recursive: true });
+  writeFileSync(store.authPath("usage"), "{}\n");
+  assert.equal(runCli(["list"], deps), 0);
+  assert.ok(out.join("\n").split("\n").some((l) => l.trim().replace(/^\* /, "") === "usage"), out.join("\n"));
+  out.length = 0;
+  assert.equal(runCli(["rename", "usage", "metrics"], deps), 0, err.join("\n"));
+  assert.deepEqual(store.list().sort(), ["metrics", "work"]);
+  assert.equal(existsSync(store.profileDir("usage")), false);
+});

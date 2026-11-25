@@ -1,6 +1,6 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProfileStore, RESERVED_NAMES } from "../src/store.ts";
@@ -219,4 +219,37 @@ test("S3 command: a settings file that cannot be written is an error and changes
 
 test("S1 reserved: usage is a subcommand, so it is a reserved profile name", () => {
   assert.ok(RESERVED_NAMES.includes("usage"));
+});
+
+test("T2 capture: extra headers (credentials, account id, email) never reach usage.json; mode 0600 and no temp file left", () => {
+  const { store, settings } = tmp();
+  const headers = {
+    ...ANTHROPIC,
+    authorization: "Bearer LEAK-TOKEN-123",
+    "chatgpt-account-id": "acct-LEAK-456",
+    "x-user-email": "leak.person@example.com",
+  };
+  assert.equal(captureUsage({ store, settingsFile: settings, headers, now: NOW }), true);
+  const raw = readFileSync(usagePath(store, "work"), "utf8");
+  for (const secret of ["LEAK-TOKEN-123", "Bearer", "acct-LEAK-456", "leak.person@example.com", "authorization"]) assert.equal(raw.includes(secret), false, secret);
+  if (process.platform !== "win32") assert.equal(statSync(usagePath(store, "work")).mode & 0o777, 0o600);
+  assert.deepEqual(readdirSync(store.profileDir("work")).filter((n) => n.includes(".tmp")), []);
+});
+
+test("T2 capture: a non-string header value or a read-only profile dir never throws", { skip: process.platform === "win32" }, () => {
+  const { store, settings } = tmp();
+  const odd = { ...ANTHROPIC, "x-weird": 42 as unknown as string, "x-null": null as unknown as string };
+  assert.doesNotThrow(() => captureUsage({ store, settingsFile: settings, headers: odd, now: NOW }));
+  const dir = store.profileDir("work");
+  const before = statSync(dir).mode & 0o777;
+  rmSync(usagePath(store, "work"), { force: true });
+  try {
+    chmodSync(dir, 0o500);
+    let result: boolean | undefined;
+    assert.doesNotThrow(() => (result = captureUsage({ store, settingsFile: settings, headers: ANTHROPIC, now: NOW })));
+    // root ignores the mode, so only the no-throw contract is asserted when the write succeeded.
+    if (result === false) assert.equal(existsSync(usagePath(store, "work")), false);
+  } finally {
+    chmodSync(dir, before);
+  }
 });
