@@ -48,11 +48,12 @@ Abre el menú de cuentas, un panel superpuesto al estilo del panel `/gentle:prof
 | `f` | Default: define el perfil seleccionado como perfil por defecto (de sesión) `★`, o lo borra si ya lo es. |
 | `e` | Alterna la visualización del correo (mismos mensajes que `email show` y `email hide`). |
 | `g` | Abre la superposición `Account Usage` (vea `/gentle:accounts usage`). Solo mientras el cuadro de uso está activado; la pista de tecla `g usage` aparece solo entonces. Al cerrarla vuelve al menú sobre el mismo perfil. |
+| `a` | Abre primero el `/gentle:usage` nativo y, al cerrarlo, la superposición `Account Usage` (vea `/gentle:accounts usage all`). El menú se cierra antes de abrir el uso nativo y no se reabre. Solo mientras el cuadro de uso está activado; la pista de tecla `a all usage` (corta: `a usage+`) aparece solo entonces. |
 | `o` | Abre este proyecto con el perfil seleccionado en una pestaña nueva de la terminal. Solo en una fila de proveedor con sesión iniciada; la pista `o open in tab` aparece solo ahí. |
 | `x` | Cierra la sesión del proveedor seleccionado en ese perfil (pide confirmación; borra sus credenciales solo de ese perfil, el token solo se olvida en esta máquina). Solo en una fila de proveedor con sesión; para Claude pide confirmación y ejecuta `claude auth logout` con el `CLAUDE_CONFIG_DIR` del perfil, y en la carpeta predeterminada cierra la sesión de todos los perfiles que la comparten). |
 | `Esc` o `Ctrl+C` | Cierra. |
 
-Mouse, solo en modo `fullscreen` (en el modo normal la terminal es dueña del mouse y solo se usa el teclado): pasar el puntero sobre una fila o una pista de comando la ilumina (dentro del perfil abierto la sigue; los otros perfiles se seleccionan con un clic), un clic selecciona el perfil o proveedor bajo el puntero, un doble clic actúa como `Enter` y la rueda se mueve como `↑` `↓`. Un clic sobre una pista de teclas (`n`, `r`, `d`, `u`, `e`, `g`, `i`, `o`, `x`, `esc`) hace lo mismo que pulsar esa tecla; un clic sobre `Account Default` o `Account Session` selecciona ese perfil, sobre `↑ N more` / `↓ N more` selecciona el perfil oculto vecino y sobre la línea del login detectado lo adopta. Los clics sobre el marco y las líneas no hacen nada.
+Mouse, solo en modo `fullscreen` (en el modo normal la terminal es dueña del mouse y solo se usa el teclado): pasar el puntero sobre una fila o una pista de comando la ilumina (dentro del perfil abierto la sigue; los otros perfiles se seleccionan con un clic), un clic selecciona el perfil o proveedor bajo el puntero, un doble clic actúa como `Enter` y la rueda se mueve como `↑` `↓`. Un clic sobre una pista de teclas (`n`, `r`, `d`, `u`, `e`, `g`, `a`, `i`, `o`, `x`, `esc`) hace lo mismo que pulsar esa tecla; un clic sobre `Account Default` o `Account Session` selecciona ese perfil, sobre `↑ N more` / `↓ N more` selecciona el perfil oculto vecino y sobre la línea del login detectado lo adopta. Los clics sobre el marco y las líneas no hacen nada.
 
 Los mensajes aparecen dentro del menú, porque las notificaciones quedan ocultas detrás de él.
 
@@ -180,6 +181,7 @@ Abre la superposición `Account Usage`: un panel con marco, con el mismo estilo 
 Solo muestra el uso que ya se vio: cada vez que la respuesta de Anthropic o de Codex de la cuenta activa informa sus límites, los números (porcentaje usado, etiqueta de la ventana, hora de reinicio y cuándo se vieron) se guardan en la carpeta de ese perfil como `usage.json`. No hace ninguna petición propia y nunca lee ni guarda un token ni los encabezados, así que el uso llega solo mientras esa cuenta es la activa, y un perfil que no ha usado desde entonces muestra `no usage seen yet` o los últimos números que vio. Borrar un perfil los borra y renombrarlo los mueve. El panel propio de Gentle Shell, `/gentle:usage`, no cambia en nada: este cuadro es una superposición aparte y el uso nativo queda como está.
 
 - `/gentle:accounts usage`: abre la superposición.
+- `/gentle:accounts usage all`: abre primero el `/gentle:usage` nativo y, cuando se cierra, la superposición `Account Usage`: un solo flujo, sin cambiar nada de Gentle Shell. Si el uso nativo no está disponible abre solo la superposición y muestra `Native Gentle Shell usage is not available; showing the account usage only.` (info). Estando desactivado el cuadro muestra la advertencia de abajo y no abre nada.
 - `/gentle:accounts usage off`: desactiva el cuadro y muestra `Account usage box disabled. The native Gentle Shell usage is unchanged.` Mientras está desactivado no se captura nada, y el menú oculta la pista y la tecla `g usage`.
 - `/gentle:accounts usage on`: lo activa y muestra `Account usage box enabled.`
 - Estando desactivado, `/gentle:accounts usage` muestra `Account usage box is disabled. Enable it with /gentle:accounts usage on.` (advertencia).
@@ -207,6 +209,7 @@ La opción es la clave `usageBox` de `profiles/settings.json` (vea [How it works
 /gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)
 /gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
 /gentle:accounts usage [on|off]         open the per-account usage box, or turn it on or off
+/gentle:accounts usage all              open the native usage, then the per-account usage box
 ```
 
 ### Hooks de la extensión

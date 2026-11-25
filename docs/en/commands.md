@@ -48,11 +48,12 @@ Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:prof
 | `f` | Default: set the selected profile as the default (session) profile `★`, or clear it when it already is. |
 | `e` | Toggle the email display (same messages as `email show` and `email hide`). |
 | `g` | Open the `Account Usage` overlay (see `/gentle:accounts usage`). Only while the usage box is enabled; the key hint `g usage` appears only then. Closing it returns to the menu on the same profile. |
+| `a` | Open the native `/gentle:usage` first and, when it closes, the `Account Usage` overlay (see `/gentle:accounts usage all`). The menu closes before the native usage opens and does not reopen. Only while the usage box is enabled; the key hint `a all usage` (short: `a usage+`) appears only then. |
 | `o` | Open this project with the selected profile in a new terminal tab. Only on a provider row with a login; the key hint `o open in tab` appears only there. |
 | `x` | Log the selected provider out of the profile (asks to confirm; removes its credentials from that profile only, the token is just forgotten on this machine). Only on a provider row with a login; for Claude it asks to confirm and runs `claude auth logout` with the profile's `CLAUDE_CONFIG_DIR`, and on the default folder that logs out every profile sharing it). |
 | `Esc` or `Ctrl+C` | Close. |
 
-Mouse, in `fullscreen` mode only (in the regular mode the terminal owns the mouse and the keyboard is the only way): moving the pointer over a row or a command hint highlights it (inside the open profile it follows the pointer; other profiles are selected with a click), a click selects the profile or provider under the pointer, a double click acts like `Enter`, and the wheel moves like `↑` `↓`. A click on a key hint (`n`, `r`, `d`, `u`, `e`, `g`, `i`, `o`, `x`, `esc`) does what pressing that key does; a click on `Account Default` or `Account Session` selects that profile, on `↑ N more` / `↓ N more` selects the neighbouring hidden profile, and on the detected-login line adopts it. Clicks on the frame and the rules do nothing.
+Mouse, in `fullscreen` mode only (in the regular mode the terminal owns the mouse and the keyboard is the only way): moving the pointer over a row or a command hint highlights it (inside the open profile it follows the pointer; other profiles are selected with a click), a click selects the profile or provider under the pointer, a double click acts like `Enter`, and the wheel moves like `↑` `↓`. A click on a key hint (`n`, `r`, `d`, `u`, `e`, `g`, `a`, `i`, `o`, `x`, `esc`) does what pressing that key does; a click on `Account Default` or `Account Session` selects that profile, on `↑ N more` / `↓ N more` selects the neighbouring hidden profile, and on the detected-login line adopts it. Clicks on the frame and the rules do nothing.
 
 Messages appear inside the menu, because notifications are hidden behind it.
 
@@ -180,6 +181,7 @@ Opens the `Account Usage` overlay: a framed panel, in the same style as the acco
 It only shows usage that was already seen: whenever the active account's Anthropic or Codex response reports its rate limits, the numbers (percent used, window label, reset time and the time they were seen) are saved in that profile's folder as `usage.json`. It makes no request of its own and never reads or stores a token or the headers, so usage arrives only while that account is the active one, and a profile you have not used since shows `no usage seen yet` or the last numbers it saw. Deleting a profile deletes them and renaming it moves them. Gentle Shell's own `/gentle:usage` panel is not changed in any way: this box is a separate overlay and the native usage stays as it is.
 
 - `/gentle:accounts usage`: opens the overlay.
+- `/gentle:accounts usage all`: opens the native `/gentle:usage` first and, once it closes, the `Account Usage` overlay: one flow, nothing of Gentle Shell is changed. If the native usage is not available it opens only the overlay and shows `Native Gentle Shell usage is not available; showing the account usage only.` (info). While the box is disabled it shows the disabled warning below and opens nothing.
 - `/gentle:accounts usage off`: disables the box and shows `Account usage box disabled. The native Gentle Shell usage is unchanged.` Nothing is captured while it is disabled, and the menu hides the `g usage` hint and key.
 - `/gentle:accounts usage on`: enables it and shows `Account usage box enabled.`
 - While disabled, `/gentle:accounts usage` shows `Account usage box is disabled. Enable it with /gentle:accounts usage on.` (warning).
@@ -207,6 +209,7 @@ The setting is the key `usageBox` of `profiles/settings.json` (see [How it works
 /gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)
 /gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
 /gentle:accounts usage [on|off]         open the per-account usage box, or turn it on or off
+/gentle:accounts usage all              open the native usage, then the per-account usage box
 ```
 
 ### Extension hooks

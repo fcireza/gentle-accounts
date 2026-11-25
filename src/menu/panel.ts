@@ -12,6 +12,7 @@ export type MenuAction =
   | { type: "use"; profile: string; row: number }
   | { type: "email"; profile?: string; row: number }
   | { type: "usage"; profile?: string; row: number }
+  | { type: "usageAll"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
   | { type: "adopt"; row: number }
   | { type: "logout"; profile: string; provider: string; row: number }
@@ -217,6 +218,10 @@ export class AccountsMenuPanel {
       case "char:g":
         // Only while the usage box is enabled, as the hint says.
         if (this.model.usageBox === true) return this.finish(name ? { type: "usage", profile: name, row } : { type: "usage", row });
+        return;
+      case "char:a":
+        // Only while the usage box is enabled, as the hint says.
+        if (this.model.usageBox === true) return this.finish(name ? { type: "usageAll", profile: name, row } : { type: "usageAll", row });
         return;
       case "char:d":
         if (name) return this.finish({ type: "delete", profile: name, row });

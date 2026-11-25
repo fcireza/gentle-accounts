@@ -63,7 +63,7 @@ El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista lo
 | `/gentle:accounts create <name>` | Crea un perfil vacío. |
 | `/gentle:accounts session [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
 | `/gentle:accounts email [show\|hide]` | Muestra u oculta el correo completo en la barra de estado. |
-| `/gentle:accounts usage [on\|off]` | Abre la superposición `Account Usage` (lo que los proveedores de cada cuenta ya informaron), o la activa o desactiva. Mientras está activada, una tarjeta `Gentle Accounts` bajo el editor muestra el perfil predeterminado, el de esta sesión y el último uso visto de cada perfil; `usage off` la quita. |
+| `/gentle:accounts usage [on\|off]` | Abre la superposición `Account Usage` (lo que los proveedores de cada cuenta ya informaron), o la activa o desactiva. `usage all` abre primero el uso nativo `/gentle:usage` y, al cerrarlo, este panel (tecla `a` en el menú). Mientras está activada, una tarjeta `Gentle Accounts` bajo el editor muestra el perfil predeterminado, el de esta sesión y el último uso visto de cada perfil; `usage off` la quita. |
 | `/gentle:accounts delete <name>` | Borra un perfil, con confirmación. |
 
 

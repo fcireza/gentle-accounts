@@ -13,6 +13,7 @@ import { buildSessionHome } from "../src/session-home.ts";
 import { resolveContext } from "../src/session-home.ts";
 import { runAccountsMenu } from "../src/menu/run.ts";
 import { COMMAND_FLOWS, switchFlow } from "../src/index.ts";
+import { openNativeUsage } from "../src/usage-chain.ts";
 import { AccountsMenuPanel, type MenuAction } from "../src/menu/panel.ts";
 import { identityTheme, menuSpans, renderMenu, visibleWidth, type MenuModel } from "../src/menu/view.ts";
 
@@ -255,7 +256,7 @@ test("S2 menu: g usage is a hint (all layouts, fitting every width) and a clicka
 
 test("S2 menu: g usage is next to the email hint on the commands line, and lit on hover", () => {
   const wide = renderMenu(menuModel(true), 200, identityTheme).map(strip);
-  assert.ok(wide.some((l) => /e email {2}g usage {2}esc close/.test(l)));
+  assert.ok(wide.some((l) => /e email {2}g usage {2}a all usage {2}esc close/.test(l)));
   const lit = renderMenu({ ...menuModel(true), hover: "char:g" }, 200, { fg: (_c, t) => t, bold: (t) => `*${t}` }).join("\n");
   assert.match(lit, /\*g \*usage/);
 });
@@ -319,4 +320,126 @@ test("S2 menu run: the usage action opens the usage overlay, then the menu again
   script.push({ type: "close" });
   await runAccountsMenu(ctx, deps);
   assert.doesNotMatch(frames[0], /g usage/);
+});
+
+// ---- usage all: native usage first, then ours ----
+
+function chainPi(opts: { names?: string[]; fail?: boolean; log: string[] }) {
+  const { pi, commands } = fakePi();
+  const extra = pi as unknown as Record<string, unknown>;
+  extra.getCommands = () => (opts.names ?? ["gentle:usage"]).map((name) => ({ name }));
+  extra.sendUserMessage = async (text: string, o: unknown) => {
+    opts.log.push(`send:${text}:${JSON.stringify(o)}`);
+    if (opts.fail) throw new Error("boom");
+  };
+  return { pi, commands };
+}
+
+test("S1 openNativeUsage: opened after the command runs; unavailable when absent or failing; accepts the slash form; never throws", async () => {
+  const log: string[] = [];
+  assert.equal(await openNativeUsage(chainPi({ log }).pi), "opened");
+  assert.deepEqual(log, ['send:/gentle:usage:{"expandPromptTemplates":true}']);
+  assert.equal(await openNativeUsage(chainPi({ log: [], names: ["/gentle:usage"] }).pi), "opened");
+  const none: string[] = [];
+  assert.equal(await openNativeUsage(chainPi({ log: none, names: ["other"] }).pi), "unavailable");
+  assert.deepEqual(none, []);
+  assert.equal(await openNativeUsage(chainPi({ log: [], fail: true }).pi), "unavailable");
+  const broken = { getCommands: () => { throw new Error("x"); }, sendUserMessage: async () => {} };
+  assert.equal(await openNativeUsage(broken as never), "unavailable");
+});
+
+function chainSetup(opts: { names?: string[]; fail?: boolean } = {}) {
+  const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-usage-chain-"));
+  after(() => rmSync(agentDir, { recursive: true, force: true }));
+  process.env.HOME = agentDir;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  delete process.env.CLAUDE_CONFIG_DIR;
+  const log: string[] = [];
+  const { pi, commands } = chainPi({ ...opts, log });
+  gentleProfiles(pi, { runClaudeStatus: async () => "", setInterval: () => ({ unref() {} }), clearInterval: () => {} });
+  const store = new ProfileStore(agentDir);
+  store.create("work");
+  store.setCurrent("work");
+  return { log, handler: commands.get("gentle:accounts")!.handler, settings: settingsPath(agentDir) };
+}
+
+test("S2 command: usage all opens the native usage, then ours", async () => {
+  const { handler, log } = chainSetup();
+  const c = fakeCtx({ tui: true });
+  const order: string[] = [];
+  const custom = c.ctx.ui.custom.bind(c.ctx.ui);
+  (c.ctx.ui as { custom: unknown }).custom = (...a: unknown[]) => (order.push(`ours:${log.length}`), (custom as (...x: unknown[]) => unknown)(...a));
+  await handler("usage all", c.ctx);
+  assert.equal(log.length, 1);
+  assert.deepEqual(order, ["ours:1"]);
+  assert.equal(c.opened.length, 1);
+  assert.match(c.frames[0], /Account Usage/);
+  assert.deepEqual(c.notes, []);
+});
+
+test("S2 command: usage all without native opens only ours and notifies; disabled opens nothing; plain usage is unchanged", async () => {
+  const off = chainSetup({ names: [] });
+  const c = fakeCtx({ tui: true });
+  await off.handler("usage all", c.ctx);
+  assert.deepEqual(off.log, []);
+  assert.equal(c.opened.length, 1);
+  assert.deepEqual(c.notes, [{ message: "Native Gentle Shell usage is not available; showing the account usage only.", type: "info" }]);
+
+  const d = chainSetup();
+  setUsageBox(d.settings, false);
+  const c2 = fakeCtx({ tui: true });
+  await d.handler("usage all", c2.ctx);
+  assert.deepEqual(d.log, []);
+  assert.equal(c2.opened.length, 0);
+  assert.deepEqual(c2.notes, [{ message: "Account usage box is disabled. Enable it with /gentle:accounts usage on.", type: "warning" }]);
+
+  const p = chainSetup();
+  const c3 = fakeCtx({ tui: true });
+  await p.handler("usage", c3.ctx);
+  assert.deepEqual(p.log, []);
+  assert.equal(c3.opened.length, 1);
+});
+
+test("S3 menu: a all usage hint, short label, key and click only while enabled", () => {
+  const text = (u: boolean | undefined, w: number) => renderMenu(menuModel(u), w, identityTheme).map(strip).join("\n");
+  assert.match(text(true, 200), /a all usage/);
+  assert.match(text(true, 45), /a usage\+/);
+  assert.doesNotMatch(text(false, 200), /a all usage|a usage\+/);
+  for (const w of [40, 50, 70, 100, 200]) for (const line of renderMenu(menuModel(true), w, identityTheme)) assert.ok(visibleWidth(line) <= w);
+  assert.ok(menuSpans(menuModel(true), 100).some((s) => "key" in s.target && s.target.key === "char:a"));
+  assert.ok(!menuSpans(menuModel(false), 100).some((s) => "key" in s.target && s.target.key === "char:a"));
+  const press = (u: boolean | undefined) => {
+    const actions: MenuAction[] = [];
+    new AccountsMenuPanel(menuModel(u), identityTheme, (a) => actions.push(a)).handleInput("a");
+    return actions;
+  };
+  assert.deepEqual(press(true), [{ type: "usageAll", profile: "work", row: 0 }]);
+  assert.deepEqual(press(false), []);
+  const lit = renderMenu({ ...menuModel(true), hover: "char:a" }, 200, { fg: (_c, t) => t, bold: (t) => `*${t}` }).join("\n");
+  assert.match(lit, /\*a \*all usage/);
+});
+
+test("S3 menu run: usageAll ends the menu (no reopen) and hands over", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "gentle-accounts-usage-all-run-"));
+  after(() => rmSync(agentDir, { recursive: true, force: true }));
+  process.env.HOME = agentDir;
+  const store = new ProfileStore(agentDir);
+  store.create("work");
+  store.setCurrent("work");
+  let opens = 0;
+  const handed: number[] = [];
+  const ctx = {
+    hasUI: true, mode: "tui", isIdle: () => true,
+    modelRegistry: { getAll: () => [], getProvider: () => undefined },
+    ui: { notify: () => {}, custom: async () => (opens++, { type: "usageAll", profile: "work", row: 0 }) },
+  } as unknown as ExtensionCommandContext;
+  const deps = {
+    context: () => resolveContext(agentDir), refreshStatus: async () => {}, activeClaude: () => undefined,
+    flows: { ...COMMAND_FLOWS, switchTo: (c: ExtensionCommandContext, s: ProfileStore, live: string, target: string, report: (m: string, t?: "info" | "warning" | "error") => void) => switchFlow({ ctx: c, store: s, liveAuthPath: live, target, report, refreshStatus: async () => {} }) },
+    homeDir: agentDir, platform: "linux" as NodeJS.Platform,
+    openUsageAll: async () => void handed.push(opens),
+  };
+  await runAccountsMenu(ctx, deps);
+  assert.equal(opens, 1);
+  assert.deepEqual(handed, [1]);
 });

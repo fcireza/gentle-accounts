@@ -12,6 +12,7 @@ import { getShowEmail, getUsageBox, runEmailCommand, runUsageCommand, settingsPa
 import { resolveContext } from "./session-home.ts";
 import { captureUsage } from "./usage.ts";
 import { buildAccountsCardModel, renderAccountsCard } from "./accounts-card.ts";
+import { NATIVE_USAGE_UNAVAILABLE_MESSAGE, openNativeUsage } from "./usage-chain.ts";
 import { buildUsageModel, renderUsageBox } from "./usage-view.ts";
 
 const USAGE = [
@@ -27,6 +28,7 @@ const USAGE = [
   "/gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)",
   "/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email",
   "/gentle:accounts usage [on|off]         open the per-account usage box, or turn it on or off",
+  "/gentle:accounts usage all              open the native usage, then the per-account usage box",
 ].join("\n");
 
 const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "rename", "login", "session", "startup", "email", "usage"];
@@ -233,6 +235,14 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     },
   });
 
+  // Native usage first (it resolves when its overlay closes), then the account usage overlay.
+  async function usageAll(ctx: ExtensionCommandContext, s: ProfileStore): Promise<void> {
+    if (!getUsageBox(settingsPath(context().sharedDir))) return notify(ctx, "Account usage box is disabled. Enable it with /gentle:accounts usage on.", "warning");
+    if ((await openNativeUsage(pi)) === "unavailable") notify(ctx, NATIVE_USAGE_UNAVAILABLE_MESSAGE);
+    if (menuAvailable(ctx)) return showUsageBox(ctx, s);
+    return notify(ctx, renderUsageBox(buildUsageModel(s, Date.now()), 80).join("\n"));
+  }
+
   async function handle(args: string, ctx: ExtensionCommandContext): Promise<void> {
       const s = store();
       const [sub = "", arg = "", arg2 = "", ...extra] = args.trim().split(/\s+/);
@@ -287,6 +297,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       if (sub === "usage") {
         const mode = args.trim().split(/\s+/).slice(1).join(" ");
         const file = settingsPath(context().sharedDir);
+        if (mode === "all") return usageAll(ctx, s);
         if (mode) {
           const result = runUsageCommand(mode, file, "/gentle:accounts");
           return notify(ctx, result.message, result.type);
@@ -310,6 +321,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
               refreshCard(c);
             },
             activeClaude: (st) => statusBar.cachedAccount(st),
+            openUsageAll: (c) => usageAll(c, s),
           });
         }
       }

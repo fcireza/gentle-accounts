@@ -88,6 +88,8 @@ export interface MenuDeps {
   /** Cached `claude auth status` result of the active profile (undefined: nothing cached). */
   activeClaude: (store: ProfileStore) => ClaudeAccount | null | undefined;
   flows: MenuFlows;
+  /** Opens the native usage, then the account usage (the menu has already closed). */
+  openUsageAll?: (ctx: ExtensionCommandContext) => Promise<void>;
   homeDir?: string;
   platform?: NodeJS.Platform;
   /** Working directory for the new tabs (default: the session cwd). */
@@ -348,6 +350,13 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
         case "usage":
           // Only what was already seen; closing it reopens the menu on the same selection.
           if (getUsageBox(path)) await showUsageBox(ctx, s);
+          break;
+        case "usageAll":
+          // The menu ends here, like `u` when it hands over: the native overlay opens on a closed menu.
+          if (getUsageBox(path)) {
+            await deps.openUsageAll?.(ctx);
+            return;
+          }
           break;
         case "login": {
           if (action.provider === "claude") {

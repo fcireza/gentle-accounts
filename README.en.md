@@ -61,7 +61,7 @@ The accounts menu is the main way to use it: `/gentle:accounts` lists the profil
 | `/gentle:accounts create <name>` | Creates an empty profile. |
 | `/gentle:accounts session [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
 | `/gentle:accounts email [show\|hide]` | Shows or hides the full email in the status bar. |
-| `/gentle:accounts usage [on\|off]` | Opens the `Account Usage` overlay (what each account's providers already reported), or turns it on or off. While on, a `Gentle Accounts` card below the editor shows the default profile, this session's profile and each profile's last seen usage; `usage off` removes it. |
+| `/gentle:accounts usage [on\|off]` | Opens the `Account Usage` overlay (what each account's providers already reported), or turns it on or off. `usage all` opens the native `/gentle:usage` first and this panel after it closes (key `a` in the menu). While on, a `Gentle Accounts` card below the editor shows the default profile, this session's profile and each profile's last seen usage; `usage off` removes it. |
 | `/gentle:accounts delete <name>` | Deletes a profile, after a confirmation. |
 
 
