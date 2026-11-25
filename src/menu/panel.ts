@@ -11,6 +11,7 @@ export type MenuAction =
   | { type: "startup"; profile: string; row: number }
   | { type: "use"; profile: string; row: number }
   | { type: "email"; profile?: string; row: number }
+  | { type: "usage"; profile?: string; row: number }
   | { type: "open"; profile: string; row: number }
   | { type: "adopt"; row: number }
   | { type: "logout"; profile: string; provider: string; row: number }
@@ -213,6 +214,10 @@ export class AccountsMenuPanel {
         return this.finish(name ? { type: "create", profile: name, row } : { type: "create", row });
       case "char:e":
         return this.finish(name ? { type: "email", profile: name, row } : { type: "email", row });
+      case "char:g":
+        // Only while the usage box is enabled, as the hint says.
+        if (this.model.usageBox === true) return this.finish(name ? { type: "usage", profile: name, row } : { type: "usage", row });
+        return;
       case "char:d":
         if (name) return this.finish({ type: "delete", profile: name, row });
         return;

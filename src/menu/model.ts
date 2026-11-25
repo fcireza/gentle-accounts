@@ -30,6 +30,8 @@ export interface MenuProfile {
 export interface MenuModel {
   title: string;
   showEmail: boolean;
+  /** The per-account usage box is enabled: the `g usage` hint and key exist only then. */
+  usageBox?: boolean;
   /** The profile this session is using (the active one); null when there is none. */
   sessionName?: string | null;
   /** Logins found outside the profiles, offered with the `i` key (global mode only). */
@@ -48,6 +50,7 @@ export interface BuildMenuOptions {
   store: ProfileStore;
   liveAuthPath: string;
   showEmail: boolean;
+  usageBox?: boolean;
   /** True when the menu runs in a session home, where the current profile is the session's own. */
   sessionMode?: boolean;
   /** Logins detected outside the profiles; empty when none. */
@@ -102,6 +105,7 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
   return {
     title: PLUGIN_LABEL,
     showEmail: options.showEmail,
+    usageBox: options.usageBox,
     sessionName: current,
     detected: options.detected ?? [],
     profiles,
