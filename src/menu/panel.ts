@@ -1,5 +1,5 @@
-import { decodeKey } from "./keys.ts";
-import { canOpenProject, menuHits, renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
+import { decodeKey, type MenuKey } from "./keys.ts";
+import { canOpenProject, menuHits, menuSpans, renderMenu, type MenuModel, type MenuTheme } from "./view.ts";
 
 /** Tagged result of one panel opening; `profile`/`row` let the caller reopen on the same selection. */
 export type MenuAction =
@@ -49,6 +49,8 @@ export class AccountsMenuPanel {
   private readonly done: (action: MenuAction) => void;
   private readonly options: PanelOptions;
   private selected: number;
+  /** The key hint under the pointer, drawn lit. */
+  private hover: string | undefined;
   private row: number;
   private finished = false;
   private cache: { width: number; lines: string[] } | undefined;
@@ -64,7 +66,7 @@ export class AccountsMenuPanel {
 
   render(width: number): string[] {
     if (this.cache && this.cache.width === width) return this.cache.lines;
-    const lines = renderMenu({ ...this.model, selected: this.selected, row: this.row }, width, this.theme);
+    const lines = renderMenu({ ...this.model, selected: this.selected, row: this.row, hover: this.hover }, width, this.theme);
     this.cache = { width, lines };
     return lines;
   }
@@ -112,6 +114,14 @@ export class AccountsMenuPanel {
     }
     // Hover: resting the pointer on a row highlights it (the selection), so a click lands on what is lit.
     if (event.type === "move") {
+      // A key hint under the pointer lights up (it is what a click would press); leaving it puts the dim style back.
+      const over = menuSpans(this.model, event.width).find((s) => s.line === event.y && event.x >= s.from && event.x < s.to && "key" in s.target);
+      const hover = over && "key" in over.target ? over.target.key : undefined;
+      if (hover !== this.hover) {
+        this.hover = hover;
+        this.invalidate();
+        return { handled: true, render: true };
+      }
       if (event.x < 2 || event.x > event.width - 3) return { handled: true, render: false };
       const hit = menuHits({ ...this.model, selected: this.selected, row: this.row }, event.width)[event.y];
       // While the providers are open, other profiles are not hovered: selecting one would close them and shift
@@ -129,7 +139,18 @@ export class AccountsMenuPanel {
     if (event.type !== "click" || event.button !== "left") return undefined;
     // The frame and its padding (two cells on each side) are not rows: swallow the click without selecting.
     if (event.x < 2 || event.x > event.width - 3) return { handled: true };
-    const hit = menuHits({ ...this.model, selected: this.selected, row: this.row }, event.width)[event.y];
+    const current = { ...this.model, selected: this.selected, row: this.row };
+    const span = menuSpans(current, event.width).find((s) => s.line === event.y && event.x >= s.from && event.x < s.to);
+    if (span) {
+      if ("key" in span.target) this.press(span.target.key as MenuKey);
+      else {
+        this.selected = span.target.profile;
+        this.row = 0;
+        this.invalidate();
+      }
+      return { handled: true, render: true };
+    }
+    const hit = menuHits(current, event.width)[event.y];
     if (!hit) return { handled: true };
     // A double click acts only on what the first click already selected. The first click can move the layout (it
     // closes the providers of the previously selected profile), so the same cell may now be another row: select it.
@@ -154,7 +175,12 @@ export class AccountsMenuPanel {
   handleInput(data: string): void {
     if (this.finished) return;
     const key = decodeKey(data);
-    if (!key) return;
+    if (key) this.press(key);
+  }
+
+  /** One key press (typed, or the one a clicked hint stands for). */
+  private press(key: MenuKey): void {
+    if (this.finished) return;
     const profile = this.model.profiles[this.selected];
     const name = profile?.name;
     const row = this.row;
@@ -189,7 +215,7 @@ export class AccountsMenuPanel {
       case "char:d":
         if (name) return this.finish({ type: "delete", profile: name, row });
         return;
-      case "char:s":
+      case "char:u":
         if (name) return this.finish({ type: "startup", profile: name, row });
         return;
       case "char:r":

@@ -30,7 +30,7 @@ export interface MenuProfile {
 export interface MenuModel {
   title: string;
   showEmail: boolean;
-  /** The profile set for this session (session mode only); null or absent when none is set. */
+  /** The profile this session is using (the active one); null when there is none. */
   sessionName?: string | null;
   /** Logins found outside the profiles, offered with the `i` key (global mode only). */
   detected?: DetectedLogin[];
@@ -40,6 +40,8 @@ export interface MenuModel {
   /** 0 is the profile row ("switch", providers collapsed); 1..n are the provider rows of the expanded profile. */
   row: number;
   feedback?: Feedback;
+  /** The key hint under the pointer (`char:n`, `escape`...); drawn lit. Never changes the layout. */
+  hover?: string;
 }
 
 export interface BuildMenuOptions {
@@ -100,7 +102,7 @@ export function buildMenuModel(options: BuildMenuOptions): MenuModel {
   return {
     title: PLUGIN_LABEL,
     showEmail: options.showEmail,
-    sessionName: options.sessionMode ? current : null,
+    sessionName: current,
     detected: options.detected ?? [],
     profiles,
     selected,

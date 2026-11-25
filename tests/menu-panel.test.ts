@@ -72,7 +72,7 @@ test("S31 panel: a profile without providers does not expand", () => {
 test("S31 panel: shortcut keys produce tagged actions for the selected profile", () => {
   assert.deepEqual(run(["n"]).actions, [{ type: "create", profile: "work", row: 0 }]);
   assert.deepEqual(run([KEYS.down, "d"]).actions, [{ type: "delete", profile: "zeta", row: 0 }]);
-  assert.deepEqual(run(["s"]).actions, [{ type: "startup", profile: "work", row: 0 }]);
+  assert.deepEqual(run(["u"]).actions, [{ type: "startup", profile: "work", row: 0 }]);
   assert.deepEqual(run([KEYS.right, "e"]).actions, [{ type: "email", profile: "work", row: 1 }]);
   assert.deepEqual(run(["o"]).actions, [], "open needs a logged-in provider row");
   assert.deepEqual(run([KEYS.right, "o"]).actions, [], "a provider that is not logged in does not open");
@@ -108,7 +108,7 @@ test("S31 panel: navigation re-renders the selection and asks the TUI to repaint
 
 test("S31 panel: with no profiles only create, email and close act", () => {
   const empty = model([], 0);
-  assert.deepEqual(run([KEYS.enter, "d", "s", "o", KEYS.right, KEYS.down, KEYS.left, KEYS.up], empty).actions, []);
+  assert.deepEqual(run([KEYS.enter, "d", "u", "o", KEYS.right, KEYS.down, KEYS.left, KEYS.up], empty).actions, []);
   assert.deepEqual(run(["n"], empty).actions, [{ type: "create", row: 0 }]);
   assert.deepEqual(run(["e"], empty).actions, [{ type: "email", row: 0 }]);
   assert.deepEqual(run([KEYS.esc], empty).actions, [{ type: "close" }]);
@@ -190,7 +190,7 @@ test("S35 mouse: clicks outside the rows, other buttons and other events change 
   const lines = panel.render(W);
   assert.deepEqual(panel.handleMouse(mouse(0)), { handled: true }, "frame");
   assert.deepEqual(panel.handleMouse(mouse(1)), { handled: true }, "header");
-  assert.deepEqual(panel.handleMouse(mouse(lines.length - 2)), { handled: true }, "hints");
+  assert.equal(panel.handleMouse(mouse(lines.length - 2, { x: 1 }))?.handled, true, "hints (the padding)");
   assert.deepEqual(panel.handleMouse(mouse(999)), { handled: true }, "below the panel");
   assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { button: "right" })), undefined);
   for (const type of ["release", "drag"]) assert.equal(panel.handleMouse(mouse(lineOf(panel, /zeta/), { type })), undefined, type);
@@ -311,4 +311,90 @@ test("S36 mouse: moving the pointer over a row highlights it without acting, and
   assert.equal(panel.render(W).join("\n"), before);
   panel.handleMouse(move(lineOf(panel, /Codex/)));
   assert.match(panel.render(W).join("\n"), /▸ .* Codex/);
+});
+
+// -- clickable menu: key hints, header and the detected-login line -----------------------------------------------
+
+function clickOn(panel: AccountsMenuPanel, pattern: RegExp, needle: string, width = W) {
+  const lines = panel.render(width);
+  const y = lines.findIndex((l) => pattern.test(l));
+  assert.ok(y >= 0, `a line matching ${pattern}`);
+  const x = lines[y].indexOf(needle);
+  assert.ok(x >= 0, `${needle} on that line`);
+  return panel.handleMouse(mouse(y, { x, width }));
+}
+
+test("mouse: clicking a key hint acts like pressing that key", () => {
+  const cases: [string, MenuAction][] = [
+    ["n new", { type: "create", profile: "work", row: 0 }],
+    ["r rename", { type: "rename", profile: "work", row: 0 }],
+    ["d delete", { type: "delete", profile: "work", row: 0 }],
+    ["u use session", { type: "startup", profile: "work", row: 0 }],
+    ["e email", { type: "email", profile: "work", row: 0 }],
+    ["esc close", { type: "close" }],
+  ];
+  for (const [needle, expected] of cases) {
+    const actions: MenuAction[] = [];
+    const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+    assert.equal(clickOn(panel, /esc close/, needle)?.handled, true, needle);
+    assert.deepEqual(actions, [expected], needle);
+  }
+});
+
+test("mouse: a hint click lands on the hint, not on the gap or the other hints", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  const lines = panel.render(W);
+  const y = lines.findIndex((l) => /esc close/.test(l));
+  panel.handleMouse(mouse(y, { x: lines[y].indexOf("n new") + "n new".length })); // the gap right after the hint
+  assert.deepEqual(actions, []);
+});
+
+test("mouse: the hints work on narrow layouts, where they wrap", () => {
+  const actions: MenuAction[] = [];
+  const panel = new AccountsMenuPanel(model(), identityTheme, (a) => actions.push(a));
+  clickOn(panel, /esc close/, "esc close", 40);
+  assert.deepEqual(actions, [{ type: "close" }]);
+});
+
+test("mouse: the header names select the default and the session profile", () => {
+  const m = { ...model(), profiles: model().profiles.map((p) => ({ ...p, startup: p.name === "zeta" })), sessionName: "work", selected: 0 };
+  const panel = new AccountsMenuPanel(m, identityTheme, () => assert.fail("no action"));
+  clickOn(panel, /Account Default/, "Account Default: zeta");
+  assert.match(panel.render(W).join("\n"), /▸ ○ zeta/);
+  clickOn(panel, /Account Session/, "Account Session: work");
+  assert.match(panel.render(W).join("\n"), /▸ ● work/);
+});
+
+test("mouse: the detected-login line adopts it", () => {
+  const actions: MenuAction[] = [];
+  const m = { ...model(), detected: [{ kind: "claude" as const, providers: ["claude"] }] };
+  const panel = new AccountsMenuPanel(m, identityTheme, (a) => actions.push(a));
+  clickOn(panel, /Detected login/, "Detected login");
+  assert.deepEqual(actions, [{ type: "adopt", row: 0 }]);
+});
+
+test("hover: a command hint lights up under the pointer and goes back to dim when the pointer leaves", () => {
+  const lit = (panel: AccountsMenuPanel) => panel.render(W).join("\n");
+  const themed = { fg: (color: string, text: string) => (color === "dim" ? `<d>${text}</d>` : text), bold: (text: string) => `<b>${text}</b>` };
+  const panel = new AccountsMenuPanel(model(), themed, () => assert.fail("hover never acts"));
+  const plain = new AccountsMenuPanel(model(), identityTheme, () => {}).render(W); // where things are, without style tags
+  const y = plain.findIndex((l) => /esc close/.test(l));
+  const x = plain[y].indexOf("n new");
+  const move = (px: number, py: number) => panel.handleMouse({ type: "move", button: "none", x: px, y: py, width: W });
+  assert.match(lit(panel), /<d>new<\/d>/, "dim at rest");
+  assert.deepEqual(move(x, y), { handled: true, render: true });
+  assert.match(lit(panel), /<b>n<\/b> <b>new<\/b>/, "lit under the pointer");
+  assert.match(lit(panel), /<d>rename<\/d>/, "the others stay dim");
+  assert.deepEqual(move(x, y), { handled: true, render: false }, "no redraw while it stays on the same hint");
+  assert.deepEqual(move(5, 3), { handled: true, render: true }, "leaving the hint redraws it dim");
+  assert.match(lit(panel), /<d>new<\/d>/);
+});
+
+test("the arrow hints have their own line, apart from the commands", () => {
+  const lines = new AccountsMenuPanel(model(), identityTheme, () => {}).render(W);
+  const nav = lines.findIndex((l) => /↑↓ profile/.test(l));
+  const commands = lines.findIndex((l) => /n new/.test(l));
+  assert.ok(nav >= 0 && commands === nav + 1, "commands on the line below the arrows");
+  assert.doesNotMatch(lines[commands], /↑↓|→←/);
 });
