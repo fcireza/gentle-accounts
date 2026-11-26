@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/fcireza/gentle-accounts/releases"><img src="https://img.shields.io/github/v/release/fcireza/gentle-accounts?label=release&labelColor=1A1218&color=F095C8&style=for-the-badge" alt="release"></a>
+  <a href="https://www.npmjs.com/package/gentle-accounts"><img src="https://img.shields.io/npm/v/gentle-accounts?label=npm&labelColor=1A1218&color=F095C8&style=for-the-badge" alt="npm"></a>
   <a href="https://github.com/fcireza/gentle-accounts/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-1A1218?labelColor=1A1218&color=D7A0B8&style=for-the-badge" alt="MIT"></a>
   <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-native-F095C8?labelColor=1A1218&style=for-the-badge" alt="Pi-native package"></a>
 </p>
@@ -91,6 +92,16 @@ gentle-shell install git:github.com/fcireza/gentle-accounts
 pi install git:github.com/fcireza/gentle-accounts
 ```
 
+From npm (the same package, published on every release):
+
+```sh
+gentle-shell install npm:gentle-accounts
+```
+
+```sh
+pi install npm:gentle-accounts
+```
+
 ### Windows (PowerShell)
 
 **Windows has not been tested on a real machine**, only by automated tests; WSL is recommended.
@@ -101,6 +112,16 @@ gentle-shell install git:github.com/fcireza/gentle-accounts
 
 ```powershell
 pi install git:github.com/fcireza/gentle-accounts
+```
+
+From npm (the same package, published on every release):
+
+```powershell
+gentle-shell install npm:gentle-accounts
+```
+
+```powershell
+pi install npm:gentle-accounts
 ```
 
 ## Uninstall

@@ -3,6 +3,9 @@ name: Release
 # Every merge to main gets a vX.Y.Z tag and a GitHub Release with generated
 # notes. The version comes from scripts/next-version.ts (latest tag + the
 # squashed commit message); commit text is never interpolated into a script.
+# The tagged version is then published to npm (needs the NPM_TOKEN secret, a
+# granular token with publish rights and bypass 2FA; without it, publishing
+# is skipped with a warning). package.json is stamped in the runner only.
 on:
   push:
     branches: [main]
@@ -25,6 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: https://registry.npmjs.org
       - name: Tag and release
         id: release
         env:
@@ -38,3 +42,27 @@ jobs:
           VERSION="$(node scripts/next-version.ts)"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN is not set; skipping npm publish."
+            exit 0
+          fi
+          # First run: output of the release step (its tag only exists on the
+          # remote). A re-run skips tagging and reads the tag the checkout fetched.
+          VERSION="${RELEASE_VERSION:-$(git tag --points-at HEAD --list 'v[0-9]*' | head -n 1 | sed 's/^v//')}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::HEAD has no vX.Y.Z tag; nothing to publish."
+            exit 1
+          fi
+          NAME="$(node -p "require('./package.json').name")"
+          # Idempotent: a re-run after a successful publish is a no-op.
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on npm; nothing to publish."
+            exit 0
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          npm publish --access public

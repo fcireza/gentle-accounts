@@ -64,13 +64,14 @@ See [Installation](install.md) for installing the clone with `pi install`.
 
 ## Tag and Release on every merge
 
-Every merge to `main` runs `.github/workflows/release.yml`, which creates a `vX.Y.Z` tag and a GitHub Release with generated notes. There is no release PR and no token to configure: the workflow uses the default `GITHUB_TOKEN` with `contents: write`.
+Every merge to `main` runs `.github/workflows/release.yml`, which creates a `vX.Y.Z` tag and a GitHub Release with generated notes. There is no release PR: the workflow uses the default `GITHUB_TOKEN` with `contents: write` for the tag and the release, and publishes the tagged version to npm with the `NPM_TOKEN` repository secret.
 
 - Releases run one at a time and are never cancelled midway.
 - The checkout uses the full history and tags. `scripts/next-version.ts` refuses a shallow clone with `next-version: shallow clone detected; fetch the full history and tags (checkout with fetch-depth: 0)`, because missing tags would silently give `0.1.0`.
 - A commit that already has a tag is skipped, so re-running the workflow is safe.
 - The next version comes from the latest reachable `vX.Y.Z` tag and the squashed commit message; commit text is never put into a shell script. With no tag yet, the first release is `0.1.0`.
 - The release is created with `gh release create` and `--generate-notes`.
+- The npm publish step stamps `package.json` with the tag version inside the runner only (nothing is committed back), skips with a warning when `NPM_TOKEN` is not set, and does nothing when that version is already on npm. `NPM_TOKEN` is a granular npm token with write access to the package and bypass 2FA.
 
 To see the version the next release would get:
 
@@ -80,7 +81,7 @@ node scripts/next-version.ts
 
 The PR body counts too: a line that starts with `BREAKING CHANGE:` bumps the version, even if you are only quoting it.
 
-The `version` field in `package.json` is not rewritten on `main` (direct pushes are blocked); the tag is the source of truth.
+The `version` field in `package.json` is not rewritten on `main` (direct pushes are blocked); the tag is the source of truth, and the npm package gets that version at publish time.
 
 ## Branch protection
 
