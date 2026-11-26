@@ -10,6 +10,7 @@ Qué encontrará aquí: cómo elegir entre Gentle Shell y pi, los requisitos, un
 | --- | --- | --- |
 | Para quién | usa Gentle Shell | usa pi sin Gentle Shell |
 | Comando | `gentle-shell -- install git:github.com/fcireza/gentle-accounts` | `pi install git:github.com/fcireza/gentle-accounts` |
+| Comando (npm) | `gentle-shell -- install npm:gentle-accounts` | `pi install npm:gentle-accounts` |
 | Carpeta del agente | `~/.gentle-shell/agent` (o `GENTLE_SHELL_HOME`) | `~/.pi/agent` (o `PI_CODING_AGENT_DIR`) |
 
 Con Gentle Shell, todo lo que va después de `--` se pasa a pi, que clona el paquete en la carpeta del agente y lo agrega al `settings.json` de esa carpeta. Las opciones de Gentle Shell, como `--home <path>`, van antes del `--`. Reinicie Gentle Shell o pi y `/gentle:accounts` queda disponible.
@@ -37,6 +38,16 @@ O con pi:
 pi install git:github.com/fcireza/gentle-accounts
 ```
 
+O desde npm (el mismo paquete, publicado en cada versión):
+
+```sh
+gentle-shell -- install npm:gentle-accounts
+```
+
+```sh
+pi install npm:gentle-accounts
+```
+
 Carpeta del agente: `~/.gentle-shell/agent` (con pi: `~/.pi/agent`).
 
 Ruta del clon: pi clona los paquetes git dentro de `git/` en la carpeta del agente, así que el clon queda en `~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts`. Esta ruta viene del README existente y no se verificó contra el código de pi; confírmela con:
@@ -52,6 +63,8 @@ alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-
 ```
 
 Con pi, reemplace `.gentle-shell/agent` por `.pi/agent` en la ruta del alias.
+
+Si instaló desde npm, pi deja el paquete en `npm/node_modules/` dentro de la carpeta del agente, así que la ruta del alias es `~/.gentle-shell/agent/npm/node_modules/gentle-accounts/bin/gentle-accounts.mjs` (esta estructura sale de los otros paquetes npm de la carpeta del agente y no se verificó para este paquete; compruébela con `ls ~/.gentle-shell/agent/npm/node_modules/gentle-accounts/bin`).
 
 Verificación: abra Gentle Shell o pi y ejecute `/gentle:accounts list`. En una terminal nueva, `gentle-accounts --help` muestra el uso del launcher.
 
@@ -69,6 +82,16 @@ O con pi:
 pi install git:github.com/fcireza/gentle-accounts
 ```
 
+O desde npm (el mismo paquete, publicado en cada versión):
+
+```sh
+gentle-shell -- install npm:gentle-accounts
+```
+
+```sh
+pi install npm:gentle-accounts
+```
+
 Carpeta del agente: `~/.gentle-shell/agent` (con pi: `~/.pi/agent`).
 
 Ruta del clon: la misma estructura que en macOS, `~/.gentle-shell/agent/git/github.com/fcireza/gentle-accounts` (del README existente, no verificada contra el código de pi). Confírmela con el mismo comando `ls`:
@@ -84,6 +107,8 @@ alias gentle-accounts='node ~/.gentle-shell/agent/git/github.com/fcireza/gentle-
 ```
 
 Con pi, reemplace `.gentle-shell/agent` por `.pi/agent` en la ruta del alias.
+
+Si instaló desde npm, pi deja el paquete en `npm/node_modules/` dentro de la carpeta del agente, así que la ruta del alias es `~/.gentle-shell/agent/npm/node_modules/gentle-accounts/bin/gentle-accounts.mjs` (esta estructura sale de los otros paquetes npm de la carpeta del agente y no se verificó para este paquete; compruébela con `ls ~/.gentle-shell/agent/npm/node_modules/gentle-accounts/bin`).
 
 Verificación: abra Gentle Shell o pi y ejecute `/gentle:accounts list`. En una terminal nueva, `gentle-accounts --help` muestra el uso del launcher.
 
@@ -103,6 +128,16 @@ O con pi:
 pi install git:github.com/fcireza/gentle-accounts
 ```
 
+O desde npm (el mismo paquete, publicado en cada versión):
+
+```powershell
+gentle-shell -- install npm:gentle-accounts
+```
+
+```powershell
+pi install npm:gentle-accounts
+```
+
 Carpeta del agente: `%USERPROFILE%\.gentle-shell\agent` (con pi: `%USERPROFILE%\.pi\agent`).
 
 Ruta del clon: `%USERPROFILE%\.gentle-shell\agent\git\github.com\fcireza\gentle-accounts` (del README existente, no verificada contra el código de pi). Confírmela con:
@@ -119,17 +154,19 @@ function gentle-accounts { node "$env:USERPROFILE\.gentle-shell\agent\git\github
 
 Con pi, reemplace `.gentle-shell\agent` por `.pi\agent` en la ruta de la función.
 
+Si instaló desde npm, el paquete queda en `%USERPROFILE%\.gentle-shell\agent\npm\node_modules\gentle-accounts` (esta estructura no se verificó para este paquete), así que use `...\npm\node_modules\gentle-accounts\bin\gentle-accounts.mjs` en la ruta de la función.
+
 Verificación: abra Gentle Shell o pi y ejecute `/gentle:accounts list`. En una ventana nueva de PowerShell, `gentle-accounts --help` muestra el uso del launcher.
 
 En Windows el launcher inicia `gentle-shell` y `claude` a través de la shell, para que se resuelvan los shims `.cmd` del `PATH`.
 
 ## Actualizar
 
-Reinstalar descarga la última versión de `main`: ejecute de nuevo el mismo comando de instalación. pi también documenta `pi update --extensions` para sincronizar los paquetes instalados.
+Reinstalar descarga la última versión de `main`: ejecute de nuevo el mismo comando de instalación. Una instalación desde git sigue `main`; una desde npm recibe la última versión publicada, así que ejecute de nuevo `pi install npm:gentle-accounts` (o `pi update`) para pasar a una versión más nueva. pi también documenta `pi update --extensions` para sincronizar los paquetes instalados.
 
 ## Quitar
 
-Borre la línea `git:github.com/fcireza/gentle-accounts` de la lista `packages` del `settings.json` de la carpeta del agente (`~/.gentle-shell/agent/settings.json` para Gentle Shell) y reinicie. pi también documenta `pi remove <source>`. Los perfiles quedan en disco dentro de `profiles/` en la carpeta del agente hasta que borre esa carpeta.
+Borre la línea `git:github.com/fcireza/gentle-accounts` (o `npm:gentle-accounts`, si instaló desde npm) de la lista `packages` del `settings.json` de la carpeta del agente (`~/.gentle-shell/agent/settings.json` para Gentle Shell) y reinicie. pi también documenta `pi remove <source>`. Los perfiles quedan en disco dentro de `profiles/` en la carpeta del agente hasta que borre esa carpeta.
 
 ## Paquete anterior
 
