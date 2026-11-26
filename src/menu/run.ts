@@ -2,7 +2,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { spawn as nodeSpawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { loginEnv, runClaudeLoginHere, type InheritResult, type InheritSpawn } from "../login-runner.ts";
+import { loginEnv, runClaudeLoginHere, runCommandHere, type InheritResult, type InheritSpawn } from "../login-runner.ts";
 import { openInNewTab, type OpenTabResult, type TabCommand, type TabSpawn } from "../terminal.ts";
 import { PROVIDER_LABELS, runClaudeAuthLogout, type ClaudeAccount } from "../account.ts";
 import { claudeLoginCommand, loginHint } from "../login.ts";
@@ -97,6 +97,8 @@ export interface MenuDeps {
   /** Runs `claude auth logout` with the profile's env (default: the real CLI). */
   claudeLogout?: (env: NodeJS.ProcessEnv) => Promise<{ ok: boolean; message: string }>;
   loginHere?: (ctx: ExtensionCommandContext, claudeDir: string | undefined) => Promise<InheritResult>;
+  /** Runs `gentle-accounts <profile> --session <file>` in this terminal (default: the real launcher). */
+  relaunch?: (ctx: ExtensionCommandContext, args: string[]) => Promise<InheritResult>;
 }
 
 export const CLAUDE_LOGIN_CHOICES = ["In a new terminal tab", "In this terminal", "Show the command"] as const;
@@ -113,6 +115,9 @@ const defaultOpenTab = (platform: NodeJS.Platform) => (cwd: string, command: Tab
 
 const defaultLoginHere = (platform: NodeJS.Platform) => (ctx: ExtensionCommandContext, claudeDir: string | undefined) =>
   runClaudeLoginHere(ctx as never, claudeDir, { spawn: nodeSpawn as unknown as InheritSpawn, signals: process, env: process.env, platform });
+
+const defaultRelaunch = (platform: NodeJS.Platform) => (ctx: ExtensionCommandContext, args: string[]) =>
+  runCommandHere(ctx as never, "gentle-accounts", args, { spawn: nodeSpawn as unknown as InheritSpawn, signals: process, env: process.env, platform });
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -179,6 +184,7 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
   const platform = deps.platform ?? process.platform;
   const openTab = deps.openTab ?? defaultOpenTab(platform);
   const loginHere = deps.loginHere ?? defaultLoginHere(platform);
+  const relaunch = deps.relaunch ?? defaultRelaunch(platform);
   const cwd = deps.cwd ?? (ctx as { cwd?: string }).cwd ?? process.cwd();
   for (;;) {
     const { store: s, liveAuthPath, sharedDir, session } = deps.context();
@@ -217,6 +223,41 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
         case "switch":
           await deps.flows.switchTo(ctx, s, liveAuthPath, action.profile, set);
           break;
+        case "use": {
+          // Already in a private session home: the switch is this session's own.
+          if (session !== null) {
+            await deps.flows.switchTo(ctx, s, liveAuthPath, action.profile, set);
+            break;
+          }
+          if (platform === "win32") {
+            set(`Using a profile for this session only is not supported on Windows yet. Open it in a new tab with o: gentle-accounts ${action.profile}`, "warning");
+            break;
+          }
+          if (!ctx.isIdle()) {
+            set("Wait for the current turn to finish before moving this chat to its own account.", "warning");
+            break;
+          }
+          // pi's agent dir is fixed when it starts: the chat continues in a launcher session (private home) on the profile.
+          const sessionFile = (ctx as { sessionManager?: { getSessionFile?: () => string | undefined } }).sessionManager?.getSessionFile?.();
+          // Without a session file (an ephemeral chat) the conversation could not follow: refuse instead of losing it.
+          if (!sessionFile) {
+            set(`This chat has no session file, so it cannot continue on another account. Open the project with "${action.profile}" in a new tab with o: gentle-accounts ${action.profile}`, "warning");
+            break;
+          }
+          const result = await relaunch(ctx, [action.profile, "--session", sessionFile]);
+          if ("error" in result) {
+            set(`Could not start gentle-accounts: ${errorText(result.error)}. Is it on your PATH?`, "error");
+            break;
+          }
+          // A launcher that failed (unknown profile, killed) did not take the chat: keep this window and say so.
+          if (result.code !== 0) {
+            set(`gentle-accounts ended ${result.code === null ? `by ${result.signal ?? "a signal"}` : `with code ${result.code}`}; this window keeps its current account.`, "error");
+            break;
+          }
+          // The chat lived on in the private session; this window still points at the shared account, so it ends with it.
+          ctx.shutdown();
+          return;
+        }
         case "create": {
           const name = (await ctx.ui.input("New profile name", "work"))?.trim();
           if (!name) break;

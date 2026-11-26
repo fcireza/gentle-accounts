@@ -67,6 +67,15 @@ export function loginEnv(base: NodeJS.ProcessEnv, claudeDir: string | undefined)
   return env;
 }
 
+/** Runs `file args` in this terminal with the TUI handed over (the same pattern as the login); resolves after the TUI is back. */
+export function runCommandHere(ctx: CustomUi, file: string, args: readonly string[], deps: LoginHereDeps): Promise<InheritResult> {
+  return ctx.ui.custom<InheritResult>((tui, _theme, _keybindings, done) => {
+    void handOverTerminal(tui, deps.signals, () => runInherit(deps.spawn, file, args, deps.env, deps.platform === "win32"))
+      .then(done, (error: unknown) => done({ error }));
+    return { render: () => [], invalidate: () => {} };
+  });
+}
+
 /** Runs `claude auth login` in this terminal; resolves after the TUI is restored and `done` was called. */
 export function runClaudeLoginHere(ctx: CustomUi, claudeDir: string | undefined, deps: LoginHereDeps): Promise<InheritResult> {
   const env = loginEnv(deps.env, claudeDir);

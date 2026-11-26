@@ -142,14 +142,16 @@ test("S31 render: wide layout lists the profiles, expands the selected one and s
   assert.match(plain[0], /^╭─+ Gentle Accounts ─+╮$/, "title centered in the top border");
   assert.match(plain[1], /^│ Account Default: personal · Account Session: work +│$/, "the default account is the session profile");
   assert.match(plain[2], /^│ ─+ │$/);
-  assert.match(plain.at(-3)!, /^│ ─+ │$/, "a rule separates the key hints from the rest");
+  assert.match(plain.at(-4)!, /^│ ─+ │$/, "a rule separates the key hints from the rest");
+  assert.match(plain.at(-3)!, /^│ ↑↓ profile {2}→← providers {2}enter select +│$/, "the arrow hints have their own line");
+  assert.match(plain.at(-2)!, /^│ n new {2}r rename/, "the commands follow on another line");
   assert.match(text, /▸ ○ personal ★ {2}Claude Bridge · Anthropic/);
   assert.match(text, /\s{2}● work {4,}Codex {2}active/);
   assert.doesNotMatch(text, /logged in/, "providers stay collapsed on the profile row");
   assert.doesNotMatch(text, /mari\*\*\*\*/, "no email on the list");
   assert.match(text, /Delete cancelled\./);
   assert.match(text, /↑↓ profile {2}→← providers {2}enter select/);
-  assert.match(text, /n new {2}r rename {2}d delete {2}s set session/);
+  assert.match(text, /n new {2}r rename {2}d delete {2}u use session/);
   assert.match(text, /e email {2}esc close/);
   assert.doesNotMatch(text, /o open/, "open is offered only on a logged-in provider row");
   const open = renderMenu({ ...m, row: 3 }, 100).join("\n");
@@ -255,8 +257,8 @@ test("S37 render: in the key hints the keys use the theme's accent and the text 
   const m = { ...model(), selected: 0 };
   const wide = renderMenu(m, 200, named).join("\n");
   assert.ok(wide.includes(`${key("↑↓", "profile")}  ${key("→←", "providers")}  ${key("enter", "select")}`));
-  assert.ok(wide.includes(`${key("n", "new")}  ${key("r", "rename")}  ${key("d", "delete")}  ${key("s", "set session")}`));
-  assert.ok(wide.includes(`${key("e", "email")}  ${key("esc", "close")}`));
+  
+  assert.ok(wide.includes(`${key("n", "new")}  ${key("r", "rename")}  ${key("d", "delete")}  ${key("u", "use session")}  ${key("f", "default")}  ${key("e", "email")}  ${key("esc", "close")}`));
   assert.ok(!wide.includes(`${A}o${R}`), "no open hint off a logged-in provider");
   assert.ok(renderMenu({ ...m, row: 1 }, 200, named).join("\n").includes(key("o", "open in tab")));
   assert.ok(renderMenu(m, 40, named).join("\n").includes(key("⏎", "ok")), "compact layout too");
@@ -293,46 +295,47 @@ test("S42 hits: one entry per rendered line with multi-line feedback, in the com
   }
 });
 
-test("S10 hints: r rename is listed and the wide hints take three lines that fit the narrowest panel", () => {
+test("S10 hints: r rename is listed and the hints take two lines (arrows, then commands) that fit the narrowest panel", () => {
   const m = { ...model(), selected: 0 };
   const plain = renderMenu(m, 60, identityTheme).map(strip);
   const text = plain.join("\n");
   assert.match(text, /│ ↑↓ profile {2}→← providers {2}enter select +│/);
-  assert.match(text, /│ n new {2}r rename {2}d delete {2}s set session +│/);
-  assert.match(text, /│ e email {2}esc close +│/);
-  const hintLines = plain.filter((l) => /↑↓ profile|n new  r rename|e email/.test(l));
-  assert.equal(hintLines.length, 3, "three hint lines");
+  for (const hint of ["n new", "r rename", "d delete", "u use session", "f default", "e email", "esc close"]) assert.ok(text.includes(hint), hint);
+  const hintLines = plain.filter((l) => /↑↓ profile|n new|u use session|e email/.test(l));
+  assert.equal(hintLines.length, 3, "the arrows, then the commands wrapped in groups");
   assert.doesNotMatch(hintLines.join("\n"), /…/, "no hint is cut at the 60 columns of the panel's minimum width");
   const open = renderMenu({ ...m, row: 1 }, 60, identityTheme).map(strip).join("\n");
-  assert.match(open, /│ e email {2}o open in tab {2}x logout {2}esc close +│/);
+  assert.match(open, /o open/);
+  assert.match(open, /x logout/);
   for (const width of WIDTHS) for (const line of renderMenu({ ...m, row: 1 }, width, identityTheme)) assert.ok(visibleWidth(line) <= width, `width ${width}`);
 });
 
 test("S10 hints: compact layout lists r rename too", () => {
   const text = renderMenu({ ...model(), selected: 0 }, 40, identityTheme).map(strip).join("\n");
   assert.match(text, /n new r rename d del/);
-  assert.match(text, /s session e email/);
+  assert.match(text, /u use f default e email/);
   assert.match(text, /esc close/);
 });
 
 test("hints go on one line when they fit and the frame and separators use the theme's border accent", () => {
   const m = { ...model(), selected: 0 };
   const lines = renderMenu(m, 200, taggedTheme).map(strip);
-  assert.ok(lines.some((l) => /↑↓ profile  →← providers  enter select  n new  r rename  d delete  s set session  e email  esc close/.test(l)));
+  assert.ok(lines.some((l) => /↑↓ profile  →← providers  enter select +│/.test(l)));
+  assert.ok(lines.some((l) => /n new  r rename  d delete  u use session  f default  e email  esc close/.test(l)));
   const colors: string[] = [];
   renderMenu(m, 100, { fg: (c, t) => (colors.push(c), t) });
   assert.ok(colors.includes("borderAccent") && !colors.includes("border"));
 });
 
-test("the header shows no session account when none is active", () => {
+test("the header shows no session account when none is active, and the active one in global mode too", () => {
   const m = model();
   assert.doesNotMatch(renderMenu({ ...m, sessionName: null }, 100, identityTheme).join("\n"), /Session:/);
-  assert.doesNotMatch(renderMenu({ ...model({ sessionMode: false }) }, 100, identityTheme).join("\n"), /Session:/, "global mode");
+  assert.match(renderMenu({ ...model({ sessionMode: false }) }, 100, identityTheme).join("\n"), /Account Session: work/, "global mode");
 });
 
 test("hints use short labels on one line when the full ones do not fit", () => {
-  const plain = renderMenu({ ...model(), selected: 0 }, 100, identityTheme).map(strip);
-  assert.ok(plain.some((l) => /↑↓ profile  →← providers  ⏎ ok  n new  r rename  d del  s session  e email  esc close/.test(l)));
+  const plain = renderMenu({ ...model(), selected: 0 }, 70, identityTheme).map(strip);
+  assert.ok(plain.some((l) => /n new  r rename  d del  u session  f default  e email  esc close/.test(l)));
 });
 
 test("a detected Claude login shows its email only when email display is on, masked", () => {

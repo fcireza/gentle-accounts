@@ -6,12 +6,15 @@ import { assertSharedSettingsReadable, buildSessionHome, ensureBaseDir, finishSe
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
+/** Pins the profile of a launch without a `<name>` (e.g. an agent command in herdr): each pane keeps its own account. */
+export const PROFILE_ENV = "GENTLE_ACCOUNTS_PROFILE";
 export const MANAGED_HOME_MESSAGE = "gentle-accounts manages the agent home; do not pass --home, --link or --isolated.";
 const MANAGED_FLAGS = ["--home", "--link", "--isolated"];
 
 export const USAGE = [
   "Usage:",
   "  gentle-accounts <name> [gentle-shell args...]   start gentle-shell with profile <name>",
+  "  gentle-accounts [gentle-shell args...]          same, with the profile named by $GENTLE_ACCOUNTS_PROFILE",
   "  gentle-accounts list                            list profiles (* marks the active one)",
   "  gentle-accounts current                         print the active profile",
   "  gentle-accounts create <name>                   create an empty profile",
@@ -70,7 +73,10 @@ const prefixed = (message: string) => (message.startsWith("gentle-accounts:") ? 
 /** Only the `<name>` launch is asynchronous; every other command returns synchronously. */
 export function runCli(argv: string[], deps: CliDeps): number | Promise<number> {
   const { store, stdout, stderr } = deps;
-  const [first, second, ...rest] = argv;
+  // No `<name>` but GENTLE_ACCOUNTS_PROFILE set: that profile, every argument goes to gentle-shell. An explicit name wins.
+  const pinned = deps.env[PROFILE_ENV];
+  const fromEnv = Boolean(pinned) && (argv.length === 0 || (argv[0].startsWith("-") && !["--help", "-h"].includes(argv[0])));
+  const [first, second, ...rest] = fromEnv ? [pinned!, ...argv] : argv;
 
   if (!first) {
     stderr(USAGE);
