@@ -162,7 +162,7 @@ En Windows el launcher inicia `gentle-shell` y `claude` a través de la shell, p
 
 ## Actualizar
 
-Reinstalar descarga la última versión de `main`: ejecute de nuevo el mismo comando de instalación. Una instalación desde git sigue `main`; una desde npm recibe la última versión publicada, así que ejecute de nuevo `pi install npm:gentle-accounts` (o `pi update`) para pasar a una versión más nueva. pi también documenta `pi update --extensions` para sincronizar los paquetes instalados.
+Reinstalar descarga la última versión de `main`: ejecute de nuevo el mismo comando de instalación. Una instalación desde git sigue `main`; una desde npm recibe la última versión publicada, así que ejecute de nuevo `pi install npm:gentle-accounts` (o `pi update --extensions`) para pasar a una versión más nueva. pi también documenta `pi update --extensions` para sincronizar los paquetes instalados.
 
 ## Quitar
 
