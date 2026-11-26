@@ -1,7 +1,7 @@
 import { ProfileStore, runStartupCommand } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyClaudeConfigEnv, assertProfileReadable, ensureDefaultProfile, type Env } from "./auth-sync.ts";
 import { renameProfile } from "./rename.ts";
-import { runEmailCommand } from "./settings.ts";
+import { runEmailCommand, runUsageCommand } from "./settings.ts";
 import { assertSharedSettingsReadable, buildSessionHome, ensureBaseDir, finishSessionHome, recordSessionChildPid, sessionBaseDir, sweepSessionHomes } from "./session-home.ts";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -22,6 +22,7 @@ export const USAGE = [
   "  gentle-accounts rename <old> <new>              rename a profile (its logins move with it)",
   "  gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)",
   "  gentle-accounts email [show|hide]               show or set whether the status bar shows the full email",
+  "  gentle-accounts usage [on|off]                  show or set the per-account usage box of the accounts overlay",
   "  gentle-accounts --help                          show this help",
 ].join("\n");
 
@@ -74,7 +75,7 @@ const prefixed = (message: string) => (message.startsWith("gentle-accounts:") ? 
 export function runCli(argv: string[], deps: CliDeps): number | Promise<number> {
   const { store, stdout, stderr } = deps;
   // No `<name>` but GENTLE_ACCOUNTS_PROFILE set: that profile, every argument goes to gentle-shell. An explicit name wins.
-  const pinned = deps.env[PROFILE_ENV];
+  const pinned = deps.env[PROFILE_ENV]?.trim(); // a blank pin counts as unset
   const fromEnv = Boolean(pinned) && (argv.length === 0 || (argv[0].startsWith("-") && !["--help", "-h"].includes(argv[0])));
   const [first, second, ...rest] = fromEnv ? [pinned!, ...argv] : argv;
 
@@ -129,6 +130,11 @@ export function runCli(argv: string[], deps: CliDeps): number | Promise<number> 
   }
   if (first === "email") {
     const result = runEmailCommand([second ?? "", ...rest].join(" ").trim(), join(store.profilesDir, "settings.json"), "gentle-accounts");
+    (result.type === "info" ? stdout : stderr)(result.message);
+    return result.type === "info" ? 0 : 1;
+  }
+  if (first === "usage") {
+    const result = runUsageCommand([second ?? "", ...rest].join(" ").trim(), join(store.profilesDir, "settings.json"), "gentle-accounts");
     (result.type === "info" ? stdout : stderr)(result.message);
     return result.type === "info" ? 0 : 1;
   }

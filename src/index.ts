@@ -4,12 +4,15 @@ import { createStatusBar, type TimerHandle } from "./status-bar.ts";
 import { ProfileStore, MISSING_PROFILE_MESSAGE, SESSION_PROFILE_DELETE_MESSAGE, runStartupCommand, validateProfileName } from "./store.ts";
 import { LAUNCH_PROFILE_ENV, applyCurrentProfileEnv, applyStartupProfile, assertProfileReadable, ensureDefaultProfile, switchProfile } from "./auth-sync.ts";
 import { migrateToLinkedAuth } from "./auth-migrate.ts";
-import { menuAvailable, runAccountsMenu, type MenuFlows, type Report } from "./menu/run.ts";
+import { menuAvailable, runAccountsMenu, showUsageBox, type MenuFlows, type Report } from "./menu/run.ts";
 import type { Feedback } from "./menu/view.ts";
 import { claudeLoginCommand, loginHint } from "./login.ts";
 import { renameProfile } from "./rename.ts";
-import { getShowEmail, runEmailCommand, settingsPath } from "./settings.ts";
+import { getShowEmail, getUsageBox, runEmailCommand, runUsageCommand, settingsPath } from "./settings.ts";
 import { resolveContext } from "./session-home.ts";
+import { captureUsage } from "./usage.ts";
+import { NATIVE_USAGE_UNAVAILABLE_MESSAGE, openNativeUsage } from "./usage-chain.ts";
+import { buildUsageModel, renderUsageBox } from "./usage-view.ts";
 
 const USAGE = [
   "/gentle:accounts                 open the accounts menu (picker without the TUI)",
@@ -23,9 +26,11 @@ const USAGE = [
   "/gentle:accounts login claude    show the command that logs the active profile into Claude Code",
   "/gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)",
   "/gentle:accounts email [show|hide]      show or set whether the status bar shows the full email",
+  "/gentle:accounts usage [on|off]         open the per-account usage box, or turn it on or off",
+  "/gentle:accounts usage all              open the native usage, then the per-account usage box",
 ].join("\n");
 
-const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "rename", "login", "session", "startup", "email"];
+const SUBCOMMANDS = ["menu", "list", "current", "create", "delete", "rename", "login", "session", "startup", "email", "usage"];
 
 function notify(ctx: ExtensionCommandContext, message: string, type: "info" | "warning" | "error" = "info"): void {
   ctx.ui.notify(message, type);
@@ -170,6 +175,15 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
     await updateStatus(ctx, store());
   });
 
+  // Per-account usage: what each response already reported, filed under the current profile. No request is made and
+  // nothing is registered with Gentle Shell: its native usage panel is untouched.
+  pi.on("after_provider_response", (event, ctx) => {
+    const e = event as { headers?: Record<string, string> } | undefined;
+    if (!e?.headers) return;
+    const served = (ctx as { model?: { provider?: string } } | undefined)?.model?.provider;
+    captureUsage({ store: store(), settingsFile: settingsPath(context().sharedDir), headers: e.headers, servedProvider: served, now: Date.now() });
+  });
+
   pi.on("session_shutdown", () => {
     statusBar.stop();
   });
@@ -231,6 +245,18 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
         if (result.changed) await updateStatus(ctx, s);
         return;
       }
+      if (sub === "usage") {
+        const mode = args.trim().split(/\s+/).slice(1).join(" ");
+        const file = settingsPath(context().sharedDir);
+        if (mode === "all") return usageAll(ctx, s);
+        if (mode) {
+          const result = runUsageCommand(mode, file, "/gentle:accounts");
+          return notify(ctx, result.message, result.type);
+        }
+        if (!getUsageBox(file)) return notify(ctx, "Account usage box is disabled. Enable it with /gentle:accounts usage on.", "warning");
+        if (menuAvailable(ctx)) return showUsageBox(ctx, s);
+        return notify(ctx, renderUsageBox(buildUsageModel(s, Date.now()), 80).join("\n"));
+      }
       if (sub === "help" || sub === "--help") return notify(ctx, USAGE);
 
       if (sub === "menu" || !sub) {
@@ -243,6 +269,7 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
             } satisfies MenuFlows,
             refreshStatus: (c, st) => updateStatus(c, st),
             activeClaude: (st) => statusBar.cachedAccount(st),
+            openUsageAll: (c) => usageAll(c, s),
           });
         }
       }
@@ -260,4 +287,12 @@ export default function gentleProfiles(pi: ExtensionAPI, deps: ExtensionDeps = {
       await switchFlow({ ctx, store: s, liveAuthPath: liveAuthPath(), target, report: (m, t) => notify(ctx, m, t), refreshStatus: () => updateStatus(ctx, s) });
     },
   });
+
+  // Native usage first (it resolves when its overlay closes), then the account usage overlay.
+  async function usageAll(ctx: ExtensionCommandContext, s: ProfileStore): Promise<void> {
+    if (!getUsageBox(settingsPath(context().sharedDir))) return notify(ctx, "Account usage box is disabled. Enable it with /gentle:accounts usage on.", "warning");
+    if ((await openNativeUsage(pi)) === "unavailable") notify(ctx, NATIVE_USAGE_UNAVAILABLE_MESSAGE);
+    if (menuAvailable(ctx)) return showUsageBox(ctx, s);
+    return notify(ctx, renderUsageBox(buildUsageModel(s, Date.now()), 80).join("\n"));
+  }
 }

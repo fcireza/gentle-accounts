@@ -52,7 +52,7 @@ Los proveedores con clave de API siguen siendo globales; todo proveedor de cuent
 
 ## Comandos
 
-El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles y, con `→`, sus proveedores; `Enter` cambia o inicia sesión, `n` crea, `r` renombra, `d` borra, `s` fija el perfil de sesión, `e` alterna el correo, `x` cierra la sesión de un proveedor, `i` adopta un login detectado, `o` abre el proyecto con ese perfil en una pestaña y `Esc` cierra. En `fullscreen` también funcionan el mouse y la rueda.
+El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista los perfiles y, con `→`, sus proveedores; `Enter` cambia o inicia sesión, `n` crea, `r` renombra, `d` borra, `u` usa un perfil solo para este chat, `f` fija el perfil por defecto, `e` alterna el correo, `g` abre el cuadro de uso de las cuentas, `x` cierra la sesión de un proveedor, `i` adopta un login detectado, `o` abre el proyecto con ese perfil en una pestaña y `Esc` cierra. En `fullscreen` también funcionan el mouse y la rueda: cada pista de teclas es clicable y se ilumina bajo el puntero.
 
 | Comando | Qué hace |
 | --- | --- |
@@ -63,6 +63,7 @@ El menú de cuentas es la forma principal de usarlo: `/gentle:accounts` lista lo
 | `/gentle:accounts create <name>` | Crea un perfil vacío. |
 | `/gentle:accounts session [<name>\|last]` | Muestra, define o borra el perfil con el que empiezan las sesiones nuevas. |
 | `/gentle:accounts email [show\|hide]` | Muestra u oculta el correo completo en la barra de estado. |
+| `/gentle:accounts usage [on\|off]` | Abre la superposición `Account Usage` (lo que los proveedores de cada cuenta ya informaron), o la activa o desactiva. `usage all` abre primero el uso nativo `/gentle:usage` y, al cerrarlo, este panel (tecla `a` en el menú). |
 | `/gentle:accounts delete <name>` | Borra un perfil, con confirmación. |
 
 

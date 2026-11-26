@@ -49,7 +49,7 @@ export const SESSION_PROFILE_DELETE_MESSAGE = (name: string): string =>
   `Cannot delete the session profile "${name}". Set another one or clear it with "session last" first.`;
 
 /** Subcommands of `/gentle:accounts` and the CLI: a profile with one of these names could never be switched to by name. */
-export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "rename", "session", "startup", "email", "help"];
+export const RESERVED_NAMES: readonly string[] = ["menu", "list", "current", "create", "delete", "login", "rename", "session", "startup", "email", "usage", "help"];
 
 export const RESERVED_NAME_MESSAGE = (name: string): string =>
   `"${name}" is a reserved word (it is a subcommand). Pick another profile name.`;

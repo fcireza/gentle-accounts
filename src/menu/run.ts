@@ -6,7 +6,7 @@ import { loginEnv, runClaudeLoginHere, runCommandHere, type InheritResult, type 
 import { openInNewTab, type OpenTabResult, type TabCommand, type TabSpawn } from "../terminal.ts";
 import { PROVIDER_LABELS, runClaudeAuthLogout, type ClaudeAccount } from "../account.ts";
 import { claudeLoginCommand, loginHint } from "../login.ts";
-import { getShowEmail, runEmailCommand, settingsPath } from "../settings.ts";
+import { getShowEmail, getUsageBox, runEmailCommand, settingsPath } from "../settings.ts";
 import type { AgentContext } from "../session-home.ts";
 import { runStartupCommand, type ProfileStore } from "../store.ts";
 import { AccountsMenuPanel, type MenuAction } from "./panel.ts";
@@ -16,6 +16,8 @@ import { runOauthLogin, type OauthProvider, type LoginUi } from "../oauth-login.
 import { readAuthFile, writeAuthFile } from "../auth-sync.ts";
 import { isAuthLinked } from "../auth-link.ts";
 import { detectLogins } from "../detect.ts";
+import { UsageBoxPanel } from "../usage-panel.ts";
+import { buildUsageModel } from "../usage-view.ts";
 import { buildMenuModel, type Feedback, type FeedbackType } from "./view.ts";
 
 /**
@@ -86,6 +88,8 @@ export interface MenuDeps {
   /** Cached `claude auth status` result of the active profile (undefined: nothing cached). */
   activeClaude: (store: ProfileStore) => ClaudeAccount | null | undefined;
   flows: MenuFlows;
+  /** Opens the native usage, then the account usage (the menu has already closed). */
+  openUsageAll?: (ctx: ExtensionCommandContext) => Promise<void>;
   homeDir?: string;
   platform?: NodeJS.Platform;
   /** Working directory for the new tabs (default: the session cwd). */
@@ -173,6 +177,19 @@ export function menuOverlayOptions(getTerminal: () => unknown) {
   };
 }
 
+/** Opens the "Account Usage" overlay (read-only, files only) and resolves when it closes. */
+export async function showUsageBox(ctx: ExtensionCommandContext, store: ProfileStore, now: number = Date.now()): Promise<void> {
+  let tuiRef: { terminal?: unknown } | undefined;
+  const model = buildUsageModel(store, now);
+  await ctx.ui.custom<void>(
+    (tui, theme, _keybindings, done) => {
+      tuiRef = tui as { terminal?: unknown } | undefined;
+      return new UsageBoxPanel(model, theme, () => done(), { requestRender: () => (tui as { requestRender?: () => void } | undefined)?.requestRender?.() });
+    },
+    { overlay: true, overlayOptions: () => menuOverlayOptions(() => tuiRef?.terminal) },
+  );
+}
+
 /**
  * Caller loop: opens the panel, executes the tagged action with the existing store functions and reopens
  * the panel with a feedback line (notifications are hidden behind the overlay). Ends on close.
@@ -193,6 +210,7 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
       store: s,
       liveAuthPath,
       showEmail: getShowEmail(path),
+      usageBox: getUsageBox(path),
       sessionMode: session !== null,
       // Detection is for the global layout: a session home's auth.json is a private copy.
       loginProviders: loginProviders(ctx),
@@ -329,6 +347,17 @@ export async function runAccountsMenu(ctx: ExtensionCommandContext, deps: MenuDe
           if (result.changed) await deps.refreshStatus(ctx, s);
           break;
         }
+        case "usage":
+          // Only what was already seen; closing it reopens the menu on the same selection.
+          if (getUsageBox(path)) await showUsageBox(ctx, s);
+          break;
+        case "usageAll":
+          // The menu ends here, like `u` when it hands over: the native overlay opens on a closed menu.
+          if (getUsageBox(path)) {
+            await deps.openUsageAll?.(ctx);
+            return;
+          }
+          break;
         case "login": {
           if (action.provider === "claude") {
             const dir = s.claudeConfigEnv(action.profile);

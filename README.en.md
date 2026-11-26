@@ -50,7 +50,7 @@ API-key providers stay global; every account (OAuth) provider belongs to the pro
 
 ## Commands
 
-The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles and, with `→`, their providers; `Enter` switches or logs in, `n` creates, `r` renames, `d` deletes, `s` sets the session profile, `e` toggles the email, `x` logs a provider out, `i` adopts a detected login, `o` opens the project with that profile in a tab and `Esc` closes. In `fullscreen` the mouse and the wheel work too.
+The accounts menu is the main way to use it: `/gentle:accounts` lists the profiles and, with `→`, their providers; `Enter` switches or logs in, `n` creates, `r` renames, `d` deletes, `u` uses a profile for this chat only, `f` sets the default profile, `e` toggles the email, `g` opens the account usage box, `x` logs a provider out, `i` adopts a detected login, `o` opens the project with that profile in a tab and `Esc` closes. In `fullscreen` the mouse and the wheel work too: every key hint is clickable and lights up under the pointer.
 
 | Command | What it does |
 | --- | --- |
@@ -61,6 +61,7 @@ The accounts menu is the main way to use it: `/gentle:accounts` lists the profil
 | `/gentle:accounts create <name>` | Creates an empty profile. |
 | `/gentle:accounts session [<name>\|last]` | Shows, sets or clears the profile new sessions start on. |
 | `/gentle:accounts email [show\|hide]` | Shows or hides the full email in the status bar. |
+| `/gentle:accounts usage [on\|off]` | Opens the `Account Usage` overlay (what each account's providers already reported), or turns it on or off. `usage all` opens the native `/gentle:usage` first and this panel after it closes (key `a` in the menu). |
 | `/gentle:accounts delete <name>` | Deletes a profile, after a confirmation. |
 
 

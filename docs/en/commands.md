@@ -47,11 +47,13 @@ Opens the accounts menu, an overlay in the style of Gentle Shell's `/gentle:prof
 | `u` | Use session: this chat only uses the selected profile, without changing the other windows. Inside a session started with `gentle-accounts` it is that session's own switch. In a regular window, pi's agent folder is fixed at start, so the chat continues in `gentle-accounts <profile> --session <this chat>` in the same terminal (a private session home) and this window closes when it ends. It needs `gentle-accounts` on the `PATH`, waits for an idle turn needs a chat with a session file (not an ephemeral one), keeps this window open with a message if the launcher fails, and is not available on Windows yet. |
 | `f` | Default: set the selected profile as the default (session) profile `★`, or clear it when it already is. |
 | `e` | Toggle the email display (same messages as `email show` and `email hide`). |
+| `g` | Open the `Account Usage` overlay (see `/gentle:accounts usage`). Only while the usage box is enabled; the key hint `g usage` appears only then. Closing it returns to the menu on the same profile. |
+| `a` | Open the native `/gentle:usage` first and, when it closes, the `Account Usage` overlay (see `/gentle:accounts usage all`). The menu closes before the native usage opens and does not reopen. Only while the usage box is enabled; the key hint `a all usage` (short: `a usage+`) appears only then. |
 | `o` | Open this project with the selected profile in a new terminal tab. Only on a provider row with a login; the key hint `o open in tab` appears only there. |
 | `x` | Log the selected provider out of the profile (asks to confirm; removes its credentials from that profile only, the token is just forgotten on this machine). Only on a provider row with a login; for Claude it asks to confirm and runs `claude auth logout` with the profile's `CLAUDE_CONFIG_DIR`, and on the default folder that logs out every profile sharing it). |
 | `Esc` or `Ctrl+C` | Close. |
 
-Mouse, in `fullscreen` mode only (in the regular mode the terminal owns the mouse and the keyboard is the only way): moving the pointer over a row or a command hint highlights it (inside the open profile it follows the pointer; other profiles are selected with a click), a click selects the profile or provider under the pointer, a double click acts like `Enter`, and the wheel moves like `↑` `↓`. A click on a key hint (`n`, `r`, `d`, `u`, `e`, `i`, `o`, `x`, `esc`) does what pressing that key does; a click on `Account Default` or `Account Session` selects that profile, on `↑ N more` / `↓ N more` selects the neighbouring hidden profile, and on the detected-login line adopts it. Clicks on the frame and the rules do nothing.
+Mouse, in `fullscreen` mode only (in the regular mode the terminal owns the mouse and the keyboard is the only way): moving the pointer over a row or a command hint highlights it (inside the open profile it follows the pointer; other profiles are selected with a click), a click selects the profile or provider under the pointer, a double click acts like `Enter`, and the wheel moves like `↑` `↓`. A click on a key hint (`n`, `r`, `d`, `u`, `e`, `g`, `a`, `i`, `o`, `x`, `esc`) does what pressing that key does; a click on `Account Default` or `Account Session` selects that profile, on `↑ N more` / `↓ N more` selects the neighbouring hidden profile, and on the detected-login line adopts it. Clicks on the frame and the rules do nothing.
 
 Messages appear inside the menu, because notifications are hidden behind it.
 
@@ -72,6 +74,7 @@ Switches to `<name>`: saves the account credentials (Codex, Anthropic and any ot
 - Success: `Switched to profile "<name>". Claude Code dir: <dir>`, where `<dir>` is the profile's Claude folder or `(unset: Claude Code default)`.
 - Already active: `Already on profile "<name>".`
 - Invalid name: the invalid name message above (error).
+- Without a `<name>` (no arguments, or a first argument that starts with `-` other than `--help` and `-h`) and with `GENTLE_ACCOUNTS_PROFILE` set to a non-blank value, that profile is started and every argument goes to `gentle-shell`; an explicit `<name>` wins, and a blank value is ignored. This is for tools that start the agent for you, for example one pane per project.
 - Missing profile: `Profile "<name>" does not exist.` (error).
 - Agent busy: `Wait for the current turn to finish before switching profiles.` (warning). The idle check runs before anything is read or written, so nothing changes.
 - Unreadable credentials file: the error message, for example `Cannot parse <path>: <reason>` (error). Every file is read before any is written, so nothing changes.
@@ -100,7 +103,7 @@ Creates an empty profile: a `claude/` folder and an `auth.json` with no credenti
 - Success: `Created profile "<name>". Switch with /gentle:accounts <name>, then /login for Codex or Anthropic and /gentle:accounts login claude for Claude.`
 - Already exists: `Profile "<name>" already exists.` (error).
 - Invalid name: the invalid name message (error).
-- Reserved name (`menu`, `list`, `current`, `create`, `delete`, `login`, `rename`, `session`, `startup`, `email`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). These words are subcommands, so a profile with one of these names could not be switched to with `/gentle:accounts <name>`. A profile that already has such a name keeps working from the menu and the picker. `session` and `rename` became reserved words in this version: a profile you had already created with one of those names stays on disk, but it can no longer be switched to by name. `rename` still accepts it as the old name, for example `/gentle:accounts rename session work`.
+- Reserved name (`menu`, `list`, `current`, `create`, `delete`, `login`, `rename`, `session`, `startup`, `email`, `usage`, `help`): `"<name>" is a reserved word (it is a subcommand). Pick another profile name.` (error). These words are subcommands, so a profile with one of these names could not be switched to with `/gentle:accounts <name>`. A profile that already has such a name keeps working from the menu and the picker. `session` and `rename` became reserved words in this version: a profile you had already created with one of those names stays on disk, but it can no longer be switched to by name. `rename` still accepts it as the old name, for example `/gentle:accounts rename session work`.
 - No name: the usage text (warning).
 
 ### `/gentle:accounts delete <name>`
@@ -172,6 +175,22 @@ After `show` or `hide` the status bar is refreshed right away. The setting is gl
 
 Warning: with `show`, anyone who sees your screen can read the full address, including screen shares, screenshots and recordings.
 
+### `/gentle:accounts usage [on|off]`
+
+Opens the `Account Usage` overlay: a framed panel, in the same style as the accounts menu, with one block per profile. `●` marks the profile this session uses and `○` the others. Under each profile there is one row per provider that has reported usage (provider name, plan when known, and `updated <time> ago`) and, for each window (`5h`, `week`...), a 10-cell meter, the percent used and when it resets. A profile with nothing yet shows `no usage seen yet`. It closes with `Esc`, `Enter`, `Ctrl+C` or a click on `esc close`. Without the TUI the same box is printed as plain text.
+
+It only shows usage that was already seen: whenever the active account's Anthropic or Codex response reports its rate limits, the numbers (percent used, window label, reset time and the time they were seen) are saved in that profile's folder as `usage.json`. It makes no request of its own and never reads or stores a token or the headers, so usage arrives only while that account is the active one, and a profile you have not used since shows `no usage seen yet` or the last numbers it saw. Deleting a profile deletes them and renaming it moves them. Gentle Shell's own `/gentle:usage` panel is not changed in any way: this box is a separate overlay and the native usage stays as it is.
+
+- `/gentle:accounts usage`: opens the overlay.
+- `/gentle:accounts usage all`: opens the native `/gentle:usage` first and, once it closes, the `Account Usage` overlay: one flow, nothing of Gentle Shell is changed. If the native usage is not available it opens only the overlay and shows `Native Gentle Shell usage is not available; showing the account usage only.` (info). While the box is disabled it shows the disabled warning below and opens nothing.
+- `/gentle:accounts usage off`: disables the box and shows `Account usage box disabled. The native Gentle Shell usage is unchanged.` Nothing is captured while it is disabled, and the menu hides the `g usage` hint and key.
+- `/gentle:accounts usage on`: enables it and shows `Account usage box enabled.`
+- While disabled, `/gentle:accounts usage` shows `Account usage box is disabled. Enable it with /gentle:accounts usage on.` (warning).
+- Any other argument: `Usage: /gentle:accounts usage [on|off]` (warning). Nothing changes.
+- Settings file cannot be written: `Could not save the account usage setting (<code>).` (error). Nothing changes.
+
+The setting is the key `usageBox` of `profiles/settings.json` (see [How it works](how-it-works.md)); it is enabled by default.
+
 ### `/gentle:accounts help`
 
 `help` and `--help` show the usage text:
@@ -188,6 +207,8 @@ Warning: with `show`, anyone who sees your screen can read the full address, inc
 /gentle:accounts login claude    show the command that logs the active profile into Claude Code
 /gentle:accounts session [<name>|last]  show, set or clear the profile new sessions start on (alias: startup)
 /gentle:accounts email [show|hide]      show or set whether the status bar shows the full email
+/gentle:accounts usage [on|off]         open the per-account usage box, or turn it on or off
+/gentle:accounts usage all              open the native usage, then the per-account usage box
 ```
 
 ### Extension hooks
@@ -195,6 +216,7 @@ Warning: with `show`, anyone who sees your screen can read the full address, inc
 Besides the command, the extension registers:
 
 - **Session start**: creates `default` when no profile is active, otherwise sets `CLAUDE_CONFIG_DIR` for the active profile unless the environment already sets it; then, if a session profile is set and is not the active one, switches to it and shows `Started on profile "<name>" (session profile).` (never in a session started by the launcher); starts a 60 s status refresh timer and shows the status. If a credentials file cannot be read it shows `gentle-accounts: <message>` (error) and continues.
+- **Provider response**: while the usage box is enabled, saves the rate limits the response reported under the active profile (see `/gentle:accounts usage`).
 - **Agent end**: refreshes the status after every agent turn.
 - **Session shutdown**: stops the 60 s timer.
 
@@ -213,13 +235,16 @@ The optional launcher (`bin/gentle-accounts.mjs`). It needs Node 22.18 or newer;
 | `gentle-accounts login <name>` | runs `claude auth login` | exit code of `claude`, or 1 on error |
 | `gentle-accounts session [<name>\|last]` | shows, sets or clears the session profile | 0, or 1 on error |
 | `gentle-accounts email [show\|hide]` | shows or sets the email display | 0, or 1 on a usage error |
+| `gentle-accounts usage [on\|off]` | shows or sets the account usage box | 0, or 1 on a usage error |
 | `gentle-accounts <name> [args...]` | starts `gentle-shell` | exit code of `gentle-shell`, or 1 on error |
+| `gentle-accounts [args...]` with `GENTLE_ACCOUNTS_PROFILE` set | same, on the profile named by the variable | exit code of `gentle-shell`, or 1 on error |
 
 Usage text:
 
 ```
 Usage:
   gentle-accounts <name> [gentle-shell args...]   start gentle-shell with profile <name>
+  gentle-accounts [gentle-shell args...]          same, with the profile named by $GENTLE_ACCOUNTS_PROFILE
   gentle-accounts list                            list profiles (* marks the active one)
   gentle-accounts current                         print the active profile
   gentle-accounts create <name>                   create an empty profile
@@ -227,6 +252,7 @@ Usage:
   gentle-accounts login <name>                    run `claude auth login` for that profile's Claude dir
   gentle-accounts session [<name>|last]           show, set or clear the profile new sessions start on (alias: startup)
   gentle-accounts email [show|hide]               show or set whether the status bar shows the full email
+  gentle-accounts usage [on|off]                  show or set the per-account usage box of the accounts overlay
   gentle-accounts --help                          show this help
 ```
 
@@ -269,6 +295,10 @@ gentle-accounts email show   # full email in the status bar
 gentle-accounts email        # show the current value
 gentle-accounts email hide   # back to hiding the email
 ```
+
+### `gentle-accounts usage [on|off]`
+
+Same as `/gentle:accounts usage on` and `off`, with the same messages, on stdout with exit code 0. Without an argument it prints `Account usage box: enabled` or `Account usage box: disabled`. Any other argument prints `Usage: gentle-accounts usage [on|off]` on stderr and exits with 1; a settings file that cannot be written prints `Could not save the account usage setting (<code>).` on stderr and exits with 1.
 
 ### `gentle-accounts <name> [args...]`
 

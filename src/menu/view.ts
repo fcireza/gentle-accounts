@@ -147,11 +147,14 @@ function bodyLines(model: MenuModel, inner: number, theme: MenuTheme): { lines: 
   type Hint = [string, string];
   const open: Hint[] = canOpen ? [["o", compact ? "open" : "open in tab"]] : [];
   const logout: Hint[] = canOpen ? [["x", "logout"]] : [];
+  const usage: Hint[] = model.usageBox === true ? [["g", "usage"]] : [];
+  const usageAll: Hint[] = model.usageBox === true ? [["a", "all usage"]] : [];
+  const usageAllShort: Hint[] = model.usageBox === true ? [["a", "usage+"]] : [];
   const adopt: Hint[] = (model.detected ?? []).length ? [["i", "adopt"]] : [];
   const hints: Hint[][] = compact
-    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["u", "use"], ["f", "default"], ["e", "email"]], [...adopt, ...open, ...logout, ["esc", "close"]]]
-    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["u", "use session"], ["f", "default"]], [["e", "email"], ...adopt, ...open, ...logout, ["esc", "close"]]];
-  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["u", "session"], ["f", "default"], ["e", "email"], ...adopt, ...open.map(([k]): Hint => [k, "open"]), ...logout, ["esc", "close"]];
+    ? [[["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"]], [["n", "new"], ["r", "rename"], ["d", "del"]], [["u", "use"], ["f", "default"], ["e", "email"], ...usage, ...usageAllShort], [...adopt, ...open, ...logout, ["esc", "close"]]]
+    : [[["↑↓", "profile"], ["→←", "providers"], ["enter", "select"]], [["n", "new"], ["r", "rename"], ["d", "delete"], ["u", "use session"], ["f", "default"]], [["e", "email"], ...usage, ...usageAll, ...adopt, ...open, ...logout, ["esc", "close"]]];
+  const short: Hint[] = [["↑↓", "profile"], ["→←", "providers"], ["⏎", "ok"], ["n", "new"], ["r", "rename"], ["d", "del"], ["u", "session"], ["f", "default"], ["e", "email"], ...usage, ...usageAllShort, ...adopt, ...open.map(([k]): Hint => [k, "open"]), ...logout, ["esc", "close"]];
   add(theme.fg("borderAccent", "─".repeat(inner)));
   // Draws one line of hints and makes each pressable hint (key and text) clickable.
   const render = (line: Hint[], gap: string): string => {
