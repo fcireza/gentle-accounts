@@ -64,13 +64,14 @@ Consulte [Instalación](install.md) para instalar el clon con `pi install`.
 
 ## Tag y Release en cada merge
 
-Cada merge a `main` ejecuta `.github/workflows/release.yml`, que crea un tag `vX.Y.Z` y una GitHub Release con notas generadas. No hay PR de release ni token que configurar: el workflow usa el `GITHUB_TOKEN` predeterminado con `contents: write`.
+Cada merge a `main` ejecuta `.github/workflows/release.yml`, que crea un tag `vX.Y.Z` y una GitHub Release con notas generadas. No hay PR de release: el workflow usa el `GITHUB_TOKEN` predeterminado con `contents: write` para el tag y la release, y publica la versión etiquetada en npm con el secret de repositorio `NPM_TOKEN`.
 
 - Las releases se ejecutan de a una y nunca se cancelan a mitad de camino.
 - El checkout usa el historial completo y los tags. `scripts/next-version.ts` rechaza un clon superficial con `next-version: shallow clone detected; fetch the full history and tags (checkout with fetch-depth: 0)`, porque sin los tags daría `0.1.0` en silencio.
 - Un commit que ya tiene tag se omite, así que volver a ejecutar el workflow es seguro.
 - La siguiente versión sale del último tag `vX.Y.Z` alcanzable y del mensaje del commit fusionado; el texto del commit nunca se inserta en un script de shell. Sin ningún tag, la primera release es `0.1.0`.
 - La release se crea con `gh release create` y `--generate-notes`.
+- El paso de publicación en npm pone la versión del tag en `package.json` solo dentro del runner (no se commitea nada), se omite con una advertencia si falta `NPM_TOKEN`, y no hace nada si esa versión ya está en npm. `NPM_TOKEN` es un token granular de npm con permiso de escritura sobre el paquete y bypass de 2FA.
 
 Para ver la versión que obtendría la próxima release:
 
@@ -80,7 +81,7 @@ node scripts/next-version.ts
 
 El cuerpo del PR también cuenta: una línea que empieza con `BREAKING CHANGE:` aumenta la versión, aunque solo se esté citando.
 
-El campo `version` de `package.json` no se reescribe en `main` (los push directos están bloqueados); el tag es la fuente de verdad.
+El campo `version` de `package.json` no se reescribe en `main` (los push directos están bloqueados); el tag es la fuente de verdad y el paquete de npm recibe esa versión al publicarse.
 
 ## Protección de ramas
 
