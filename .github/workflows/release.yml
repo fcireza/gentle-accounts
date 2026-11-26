@@ -45,18 +45,19 @@ jobs:
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::warning::NPM_TOKEN is not set; skipping npm publish."
             exit 0
           fi
-          # The release step tags HEAD; a re-run finds the same tag.
-          TAG="$(git tag --points-at HEAD --list 'v[0-9]*' | head -n 1)"
-          if [ -z "$TAG" ]; then
+          # First run: output of the release step (its tag only exists on the
+          # remote). A re-run skips tagging and reads the tag the checkout fetched.
+          VERSION="${RELEASE_VERSION:-$(git tag --points-at HEAD --list 'v[0-9]*' | head -n 1 | sed 's/^v//')}"
+          if [ -z "$VERSION" ]; then
             echo "::error::HEAD has no vX.Y.Z tag; nothing to publish."
             exit 1
           fi
-          VERSION="${TAG#v}"
           NAME="$(node -p "require('./package.json').name")"
           # Idempotent: a re-run after a successful publish is a no-op.
           if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
